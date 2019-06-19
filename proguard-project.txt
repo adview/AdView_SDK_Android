@@ -1,0 +1,185 @@
+# To enable ProGuard in your project, edit project.properties
+# to define the proguard.config property as described in that file.
+#
+# Add project specific ProGuard rules here.
+# By default, the flags in this file are appended to flags specified
+# in ${sdk.dir}/tools/proguard/proguard-android.txt
+# You can edit the include path and order by changing the ProGuard
+# include property in project.properties.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+# Add any project specific keep options here:
+
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
+
+-keep class com.qq.e.** {
+    public protected *;
+}
+
+-keep class android.support.v4.**{ *;}
+
+-dontwarn com.androidquery.**
+-dontwarn com.ss.**
+-dontwarn com.tencent.**
+
+-dontnote com.bytedance.**
+-dontnote com.tencent.**
+-dontnote com.baidu.**
+
+#-keep class com.androidquery.** { *;}
+#-keepclasseswithmembers class * {
+#    native <methods>;
+#}
+
+-overloadaggressively
+-useuniqueclassmembernames
+-keepattributes InnerClasses
+-keepparameternames
+-renamesourcefileattribute SourceFile
+-dontoptimize
+#loader
+-keep public class com.kuaiyou.loader.**
+-keep public class com.kuaiyou.loader.* {
+     <fields>;
+     <methods>;
+}
+
+-keep public class com.kuaiyou.loader.loaderInterface.**
+-keep public class com.kuaiyou.loader.loaderInterface.* {
+    <fields>;
+    <methods>;
+}
+
+#-keep public interface com.kuaiyou.interfaces.** 
+#-keep public interface com.kuaiyou.interfaces.* {
+#    <fields>;
+#    <methods>;
+#}
+
+# Keep - Library. Keep all public and protected classes, fields, and methods.
+-keep public class com.kuaiyou.interfaces.OnAdViewListener {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.interfaces.OnAdListener {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.adbid.AdInstlBIDView {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.adbid.AdBannerBIDView {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.adbid.AdSpreadBIDView {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.adbid.AdVideoBIDView {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.adbid.AdNativeBIDView {
+    <fields>;
+    <methods>;
+}
+
+
+-keep public class com.kuaiyou.utils.AdViewUtils {
+    <fields>;
+    <methods>;
+}
+-keep public class com.kuaiyou.utils.ConstantValues {
+    <fields>;
+}
+
+-keep public class com.kuaiyou.utils.MD5Utils {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.video.AdViewVideoInterface {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.interfaces.NativeAdCallBack {
+    <fields>;
+    <methods>;
+}
+
+#activity & service
+-keep public class com.kuaiyou.video.AdViewVideoActivity {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.utils.DownloadService {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.utils.AdViewLandingPage {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.utils.AdActivity {
+    <fields>;
+    <methods>;
+}
+
+#vast
+-keep public class com.kuaiyou.video.vast.model.** {
+    <fields>;
+    <methods>;
+}
+
+#mraid
+-keep public class com.kuaiyou.mraid.MRAIDView$*
+#    public protected <fields>;
+-keep public class com.kuaiyou.mraid.MRAIDView{
+    <fields>;
+    <methods>;
+}
+
+
+#ads Bean for native output
+-keep class com.kuaiyou.obj.AdsBean {
+    <fields>;
+    <methods>;
+}
+
+-keep class com.kuaiyou.obj.RetAdBean {
+    <fields>;
+    <methods>;
+}
+
+# Keep names - Native method names. Keep all native class/method names.
+-keepclasseswithmembers,allowshrinking class * {
+    native <methods>;
+}
+
+# Keep names - _class method names. Keep all .class method names. This may be
+# useful for libraries that will be obfuscated again with different obfuscators.
+-keepclassmembers,allowshrinking class * {
+    java.lang.Class class$(java.lang.String);
+    java.lang.Class class$(java.lang.String,boolean);
+}
+
+
