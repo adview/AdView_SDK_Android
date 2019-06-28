@@ -10,7 +10,7 @@ You can find [integration documentation](https://github.com/adview/AdView_SDK_An
 
 ## News in this Version
   - Added VPAID support for vast video mode.
-  - GDPR parameters can be used
+  - GDPR parameters can be used.
   - Use Google Advertising ID instead of IMEI.
   - New framework for all ads uplink process.
 
