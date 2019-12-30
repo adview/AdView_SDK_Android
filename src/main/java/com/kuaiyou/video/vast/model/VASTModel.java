@@ -26,9 +26,9 @@ import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 
 import com.kuaiyou.obj.ExtensionBean;
+import com.kuaiyou.obj.ExtensionOMSDKBean;
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.XmlTools;
-import com.qq.e.comm.util.StringUtil;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
@@ -53,7 +53,7 @@ public class VASTModel implements Serializable {
     private ArrayList<VASTCompanionAd> vastCompanionAds = new ArrayList<VASTCompanionAd>();
     //private ArrayList<VASTNonLinear> vastNonLinears = new ArrayList<VASTNonLinear>(); //wilder 2019
     private ExtensionBean extensionBean;
-
+    private ExtensionOMSDKBean extOMSDKBean;
     // Videoclicks xpath expression
     private static final String impressionXPATH = "//Impression";
 
@@ -81,7 +81,10 @@ public class VASTModel implements Serializable {
             vastCreativesList = getInlineCreatives(false);
             hasSequence = false;
         }
+        //extensions 和creative平级
         getExtensions();
+        //omsdk v1.2
+        getOMSDKExtensions();
     }
 
     public Document getVastsDocument() {
@@ -122,7 +125,7 @@ public class VASTModel implements Serializable {
                     creative = new VASTCreative();
                     node = nodes.item(i);
                     // 解析creative的所有属性
-                    parseBean(creative, node);
+                    parseBeanAttibutes(creative, node);
                     // 获取creative的所有子节点
                     childList = node.getChildNodes();
                     if (null != childList) {
@@ -143,10 +146,7 @@ public class VASTModel implements Serializable {
                                         getDuration(mediaNode, creative);
                                     } else if (mediaNode.getNodeName()
                                             .equalsIgnoreCase("MediaFiles")) {
-
-                                        NodeList mediaFilesNode = mediaNode
-                                                .getChildNodes();
-
+                                        NodeList mediaFilesNode = mediaNode.getChildNodes();
                                         // 获取MediaFiles节点数据
                                         getMediaFiles(mediaFilesNode, creative);
                                     } else if (mediaNode.getNodeName()
@@ -242,7 +242,7 @@ public class VASTModel implements Serializable {
     }
 
 
-    private Object parseBean(Object object, Node node) {
+    private Object parseBeanAttibutes(Object object, Node node) {
         try {
             NamedNodeMap attributes = node.getAttributes();
             if (null == attributes)
@@ -388,17 +388,13 @@ public class VASTModel implements Serializable {
                         continue;
                     Field[] fields = mediaFile.getClass().getDeclaredFields();
                     for (Field field : fields) {
-                        attributeNode = attributes
-                                .getNamedItem(field.getName());
-                        if (null != attributeNode
-                                && !TextUtils.isEmpty(attributeNode
-                                .getNodeValue())) {
+                        attributeNode = attributes.getNamedItem(field.getName());
+                        if (null != attributeNode && !TextUtils.isEmpty(attributeNode.getNodeValue())) {
                             String value = attributeNode.getNodeValue();
                             setValue(
                                     mediaFile,
                                     field.getName(),
-                                    getValueByType(mediaFile, field.getName(),
-                                            value));
+                                    getValueByType(mediaFile, field.getName(),value));
                         }
                     }
                     mediaURL = XmlTools.getElementValue(node);
@@ -582,7 +578,6 @@ public class VASTModel implements Serializable {
         creative.setVastIcons(iconClickList);
     }
 
-
     private ExtensionBean getExtensions() {
         //(wilder 2019)always means final page in vast
         AdViewUtils.logInfo("getExtensions");
@@ -594,6 +589,7 @@ public class VASTModel implements Serializable {
             if (nodes != null) {
                 if (nodes.getLength() == 0)
                     return null;
+
                 extensionBean = new ExtensionBean();
                 boolean isValidExtension = false;
                 for (int i = 0; i < nodes.getLength(); i++) {
@@ -656,6 +652,104 @@ public class VASTModel implements Serializable {
         return extensionBean;
     }
 
+    //omsdk v1.2
+    private void getOMSDKExtensions() {
+        //(wilder 2019)always means final page in vast
+        AdViewUtils.logInfo("=== getOMSDKExtensions===");
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        boolean isOMID = false;
+        try {
+            NodeList nodes = (NodeList) xpath.evaluate(extendsionXPATH, vastsDocument, XPathConstants.NODESET);
+            Node node;
+            if (nodes != null) {
+                if (nodes.getLength() == 0)
+                    return;
+                extOMSDKBean = new ExtensionOMSDKBean();
+                boolean isValidExtension = false;
+                //<extension>
+                for (int i = 0; i < nodes.getLength(); i++) {
+                    node = nodes.item(i);
+                    Node typeNode = node.getAttributes().getNamedItem("type");
+                    if (null != typeNode && typeNode.getNodeValue().equalsIgnoreCase("AdVerifications")) {
+                        //companionAds.setValueType(typeNode.getNodeValue());
+                        isValidExtension = true;
+                        NodeList childNodes = node.getChildNodes();
+                        //<AdVerifications> start
+                        for (int childIndex = 0; childIndex < childNodes.getLength(); childIndex++) {
+                            Node cchildNode = childNodes.item(childIndex); //
+                            NodeList childVerifications = cchildNode.getChildNodes();
+                            //<Verification> start
+                            for (int vindex = 0; vindex < childVerifications.getLength(); vindex++) {
+                                Node veriNode = childVerifications.item(vindex);
+                                if (veriNode.getNodeName().equalsIgnoreCase("Verification")) {
+                                    String value = null;
+                                    Node vVendorAttrNode = veriNode.getAttributes().getNamedItem("vendor");
+                                    if (null != vVendorAttrNode) {
+                                        value = vVendorAttrNode.getNodeValue();
+                                        extOMSDKBean.setOmsdkVendor(value);
+                                    }else {
+                                        //If this value is not provided, no
+                                        //verificationParameters will be provided in
+                                        //the data of the sessionStart event.
+                                        continue;
+                                    }
+                                    NodeList childsInVeri = veriNode.getChildNodes();
+                                    //childs in <verification>
+                                    for (int cvIndex = 0; cvIndex < childsInVeri.getLength(); cvIndex++) {
+                                        Node childInVeri = childsInVeri.item(cvIndex);
+                                        if (childInVeri.getNodeName().equalsIgnoreCase("JavaScriptResource")) {
+                                            NamedNodeMap jsrAttrs = childInVeri.getAttributes();
+                                            if (null == jsrAttrs)
+                                                continue;
+                                            Node jsrAttr = jsrAttrs.getNamedItem("apiFramework");
+                                            if (null != jsrAttr) {
+                                                //omsdk_Url = childInVeri.getNodeValue();
+                                                value = XmlTools.getElementValue(childInVeri);
+                                                extOMSDKBean.setOmsdkUrl(value);
+                                            }
+                                        }else if (childInVeri.getNodeName().equalsIgnoreCase("TrackingEvents")) {
+                                            NodeList trackingNodes = childInVeri.getChildNodes();
+                                            //<tracking> start
+                                            for (int iTrackIndex = 0 ; iTrackIndex< trackingNodes.getLength(); iTrackIndex++) {
+                                                NamedNodeMap trackingAttrs = trackingNodes.item(iTrackIndex).getAttributes();
+                                                if (null != trackingAttrs) {
+                                                    Node attrEvent = trackingAttrs.getNamedItem("event");
+                                                    if (null != attrEvent) {
+                                                        String trackingType = attrEvent.getNodeValue();
+                                                        extOMSDKBean.setOmsdkTrackingType(trackingType);
+                                                        String trackingURL = XmlTools.getElementValue(trackingNodes.item(iTrackIndex));
+                                                        extOMSDKBean.setOmsdkTrackingURL(trackingURL);
+                                                        AdViewUtils.logInfo("=== type (" + trackingType + "),url(" + trackingURL + ")===");
+                                                    }
+                                                }
+                                            }//<tracking> ends
+                                        }else if (childInVeri.getNodeName().equalsIgnoreCase("VerificationParameters")) {
+                                            //(wilder 2019) getnodevalue can not get element's value, it can only used for attr etc.
+                                            //omsdk_Parameters = childInVeri.getNodeValue();
+                                            value = XmlTools.getElementValue(childInVeri);
+                                            extOMSDKBean.setOmsdkParameters(value);
+                                        }
+                                    }   //childs in <verification> ends
+                                }
+                            }//<Verification> ends
+                        } //<AdVerifications> ends
+                    }
+                } //<extension> ends
+                //wilder 2019 for extensions from none wrapper cases
+                if (!isValidExtension) {
+
+                }else {
+                    AdViewUtils.logInfo("============ getOMSDKExtensions: got extensions !!!!  ============");
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ;
+        }
+        return;
+    }
+
     private void getCompanions(NodeList nodes) {
         AdViewUtils.logInfo("getCompanionClicks");
         CompanionClicks companionClicks = new CompanionClicks();
@@ -664,11 +758,13 @@ public class VASTModel implements Serializable {
             if (nodes != null) {
                 for (int i = 0; i < nodes.getLength(); i++) {
                     node = nodes.item(i);
-                    VASTCompanionAd companionAds = new VASTCompanionAd();
+                    VASTCompanionAd companionAd = new VASTCompanionAd();
                     Node child;
                     String value;
                     NodeList childNodes = node.getChildNodes();
-                    parseBean(companionAds, node);
+                    parseBeanAttibutes(companionAd, node); //对节点的属性进行解析并填充VASTCompanionAd
+                    //int width = companionAds.getWidth().intValue();
+                    //int height = companionAds.getHeight().intValue();
                     for (int childIndex = 0; childIndex < childNodes.getLength(); childIndex++) {
 
                         child = childNodes.item(childIndex);
@@ -683,25 +779,25 @@ public class VASTModel implements Serializable {
                         } else if (nodeName.equalsIgnoreCase("StaticResource")) {
                             Node typeNode = child.getAttributes().getNamedItem("type");
                             if (null != typeNode) {
-                                companionAds.setValueType(typeNode.getNodeValue());
+                                companionAd.setValueType(typeNode.getNodeValue());
                             }else {
                                 //wilder 2019 , here should add "creativeType", if no type, ths node will be
                                 //deleted by video picker, see prefilterCompanions() in DefaultMediaPicker.java
                                 typeNode = child.getAttributes().getNamedItem("creativeType");
                                 if (null != typeNode) {
-                                    companionAds.setValueType(typeNode.getNodeValue());
+                                    companionAd.setValueType(typeNode.getNodeValue());
                                 }
 
                             }
                             value = XmlTools.getElementValue(child);
-                            companionAds.setStaticValue(value);
+                            companionAd.setStaticValue(value);
 
                         } else if (nodeName.equalsIgnoreCase("HTMLResource")) {
                             value = XmlTools.getElementValue(child);
-                            companionAds.setHtmlValue(value);
+                            companionAd.setHtmlValue(value);
                         } else if (nodeName.equalsIgnoreCase("IFrameResource")) {
                             value = XmlTools.getElementValue(child);
-                            companionAds.setiFrameValue(value);
+                            companionAd.setiFrameValue(value);
                         } else if (nodeName.equalsIgnoreCase("TrackingEvents")) {
                             NodeList childChildNodeLis = child.getChildNodes();
                             for (int x = 0; x < childChildNodeLis.getLength(); x++) {
@@ -719,10 +815,10 @@ public class VASTModel implements Serializable {
                                 }
                             }
                         }
-                        companionAds.setCompanionClicks(companionClicks);
+                        companionAd.setCompanionClicks(companionClicks);
                     }
                     if (childNodes.getLength() > 0) {
-                        vastCompanionAds.add(companionAds);
+                        vastCompanionAds.add(companionAd);
                     }
                 }
             }
@@ -749,7 +845,7 @@ public class VASTModel implements Serializable {
                     String value;
                     NodeList childNodes = node.getChildNodes();
                     //parse fill attributes of NonLinear node
-                    parseBean(nonLinearAd, node);
+                    parseBeanAttibutes(nonLinearAd, node);
                     //child nodes in NonLinear node
                     for (int childIndex = 0; childIndex < childNodes.getLength(); childIndex++) {
 
@@ -945,40 +1041,14 @@ public class VASTModel implements Serializable {
         AdViewUtils.logInfo("done reading");
     }
 
-//    public String getPickedMediaFileURL() {
-//        return pickedMediaFileURL;
-//    }
-//
-//    public void setPickedMediaFileURL(String pickedMediaFileURL) {
-//        this.pickedMediaFileURL = pickedMediaFileURL;
-//    }
-//
-//    public  void setPickedMediaFileType(String type){
-//        this.pickedVideoType=type;
-//    }
-//    public String getPickedMeidaFileType(){
-//        return pickedVideoType;
-//    }
-//
-//    public int getVideoWidth() {
-//        return videoWidth;
-//    }
-//
-//    public void setVideoWidth(int videoWidth) {
-//        this.videoWidth = videoWidth;
-//    }
-//
-//    public int getVideoHeight() {
-//        return videoHeight;
-//    }
-//
-//    public void setVideoHeight(int videoHeight) {
-//        this.videoHeight = videoHeight;
-//    }
-
 
     public ExtensionBean getExtensionBean() {
         return extensionBean;
+    }
+
+    //omsdk v1.2
+    public ExtensionOMSDKBean getExtOMSDKBean() {
+        return extOMSDKBean;
     }
 
     public boolean isVaild() {

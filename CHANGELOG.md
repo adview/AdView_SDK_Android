@@ -1,5 +1,10 @@
-## Version 4.0.0 (June 13, 2019)
+## Version 4.0.0 (June 26, 2019)
   - Added VPAID support for vast video mode.
   - GDPR parameters can be used.
-  - Use Google Advertising ID instead of IMEI.
-  - New framework for all ads uplink process.
+  - Refactoring the interface to make it easy to use.
+
+## Version 4.1.5 (December 30, 2019)
+  - OMSDK integrated.
+  - CCPA is supported.
+  - Endcard is supported for rewarded video.
+  - The acquisition of unnecessary permissions is deleted to ensure security.

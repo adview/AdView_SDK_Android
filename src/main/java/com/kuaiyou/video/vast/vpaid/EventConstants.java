@@ -18,5 +18,8 @@ public class EventConstants {
     public static final String ERROR = "error";  //wilder 2019
     public static final String SELF_CLOSE = "selfClose"; //wilder 2019
     public static final String VOLUME = "volume";
+    public static final String CLICK_THR = "clickThrough"; //wilder 2019
+    public static final String MINIMIZE = "minimize"; //for omsdk
+    public static final String EXPANDED_CHANGE = "ExpandedChange"; //for omsdk
 
 }

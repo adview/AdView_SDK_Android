@@ -35,6 +35,9 @@ import java.util.concurrent.Executors;
 
 public class VASTPlayer {
 
+    //wilder 2019 test function
+    private boolean selfTestMode_VastPlayer = false; //test vast format PDU
+
     // errors that can be returned in the vastError callback method of the
     // VASTPlayerListener
     public static final int ERROR_NONE = 0;
@@ -45,9 +48,6 @@ public class VASTPlayer {
     public static final int ERROR_POST_VALIDATION = 5;
     public static final int ERROR_EXCEEDED_WRAPPER_LIMIT = 6;
     public static final int ERROR_VIDEO_PLAYBACK = 7;
-
-    //wilder 2019 test function
-    private boolean selfTestMode_VastPlayer = false; //test vast format PDU
 
     public static ExecutorService executorService;
 
@@ -114,7 +114,7 @@ public class VASTPlayer {
     }
 
     public void loadVideoWithData(final String xmlData) {
-        AdViewUtils.logInfo("loadVideoWithData\n" + xmlData);
+        AdViewUtils.logInfo("====== VastPlayer:: loadVideoWithData  ======"/* + xmlData*/);
         if (AdViewUtils.isConnectInternet(context)) {
             (new Thread(new Runnable() {
                 @Override
@@ -126,7 +126,10 @@ public class VASTPlayer {
                         int error;
                         if (selfTestMode_VastPlayer) {
                             //String testDat = test_loadVASTXML("/assets/test/VAST-test1.xml");//VAST-test1.xml,VPAID-video-sample-1.xml
-                            String testDat = AdViewUtils.loadAssetsFile("/test/VAST-test1.xml");
+                            //vpaid-xfinity-0001.xml, [omsdk]vast-video-00001.txt, [omsdk]VPAID-innovid-tv-https.xml (要vpn)
+                            //[omsdk]VPAID-video-adview-sample-001.xml
+                            //String testDat = AdViewUtils.loadAssetsFileByContext("test/[omsdk]VPAID-video-adview-sample-001.xml",context );
+                            String testDat = AdViewUtils.loadAssetsFile("test/VAST-0830-vast_tag.xml"); //[omsdk-ok]omsdk-videoData.xml
                             error = processor.process(testDat);
                         } else {
                             //end wilder 2019
@@ -252,14 +255,14 @@ public class VASTPlayer {
             String time[] = null;
             File filePath = new File(ConstantValues.DOWNLOAD_VIDEO_PATH + name);
             String valueStr = (String) SharedPreferencesUtils.getSharedPreferenceValue(context,
-                    ConstantValues.SP_VIDEO_NAME, name);
+                    ConstantValues.SP_VIDEO_NAME_FILE, name);
             if (null == valueStr)
                 return DownloadRunnable.DOWNLOAD_STATUS_READY;
             time = valueStr.split("_");
             if (filePath.exists() && filePath.length() == size) {
                 if (null != time && !TextUtils.isEmpty(time[0]) && System.currentTimeMillis() - Long.valueOf(time[0]) > 30 * 60 * 1000) {
                     filePath.delete();
-                    SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, url);
+                    SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, url);
                     return DownloadRunnable.DOWNLOAD_STATUS_READY;
                 }
                 return DownloadRunnable.DOWNLOAD_STATUS_EXIST;
@@ -268,8 +271,8 @@ public class VASTPlayer {
                     return DownloadRunnable.DOWNLOAD_STATUS_PROGRESS;
                 else {
                     if (filePath.delete()) {
-                        SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, url);
-                        SharedPreferencesUtils.minusSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, "total_size", size);
+                        SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, url);
+                        SharedPreferencesUtils.minusSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, "total_size", size);
                         return DownloadRunnable.DOWNLOAD_STATUS_READY;
                     } else
                         return DownloadRunnable.DOWNLOAD_STATUS_ERROR;
@@ -312,11 +315,11 @@ public class VASTPlayer {
         try {
             totalSize = getFileSizes(cachePath);
             AdViewUtils.logInfo("totalSize=" + totalSize);
-            if (size >= ConstantValues.VIDEOCACHESIZE) {
+            if (size >= ConstantValues.VIDEO_CACHE_SIZE) {
                 AdViewUtils.logInfo("video size too large =" + size);
                 return false;
             }
-            while (totalSize + size > ConstantValues.VIDEOCACHESIZE) {
+            while (totalSize + size > ConstantValues.VIDEO_CACHE_SIZE) {
                 if (count > 50)
                     break;
                 File[] cacheFiles = cachePath.listFiles();
@@ -371,34 +374,25 @@ public class VASTPlayer {
     }
 
 
-    public void play(Context context) {
+    public void sendPlayReady(Context context) {
         AdViewUtils.logInfo("play");
         if (vastModel != null) {
             if (AdViewUtils.isConnectInternet(context)) {
-                    //add for embed vast view
-                    //embedBundle = new Bundle();
-                    //embedBundle.putSerializable("vastmodels", (Serializable) vastModel);
-                    //embedBundle.putSerializable("wrappermodels", (Serializable) wrapperModel);
-                    sendVastPlayReady();
-                    //sendLocalBroadcast(context, ACTION_EMBED_VASTREADY, bundle);
+                //add for embed vast view
+                //sendLocalBroadcast(context, ACTION_DOWNLOADCANCEL, null);
+                if (vastPlayerListener != null) {
+                    ((Activity) context).runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            vastPlayerListener.vastPlayReady(bundle);
+                        }
+                    });
+                }
             } else {
                 sendError(ERROR_NO_NETWORK);
             }
         } else {
             AdViewUtils.logInfo("vastModel is null; nothing to play");
-        }
-    }
-
-    private void sendVastPlayReady() {
-        AdViewUtils.logInfo("sendVastPlayReady");
-        //sendLocalBroadcast(context, ACTION_DOWNLOADCANCEL, null);
-        if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastPlayReady(bundle);
-                }
-            });
         }
     }
 

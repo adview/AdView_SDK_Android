@@ -4,24 +4,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import android.text.TextUtils;
-import android.view.MotionEvent;
 import android.view.View;
 
 import com.kuaiyou.adbid.AdAdapterManager;
-import com.kuaiyou.obj.AdsBean;
-import com.kuaiyou.obj.AgDataBean;
-import com.kuaiyou.obj.VideoBean;
 import com.kuaiyou.utils.AdViewUtils;
-import com.kuaiyou.utils.Assets;
-import com.kuaiyou.utils.ConstantValues;
 import com.kuaiyou.video.AdViewVideoActivity;
-import com.kuaiyou.video.vast.VASTPlayer;
-import com.kuaiyou.video.vast.VASTPlayerListener;
 
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Iterator;
 
 //#wilder
 
@@ -59,7 +47,7 @@ public class AdBIDVideoAdapter extends AdAdapterManager {
     public boolean playVideo(Context context) {
         try {
             if (null != newPlayer)
-                newPlayer.play(context);
+                newPlayer.sendPlayReady(context); //这里仅通知AdVastView准备播放，具体是否立刻播放请参见advastView
             else
                 AdViewUtils.logInfo("video occurred error");
         } catch (Exception e) {
@@ -67,31 +55,6 @@ public class AdBIDVideoAdapter extends AdAdapterManager {
         }
         return true;
     }
-    /////////////////////////////////(wilder 2019) ///////////////////////////////////////////
-    ///////////////////////////////VAST Player Listener /////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////
-    @Override
-    public void vastDownloadReady(){
-        onAdReady(); //wilder 2019 ,notify ready event to App
-        //wilder 2019 for test mrec
-    }
 
-    @Override
-    public void vastError(int error){
-        AdViewUtils.logInfo("vastError");
-        onAdFailed("error: " + error);
-    }
 
-    @Override
-    public void vastClick(){
-        onAdClick(null,null, 0,0); //wilder 2019
-
-        AdViewUtils.logInfo("vastClick");
-    }
-
-    @Override
-    public int vastOrientationChange(){
-        return 0;
-    }
-    ///////////////////end VAST listener ////////////////////////////////////
 }

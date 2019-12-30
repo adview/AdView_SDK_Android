@@ -23,7 +23,6 @@ import android.os.Message;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.SparseArray;
-import android.widget.Toast;
 
 import com.kuaiyou.obj.DownAppInfo;
 
@@ -43,24 +42,20 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.HttpsURLConnection;
 
-import static com.kuaiyou.utils.ConstantValues.ADACTIVITY_DECLARATIONS;
+import static com.kuaiyou.utils.ConstantValues.ADACTIVITY_CLASS;
 
 /**
  * 下载
  */
 public class DownloadService extends Service {
 
-    //    private static String FILESDIR = null; // 文件路径
-    // private String title = "adview";
-    // private String path = "";
-    // private File updateDir = null;
-    // private File updateFile = null;
-    // private static boolean secConfirm = false;
-    // private int index = 0;
     private int smallIcon = 17301633;
     private Bitmap largeIcon = null;
     private NotificationManager updateNotificationManager = null;// 状态栏通知的管理类
     // private Notification updateNotification = null;
+    //downloadservice 使用的判断
+    private final static int ADLINK_NORMAL = 0;
+    private final static int ADLINK_GDT = 1;
 
     //    private NotificationCompat notificationCompat;
     private Notification.Builder notificationBuilder;
@@ -68,25 +63,29 @@ public class DownloadService extends Service {
     private Intent updateIntent = null;
     private PendingIntent updatePendingIntent = null;
 
-    private final static String LOADING = "正在加载";
-    private final static String PREPAREDOWNLOAD = "正在准备下载...";
-    private final static String STARTDOWNLOAD = "开始下载";
-    private final static String DOWNLOADING = "正在下载";
-    private final static String FINISHINGDOWNLOAD = "下载完成";
+    private final static String LOADING = "Loading"; //"正在加载";
+    private final static String PREPAREDOWNLOAD = "Preparing Loading ...";//"正在准备下载...";
+    private final static String STARTDOWNLOAD = "Start Downloading";//"开始下载";
+    private final static String DOWNLOADING = "Downloading";//"正在下载";
+    private final static String FINISHINGDOWNLOAD = "Download finished";//"下载完成";
 
-    private final static String FAILEDDOWNLOAD1 = "下载初始化错误";
-    private final static String FAILEDDOWNLOAD2 = "下载通知栏创建失败";
-    private final static String FAILEDDOWNLOAD3 = "创建文件失败";
-    private final static String FAILEDDOWNLOAD4 = "网络异常_001";
-    private final static String FAILEDDOWNLOAD5 = "网络异常_002";
-    private final static String FAILEDDOWNLOAD6 = "没有网络连接";
-    private final static String FAILEDDOWNLOAD7 = "下载未知错误";
+    private final static String FAILEDDOWNLOAD1 = "Download init fail";//"下载初始化错误";
+    private final static String FAILEDDOWNLOAD2 = "Download status bar creation fail";//"下载通知栏创建失败";
+    private final static String FAILEDDOWNLOAD3 = "Download create file fail";//"创建文件失败";
+    private final static String FAILEDDOWNLOAD4 = "Download network fail 001"; //"网络异常_001";
+    private final static String FAILEDDOWNLOAD5 = "Download network fail 002"; //"网络异常_002";
+    private final static String FAILEDDOWNLOAD6 = "Download no network";//"没有网络连接";
+    private final static String FAILEDDOWNLOAD7 = "Download unknown error"; //"下载未知错误";
 
     private final static int DOWNLOADINIT_STATUS = -3;
     private final static int DOWNLOADFAILED_STATUS = 1;
     private final static int DOWNLOADSUCCESSED_STATUS = 0;
     private final static int DOWNLOADPROGRESSING_STATUS = -1;
     private final static int DOWNLOADFILEEXIST_STATUS = -2;
+
+
+    private final static int ACTION_ID_DOWNLOAD_START = 5;
+    private final static int ACTION_ID_DOWNLOAD_FINISHED = 7;
 
     private final static String FAILED = "failed";
     private final static String PATH = "path";
@@ -111,12 +110,11 @@ public class DownloadService extends Service {
                         if (null != pathName) {
                             File temp = new File(pathName);
                             uri = Uri.fromFile(temp);
-                            if (!AdViewUtils.checkClickPermission(DownloadService.this, ADACTIVITY_DECLARATIONS, PackageManager.GET_ACTIVITIES)) {
+                            if (!AdViewUtils.checkClickPermission(DownloadService.this, ADACTIVITY_CLASS, PackageManager.GET_ACTIVITIES)) {
                                 installIntent = new Intent();
                                 installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 installIntent.setAction("android.intent.action.VIEW");
-                                installIntent.setDataAndType(uri,
-                                        "application/vnd.android.package-archive");
+                                installIntent.setDataAndType(uri,"application/vnd.android.package-archive");
                                 DownloadService.this.updatePendingIntent = PendingIntent
                                         .getActivity(DownloadService.this, 0,
                                                 installIntent, 0);
@@ -141,18 +139,20 @@ public class DownloadService extends Service {
                             // 汇报下载完成效果数
                             AdViewUtils.reportEffect(notifyPath.get(notifyId).getDownloadedUrls());
                             if (!TextUtils.isEmpty(notifyPath.get(notifyId).getGdtExtraUrls()))
-                                AdViewUtils.reportEffect(new String[]{AdViewUtils.getGdtActionLink(notifyPath.get(notifyId).getGdtExtraUrls(), notifyPath.get(notifyId).getClickid_gdt(), ConstantValues.ACTION_ID_DOWNLOAD_FINISHED)});
+                                AdViewUtils.reportEffect(new String[]{
+                                        AdViewUtils.getGdtActionLink(notifyPath.get(notifyId).getGdtExtraUrls(),
+                                        notifyPath.get(notifyId).getClickid_gdt(),
+                                        ACTION_ID_DOWNLOAD_FINISHED)});
                         }
                         if (null != notifyPath.get(notifyId)) {
                             notifyPath.delete(notifyId);
                         }
-                        DownloadService.this
-                                .stopService(DownloadService.this.updateIntent);
+                        DownloadService.this.stopService(DownloadService.this.updateIntent);
                         break;
                     case DOWNLOADFAILED_STATUS:
                         String description = msg.getData().getString(FAILED);
-                        Toast.makeText(DownloadService.this, description,
-                                Toast.LENGTH_LONG).show();
+                        //Toast.makeText(DownloadService.this, description, Toast.LENGTH_LONG).show();
+                        AdViewUtils.logInfo("[DownloadService] status : " + description );
                         if (null != notificationBuilder) {
                             notificationBuilder.setOngoing(false);
                             notificationBuilder.setAutoCancel(true);
@@ -182,17 +182,16 @@ public class DownloadService extends Service {
 //                            downloadStatusListener.onDownloadStatusChange(ConstantValues.DL_DOWNLOADFAILED_STATUS);
                         break;
                     case DOWNLOADINIT_STATUS:
-                        Toast.makeText(DownloadService.this, PREPAREDOWNLOAD,
-                                Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(DownloadService.this, PREPAREDOWNLOAD,Toast.LENGTH_SHORT).show();
+                        AdViewUtils.logInfo("[DownloadService] status : " + PREPAREDOWNLOAD);
                         break;
                     case DOWNLOADPROGRESSING_STATUS:
-                        Toast.makeText(DownloadService.this, DOWNLOADING,
-                                Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(DownloadService.this, DOWNLOADING, Toast.LENGTH_SHORT).show();
+                        AdViewUtils.logInfo("[DownloadService] status : " + DOWNLOADING );
                         break;
                     default:
                         if (null != DownloadService.this.updateIntent)
-                            DownloadService.this
-                                    .stopService(DownloadService.this.updateIntent);
+                            DownloadService.this.stopService(DownloadService.this.updateIntent);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -263,9 +262,9 @@ public class DownloadService extends Service {
             message.setData(bundle);
             DownloadService.this.updateHandler.sendMessage(message);
         } catch (ClassNotFoundException e) {
-            Toast.makeText(this, e.toString() + "\n请添加最新的support-v4，否则将影响收入",
-                    Toast.LENGTH_SHORT).show();
-
+            e.printStackTrace();
+            //Toast.makeText(this, e.toString() + "\n请添加最新的support-v4，否则将影响收入",Toast.LENGTH_SHORT).show();
+            AdViewUtils.logInfo("!!!! [DownloadService] err: pls add support-v4 !!!!");
         } catch (Exception e) {
             e.printStackTrace();
             Message message = new Message();
@@ -379,12 +378,16 @@ public class DownloadService extends Service {
         try {
             createNotication(notifyId);
 
-            if (notifyPath.get(notifyId).getAlType() == ConstantValues.ADLINK_GDT)
+            if (notifyPath.get(notifyId).getAlType() == ADLINK_GDT)
                 gdtResponse(notifyPath.get(notifyId).getDownUrl(), notifyId);
             // 汇报开始下载效果数
             AdViewUtils.reportEffect(notifyPath.get(notifyId).getDownloadstartUrls());
             if (!TextUtils.isEmpty(notifyPath.get(notifyId).getGdtExtraUrls()))
-                AdViewUtils.reportEffect(new String[]{AdViewUtils.getGdtActionLink(notifyPath.get(notifyId).getGdtExtraUrls(), notifyPath.get(notifyId).getClickid_gdt(), ConstantValues.ACTION_ID_DOWNLOAD_START)});
+                AdViewUtils.reportEffect(new String[]{AdViewUtils.getGdtActionLink(notifyPath.get(notifyId).getGdtExtraUrls(),
+                                                notifyPath.get(notifyId).getClickid_gdt(),
+                                                ACTION_ID_DOWNLOAD_START)});
+
+            AdViewUtils.logInfo("[DownloadService] Download File: " + notifyPath.get(notifyId).getDownUrl());
 
             URL url = new URL(notifyPath.get(notifyId).getDownUrl());
             int responseCode = -1;
@@ -398,8 +401,7 @@ public class DownloadService extends Service {
                 // httpConnection
                 // .setRequestProperty("User-Agent", "PacificHttpClient");
                 if (currentSize > 0) {
-                    httpConnection.setRequestProperty("RANGE", "bytes="
-                            + currentSize + "-");
+                    httpConnection.setRequestProperty("RANGE", "bytes=" + currentSize + "-");
                 }
                 httpConnection.setConnectTimeout(10000);
                 httpConnection.setReadTimeout(20000);
@@ -681,8 +683,7 @@ public class DownloadService extends Service {
         if (AdViewUtils.useSelfIcon) {
             PackageManager pm = getPackageManager();
             try {
-                PackageInfo packageInfo = pm
-                        .getPackageInfo(getPackageName(), 0);
+                PackageInfo packageInfo = pm.getPackageInfo(getPackageName(), 0);
                 smallIcon = packageInfo.applicationInfo.icon;
                 if (smallIcon == 0)
                     smallIcon = 17301633;

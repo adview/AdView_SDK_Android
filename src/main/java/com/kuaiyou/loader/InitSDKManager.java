@@ -3,7 +3,9 @@ package com.kuaiyou.loader;
 import android.content.Context;
 import android.util.Log;
 
+import com.iab.omid.library.adview.Omid;
 import com.kuaiyou.loader.loaderInterface.InitSDKInterface;
+import com.kuaiyou.utils.AdViewUtils;
 
 import org.json.JSONObject;
 
@@ -34,16 +36,17 @@ public class InitSDKManager {
     private final static String CONSTANT_CLASS_NAME     = "com.kuaiyou.utils.ConstantValues";
     protected final static String KY_INTERFACE_NAME     = "com.kuaiyou.interfaces.OnAdListener";//直投交换使用
     protected final static String INTERFACE_NAME        = "com.kuaiyou.interfaces.OnAdViewListener";//竞价使用
-    protected final static String VIDEO_INTERFACE_NAME  = "com.kuaiyou.video.AdViewVideoInterface";//视频广告
+    protected final static String VIDEO_INTERFACE_NAME  = "com.kuaiyou.interfaces.AdViewVideoInterface";//视频广告
     protected final static String NATIVE_INTERFACE_NAME = "com.kuaiyou.interfaces.NativeAdCallBack";
 
+    protected final static String SETGDPR_METHOD_NAME = "setGDPR"; //wilder 2019 for new IAB's GDPR
     //private static ScheduledExecutorService threadPool;
     //private MessageHandler messageHandler = null;
     private static InitSDKManager instance;
     //SDK壳版本号
     public final static int LOADER_VERSION = 3;
 
-    public final static int RELEASE_VERSION = 400; //oversea version
+    public final static int RELEASE_VERSION = 410; //oversea version
     public final static String TAG = "SDK_LOADER";
 
 
@@ -82,7 +85,10 @@ public class InitSDKManager {
 
     public void init(final Context context, final String appId, final InitSDKInterface initSDKInterface) {
         Log.i(TAG, "============ OverSea SDK核心版本:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "=============");
-
+        //init OMSDK
+        initOMSDK(context);
+        //init gpid
+        //AdViewUtils.getGpId(context,true);
     }
 
     public void init(final Context context, final String appId) {
@@ -96,9 +102,36 @@ public class InitSDKManager {
 
     }
 
+    //wilder 2019 for OMSDK
+    private void initOMSDK(Context context) {
+        //check if omsdk availiable
+        AdViewUtils.checkOMSDKFeatrue();
+        if (!AdViewUtils.canUseOMSDK())
+            return;
+        try {
+            if (!Omid.isActive()) {
+                boolean activated = Omid.activateWithOmidApiVersion(Omid.getVersion(), context);
+                if (!activated) {
+                    // SDK failed to activate. Handle appropriately.
+                    Log.i(TAG, "!!!!!!!!! OverSea 初始化OMSDK失败:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "!!!!!!!!");
+                } else {
+                    Log.i(TAG, "############ OverSea 初始化OMSDK成功:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "#############");
+                    AdViewUtils.createOMPartner();
+                }
+            }
+        }catch (Exception e) {
+            Log.w(TAG, "OMSDK 初始化异常!");
+            e.printStackTrace();
+        }
+
+    }
+
 
     private String generalToken(String pgkName, String appId, String uuid, long time) {
-        return getStaticMethodValue(MD5_CLASS_NAME, "MD5Encode", new Class[]{String.class}, new Object[]{pgkName + appId + uuid + time + getDeclaredField(CONSTANT_CLASS_NAME, "UPDATE_ANDROID")});
+        return getStaticMethodValue(MD5_CLASS_NAME,
+                "MD5Encode",
+                new Class[]{String.class},
+                new Object[]{pgkName + appId + uuid + time + getDeclaredField(CONSTANT_CLASS_NAME, "UPDATE_ANDROID_MD5KEY")});
     }
 
     private String getDeclaredField(String className, String field) {
@@ -189,6 +222,7 @@ public class InitSDKManager {
     }
 
 
+    /** =======================================================================================**/
     /**
      * for static method
      *

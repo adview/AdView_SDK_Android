@@ -168,7 +168,8 @@ public class VpaidBridgeImpl implements VpaidBridge {
 
     @JavascriptInterface
     public void vpaidAdUserMinimize() {
-
+        //最小化, wilder 2019 for omsdk
+        mBridge.postEvent(EventConstants.MINIMIZE);
         AdViewUtils.logInfo( "JS: vpaidAdUserMinimize");
     }
 
@@ -188,7 +189,8 @@ public class VpaidBridgeImpl implements VpaidBridge {
 
     @JavascriptInterface
     public void vpaidAdExpandedChange() {
-
+        //扩展开广告, wilder 2019 for omsdk
+        mBridge.postEvent(EventConstants.EXPANDED_CHANGE);
         AdViewUtils.logInfo( "+++ JS: vpaidAdExpandedChange +++");
     }
 
@@ -251,11 +253,17 @@ public class VpaidBridgeImpl implements VpaidBridge {
                 the landing page URL. The ad unit is responsible for opening the landing page URL in
                 a new window in this case.
          */
-        AdViewUtils.logInfo( "+++++++ JS: vpaidAdClickThruIdPlayerHandles():url=" + url + ",id=" + id + ",handlers="+playerHandles);
+        if (playerHandles) {
+            AdViewUtils.logInfo("+++++++ JS: vpaidAdClickThruIdPlayerHandles():url=" + url + ",id=" + id + ",handlers=" + playerHandles + "+++++++");
 
-        //if (playerHandles) {
-            mBridge.openUrl(url);
-        //}
+            if (url.length() > 0) {
+                mBridge.openUrl(url);
+            }else {
+                //send vast video click /clickthrough
+                mBridge.postEvent(EventConstants.CLICK_THR);
+            }
+
+        }
 
 
     }
@@ -282,6 +290,7 @@ public class VpaidBridgeImpl implements VpaidBridge {
     public void vpaidAdVideoComplete() {
 
         AdViewUtils.logInfo( "JS: vpaidAdVideoComplete");
+        mBridge.postEvent(EventConstants.COMPLETE); //wilder 20190816 vpaid自己有消息发送，不需要timer去判
     }
 
     @JavascriptInterface
@@ -292,10 +301,12 @@ public class VpaidBridgeImpl implements VpaidBridge {
 
     @JavascriptInterface
     public void getAdRemainingTimeResult(int value) {
+        //本回调从js端(ad_vbridge.js)返回，是通过timer，500ms在adstart之后触发，一直到adstop会定制，主要用于更新进度条等
+        //播放的5个状态不要在次判断，有单独的事件发过来处理
         AdViewUtils.logInfo( "JS: getAdRemainingTimeResult: " + value);
         if (value == 0) {
             mBridge.postEvent(EventConstants.PROGRESS, String.valueOf(value));
-            mBridge.postEvent(EventConstants.COMPLETE);
+            //mBridge.postEvent(EventConstants.COMPLETE); wilder 20190816 ,不要在次发送complete
         } else {
             mBridge.postEvent(EventConstants.PROGRESS, String.valueOf(value));
         }
@@ -345,7 +356,7 @@ public class VpaidBridgeImpl implements VpaidBridge {
     @JavascriptInterface
     public void vpaidAdInteraction() {
 
-        AdViewUtils.logInfo( "JS: vpaidAdInteraction");
+        AdViewUtils.logInfo( "+++++++++ JS: vpaidAdInteraction ++++++++++");
     }
 
     @JavascriptInterface

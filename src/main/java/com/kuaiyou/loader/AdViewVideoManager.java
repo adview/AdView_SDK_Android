@@ -17,35 +17,30 @@ import java.lang.reflect.Proxy;
 public class AdViewVideoManager extends InitSDKManager {
     private Object object;
 
-    private final static String SETTRAFFICWARNENABLE_METHOD_NAME = "setTrafficWarnEnable";
-    private final static String AUTOCLOSEENABLE_METHOD_NAME = "autoCloseEnable";
-    private final static String SETVIDEOORIENTATION_METHOD_NAME = "setVideoOrientation";
-    private final static String GETVIDEOVAST_METHOD_NAME = "getVideoVast";
+    private final static String SET_TRAFFIC_WARN_ENABLE_METHOD_NAME = "setTrafficWarnEnable";
+    private final static String SET_AUTOCLOSE_METHOD_NAME = "autoCloseEnable";
+    private final static String SET_VIDEO_ORIENTATION_METHOD_NAME = "setVideoOrientation";
+    private final static String SET_AUTOPLAY_METHOD_NAME = "setAutoPlay";
     private final static String PLAYVIDEO_METHOD_NAME = "playVideo";
-    private final static String SETONADVIEWLISTENER_METHOD_NAME = "setVideoAppListener";
-    private final static String GETINSTANCE_METHAD_NAME = "getInstance";
-    private final static String INIT_METHAD_NAME = "init";
-    private final static String SETVIDEOBACKGROUNDCOLOR_METHAD_NAME = "setVideoBackgroundColor";
+    private final static String SET_VIDEOAPPLISTENER_METHOD_NAME = "setVideoAppListener";
+    private final static String GET_INSTANCE_METHOD_NAME = "getInstance";
+    private final static String INIT_METHOD_NAME = "init";
+    private final static String SET_VIDEOBACKGROUNDCOLOR_METHOD_NAME = "setVideoBackgroundColor";
 
-    public AdViewVideoManager(Context context, String appId, String posId, AdViewVideoListener appListener, boolean isPaster, String gdpr) {
+    public AdViewVideoManager(Context context, String appId, String posId, AdViewVideoListener appListener, boolean isPaster) {
         getInstance().init(context, appId);
         try {
-            /*
             Class[] params = new Class[1];
             params[0] = Context.class;
             Object[] objects = new Object[1];
             objects[0] = context;
-            object = requestAd(VIDEO_CLASS_NAME, params, objects);
-            */
-            Class[] params = new Class[1];
-            params[0] = Context.class;
-            Object[] objects = new Object[1];
-            objects[0] = context;
-            object = invoke(VIDEO_CLASS_NAME, GETINSTANCE_METHAD_NAME, params, objects);
+            object = invoke(VIDEO_CLASS_NAME, GET_INSTANCE_METHOD_NAME, params, objects);
 
             if (null != object) {
-               init(appId, posId, isPaster, gdpr);
-               setAppInterface(appListener);
+               init(appId, posId, isPaster);
+               if (null != appListener) {
+                   setOnAdViewListener(appListener);
+               }
             }
 
         } catch (Exception e) {
@@ -53,55 +48,66 @@ public class AdViewVideoManager extends InitSDKManager {
         }
     }
 
-    private void init(String appid, String posid, boolean isPaster, String gdpr) {
+    private void init(String appid, String posid, boolean isPaster) {
         try {
-            Class[] initParams = new Class[4];
+            Class[] initParams = new Class[3];
             initParams[0] = String.class;
             initParams[1] = String.class;
             initParams[2] = boolean.class;
-            initParams[3] = String.class;
-            Object[] initObjects = new Object[4];
+
+            Object[] initObjects = new Object[3];
             initObjects[0] = appid;
             initObjects[1] = posid;
             initObjects[2] = isPaster;
-            initObjects[3] = gdpr;
 
-            invoke(object, INIT_METHAD_NAME, initParams, initObjects);
+
+            invoke(object, INIT_METHOD_NAME, initParams, initObjects);
 
         }catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void setAppInterface(AdViewVideoListener adViewVideoInterface) {
+    public void setOnAdViewListener(AdViewVideoListener adViewVideoInterface) {
         try {
             Object listener = null;
             Class reflectListener = Class.forName(VIDEO_INTERFACE_NAME);
 
             if (null != adViewVideoInterface) {
                 listener = Proxy.newProxyInstance(getClass().getClassLoader(),
-                        new Class[]{reflectListener}, new AdViewVideoManager.VideoInvocationImp(adViewVideoInterface));
+                        new Class[]{reflectListener},
+                        new AdViewVideoManager.VideoInvocationImp(adViewVideoInterface));
             }
-            invoke(object, SETONADVIEWLISTENER_METHOD_NAME, new Class[]{reflectListener}, new Object[]{listener});
+            invoke(object, SET_VIDEOAPPLISTENER_METHOD_NAME, new Class[]{reflectListener}, new Object[]{listener});
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public void setVideoBackgroungColor(String color) {
-        invoke(object, SETVIDEOBACKGROUNDCOLOR_METHAD_NAME, new Class[]{String.class}, new Object[]{color});
+    //widler 2019 for IAB's GDPR
+    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
+        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
+                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
+    }
+
+    public void setVideoBackgroundColor(String color) {
+        invoke(object, SET_VIDEOBACKGROUNDCOLOR_METHOD_NAME, new Class[]{String.class}, new Object[]{color});
     }
 
     public void setTrafficWarnEnable(boolean trafficWarnEnable) {
-        invoke(object, SETTRAFFICWARNENABLE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{trafficWarnEnable});
+        invoke(object, SET_TRAFFIC_WARN_ENABLE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{trafficWarnEnable});
     }
 
     public void autoCloseEnable(boolean enable) {
-        invoke(object, AUTOCLOSEENABLE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
+        invoke(object, SET_AUTOCLOSE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
+    }
+    //wilder 20191105
+    public void setAutoPlay(boolean enable) {
+        invoke(object, SET_AUTOPLAY_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
     }
 
     public void setVideoOrientation(int orientation) {
-        invoke(object, SETVIDEOORIENTATION_METHOD_NAME, new Class[]{int.class}, new Object[]{orientation});
+        invoke(object, SET_VIDEO_ORIENTATION_METHOD_NAME, new Class[]{int.class}, new Object[]{orientation});
     }
 
     public String getVideoVast() {

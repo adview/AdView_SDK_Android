@@ -22,9 +22,11 @@ public enum TRACKING_EVENTS_TYPE {
 	resume,
 	fullscreen,
 	expand,
+	minimize, //omsdk
 	collapse,
 	acceptInvitation,
 	skip,
+	click,		//omsdk v1.2
+	invitationAccept,	//omsdk v1.2
 	close
-
 }

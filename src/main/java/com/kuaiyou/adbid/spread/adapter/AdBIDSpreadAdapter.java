@@ -26,10 +26,7 @@ import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.adbid.AdAdapterManager;
 import com.kuaiyou.adbid.AdSpreadBIDView;
 import com.kuaiyou.interfaces.KySpreadListener;
-import com.kuaiyou.interfaces.KyViewListener;
 import com.kuaiyou.mraid.MRAIDView;
-import com.kuaiyou.mraid.interfaces.MRAIDNativeFeatureListener;
-import com.kuaiyou.mraid.interfaces.MRAIDViewListener;
 import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.obj.AgDataBean;
 import com.kuaiyou.utils.AdViewUtils;
@@ -41,10 +38,10 @@ import java.io.UnsupportedEncodingException;
 import java.lang.ref.SoftReference;
 import java.net.URLDecoder;
 
-public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadListener, MRAIDViewListener, MRAIDNativeFeatureListener {
+public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadListener */ {
 
     private SpreadHandler handler;
-    private KySpreadListener kyViewListener;
+    private KySpreadListener kySpreadViewListener;
     private String bitmapPath;
     private Context context;
 
@@ -57,42 +54,29 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
     private boolean isDisplayed = false;
 
     static boolean isPageDone = false; //wilder 2019
-    @Override
-    public View getAdView() {
+    private AdsBean adsBean;
+
+    public MRAIDView getMRaidView() {
+        if (null != kySpreadViewListener) {
+            return (MRAIDView) this.kySpreadViewListener.getSpreadView().findViewById(ConstantValues.UI_MRAIDVIEW_ID);
+        }
         return null;
     }
 
-    @Override
-    protected void initAdapter(Context context) {
-        AdViewUtils.logInfo("initAdapter AdBIDSpreadAdapter");
-        this.context = context;
-    }
-
-
-    @Override
-    public void handleAd(Context context, Bundle bundle) {
-        screenWidth = bundle.getInt("screenWidth");
-        screenHeight = bundle.getInt("screenHeight");
-        adWidth = bundle.getIntArray("adSize")[0];
-        adHeight = bundle.getIntArray("adSize")[1];
-        density = bundle.getDouble("density");
-        kyViewListener = (KySpreadListener) bundle.getSerializable("interface");
-        handler = new SpreadHandler(this);
-        new Thread(new InitRunnable()).start();
-    }
-
-    public static class SpreadHandler extends Handler {
-        private SoftReference<AdBIDSpreadAdapter> adSpreadBIDViewReference = null;
+    public /*static*/ class SpreadHandler extends Handler {
+        //private SoftReference<AdBIDSpreadAdapter> adSpreadBIDViewReference = null;
         private boolean hasClosed = false;
-        private AdsBean adsBean;
+        //private AdsBean adsBean;
 
-        public SpreadHandler(AdBIDSpreadAdapter adSpreadBIDView) {
+        public SpreadHandler(AdBIDSpreadAdapter adSpreadBIDAdpt) {
             super(Looper.getMainLooper());
-            adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>(
-                    adSpreadBIDView);
-            adsBean = adSpreadBIDViewReference.get().kyViewListener.getAdsBean();
-            adSpreadBIDViewReference.get().kyViewListener.getSpreadView().setSpreadViewListener(adSpreadBIDView);
-            adSpreadBIDViewReference.get().kyViewListener.getSpreadView().init();
+/*  wilder 2019 covered
+            adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>(adSpreadBIDAdpt);
+            adsBean = adSpreadBIDViewReference.get().kySpreadViewListener.getAdsBean();
+            adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().setSpreadViewListener(adSpreadBIDAdpt); //wilder : old is set to itself
+            //adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().setSpreadViewListener(adSpreadBIDAdpt.kySpreadViewListener);
+            adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().init();
+*/
         }
 
        /**
@@ -100,27 +84,29 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyRecievedInterface(Message msg, boolean isHTML) {
             try {
+/* wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
+                AdBIDSpreadAdapter adSpreadBIDAdpt = adSpreadBIDViewReference.get();
+*/
 
                 //wilder 2019 fixed for web content loader will slow and may counter down faster
                 if (isHTML) {
                     isPageDone = false; //wilder 2019 for start counter in page done, see bellow.
-                }
-                else {
-                    notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(), adSpreadBIDView.kyViewListener.getNotifyType());
+                } else {
+                    //notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(), adSpreadBIDAdpt.kySpreadViewListener.getNotifyType()); wilder 2019 covered
+                    notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(), kySpreadViewListener.getNotifyType());
                 }
 
-                setNotifyBackground((TextView) getViewById(ConstantValues.SPREADADCOUNTER, msg));
-                if (null != adSpreadBIDView.kyViewListener) {
-                    adSpreadBIDView.kyViewListener.onReceived(null, false);
+                setNotifyBackground((TextView) getViewById(ConstantValues.SPREAD_UI_COUNTERID, msg));
+
+/*               wilder 2019 covered
+                if (null != adSpreadBIDAdpt.kySpreadViewListener) {
+                    adSpreadBIDAdpt.kySpreadViewListener.onReceived(null, false);
+                }*/
+                if (null != kySpreadViewListener) {
+                    kySpreadViewListener.onReceived(null, false);
                 }
-//                if (null != onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener
-//                            .onAdRecieved(adSpreadBIDView);
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener.onReceivedAd(adSpreadBIDView);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -147,16 +133,19 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyReady(Message msg) {
             try {
+/*          wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
+
                 AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                removeMessages(ConstantValues.STRICT);
-                removeMessages(ConstantValues.DELAY);
+                */
+                removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                removeMessages(ConstantValues.SPREAD_RESP_DELAY);
                 Message msg2 = new Message();
-                msg2.what = ConstantValues.STRICT;
-                msg2.arg1 = adSpreadBIDView.kyViewListener.getNotifyType();
-                sendMessageDelayed(msg2,
-                        adsBean.getRuleTime() * 1000l);
+                msg2.what = ConstantValues.SPREAD_RESP_STRICT;
+                //msg2.arg1 = adSpreadBIDView.kySpreadViewListener.getNotifyType(); wilder 2019 covered
+                msg2.arg1 = kySpreadViewListener.getNotifyType();
+                sendMessageDelayed(msg2,adsBean.getRuleTime() * 1000l);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -173,7 +162,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                 case AdSpreadBIDView.NOTIFY_COUNTER_TEXT:
                 case AdSpreadBIDView.NOTIFY_COUNTER_CUSTOM:
                     Message msg = new Message();
-                    msg.what = ConstantValues.COUNTDOWN;
+                    msg.what = ConstantValues.SPREAD_RESP_COUNTDOWN;
                     msg.arg1 = count;
                     msg.arg2 = type;
                     sendMessage(msg);
@@ -186,19 +175,15 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyImpressionInterface(Message msg) {
             try {
+/*              wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kyViewListener.onDisplay(null, false);
-//                if (null != adSpreadBIDView.onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener
-//                            .onAdDisplayed(adSpreadBIDView);
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener
-//                            .onDisplayed(adSpreadBIDView);
-//                reportImpression(adsBean,
-//                        adSpreadBIDView.retAdBean, adSpreadBIDView.applyAdBean, true);
-                adSpreadBIDView.isDisplayed = true;
+                AdBIDSpreadAdapter adSpreadBIDAdpt = adSpreadBIDViewReference.get();
+                adSpreadBIDAdpt.kySpreadViewListener.onDisplay(null, false);
+                adSpreadBIDAdpt.isDisplayed = true;
+*/
+                kySpreadViewListener.onDisplay(null, false);
+                isDisplayed = true;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -209,10 +194,13 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyUserCancelInterface(Message msg) {
             try {
+/*          wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
                 AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                WebView webView = (WebView) getViewById(ConstantValues.WEBVIEWID, msg);
+*/
+
+                WebView webView = (WebView) getViewById(ConstantValues.UI_WEBVIEW_ID, msg);
                 try {
                     if (null != webView) {
                         webView.getClass().getMethod("onPause").invoke(webView, (Object[]) null);
@@ -224,16 +212,10 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                removeMessages(ConstantValues.STRICT);
-                removeMessages(ConstantValues.DELAY);
-                adSpreadBIDView.kyViewListener.onCloseBtnClicked();
-//                if (null != adSpreadBIDView.onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener.onAdClosedByUser();
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener
-//                            .onAdClosedByUser(adSpreadBIDView);
-//                adSpreadBIDView.onAdSpreadListener = null;
-//                adSpreadBIDView.spreadAdListener = null;
+                removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                removeMessages(ConstantValues.SPREAD_RESP_DELAY);
+                //adSpreadBIDView.kySpreadViewListener.onCloseBtnClicked(); wilder 2019 covered
+                kySpreadViewListener.onCloseBtnClicked();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -244,18 +226,13 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyFaildedIntetface(String mg, Message msg) {
             try {
+/*          wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
                 AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kyViewListener.onAdFailed(null, mg, false);
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener.onConnectFailed(
-//                            adSpreadBIDView, mg);
-//                if (null != adSpreadBIDView.onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener.onAdRecieveFailed(
-//                            adSpreadBIDView, mg);
-//                adSpreadBIDView.onAdSpreadListener = null;
-//                adSpreadBIDView.spreadAdListener = null;
+                adSpreadBIDView.kySpreadViewListener.onAdFailed(null, mg, false);
+*/
+                kySpreadViewListener.onAdFailed(null, mg, false);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -266,24 +243,19 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyCustomCountDownInterface(Message msg) {
             try {
+/*              wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
                 AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kyViewListener.onAdNotifyCustomCallback((RelativeLayout) getViewById(ConstantValues.SPREADNOTIFYLAYOUT, msg),
+                adSpreadBIDView.kySpreadViewListener.onAdNotifyCustomCallback(
+                        (RelativeLayout) getViewById(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID, msg),
                         adsBean.getRuleTime(),
                         adsBean.getDelayTime());
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener
-//                            .onAdNotifyCustomCallback(
-//                                    (RelativeLayout) getViewById(ConstantValues.SPREADNOTIFYLAYOUT, msg),
-//                                    adsBean.getRuleTime(),
-//                                    adsBean.getDelayTime());
-//                if (null != adSpreadBIDView.onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener
-//                            .onAdNotifyCustomCallback(
-//                                    (RelativeLayout) getViewById(ConstantValues.SPREADNOTIFYLAYOUT, msg),
-//                                    adsBean.getRuleTime(),
-//                                    adsBean.getDelayTime());
+*/
+                kySpreadViewListener.onAdNotifyCustomCallback(
+                        (RelativeLayout) getViewById(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID, msg),
+                        adsBean.getRuleTime(),
+                        adsBean.getDelayTime());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -294,16 +266,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private void notifyCloseInterface(Message msg) {
             try {
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kyViewListener.onCloseBtnClicked();
-//                if (null != adSpreadBIDView.onAdSpreadListener)
-//                    adSpreadBIDView.onAdSpreadListener.onAdSpreadPrepareClosed();
-//                if (null != adSpreadBIDView.spreadAdListener)
-//                    adSpreadBIDView.spreadAdListener.onAdClose(adSpreadBIDView);
-//                adSpreadBIDView.onAdSpreadListener = null;
-//                adSpreadBIDView.spreadAdListener = null;
+                kySpreadViewListener.onCloseBtnClicked(); //widler 20190612
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -317,34 +280,78 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
          */
         private View getViewById(int id, Message msg) {
             try {
+/*          wilder 2019 covered
                 if (null == adSpreadBIDViewReference.get())
                     adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
                 AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                return adSpreadBIDView.kyViewListener.getSpreadView().findViewById(id);
+                return adSpreadBIDView.kySpreadViewListener.getSpreadView().findViewById(id);
+*/
+                return kySpreadViewListener.getSpreadView().findViewById(id);
             } catch (Exception e) {
                 e.printStackTrace();
             }
             return null;
         }
 
+        /**
+         * 文字没有，则以下文字高为0.
+         * 1.图片大于等于屏幕高，隐藏LOGO，文字压在图片底部上，宽等同于图片绘制宽，高为宽的1/4.(Extra 3)
+         * 2.图片+LOGO大于等于屏幕高，图片TOP对齐，LOGO压在图片上，文字在挨着在LOGO上方，宽等同于图片绘制宽，高为宽的1/4.(Extra 2)
+         * 3.图片+文字高+LOGO大于等于屏幕高，图片TOP对齐，文字在挨着在LOGO上方（可能压部分图片），宽等同于图片绘制宽，高为宽的1/4.(Extra 1)
+         * 4.图片+文字高+LOGO小于屏幕高，文字在图片下方(Extra 0/4 暂时没处理)，TOP,CENTER,BOTTOM表示在LOGO固定在BOTTOM的情况下，上部区域中图片＋
+         * 文字的对齐方式.All Center表示图片文字＋LOGO连接在一起居中。
+         *
+         * @param vat          1－Top；2-Center；3-Bottom；4-All Center
+         * @param bitmapHeight 图片高度
+         * @param hasText      是否有文字
+         * @return
+         */
+        private int getAdLayoutType(Context context, int vat, int bitmapHeight, int hasText, int hasLogo) {
+            int layoutType = 0;
+            int[] screenSize = AdViewUtils.getWidthAndHeight(context, false, true);
+            if (bitmapHeight >= screenSize[1])
+                return ConstantValues.SPREAD_UI_EXTRA3;
+            else if (bitmapHeight + screenSize[0] / 4 * hasLogo >= screenSize[1])
+                return ConstantValues.SPREAD_UI_EXTRA2;
+            else if (bitmapHeight <= screenSize[1] && hasLogo == 0 && hasText == 1)
+                return ConstantValues.SPREAD_UI_CENTER;
+            else if (bitmapHeight + screenSize[0] / 4 * hasText + screenSize[0] / 4 * hasLogo >= screenSize[1])
+                return ConstantValues.SPREAD_UI_EXTRA1;
+
+            layoutType = vat;
+            return layoutType;
+        }
+
+        /**
+         * 获取开屏说明文字
+         *
+         * @param adsBean
+         * @return
+         */
+        private String getAdText(AdsBean adsBean) {
+            String tempText = "";
+            if (!TextUtils.isEmpty(adsBean.getAdTitle()))
+                tempText = adsBean.getAdTitle();
+            if (!TextUtils.isEmpty(tempText) && !TextUtils.isEmpty(adsBean.getAdSubTitle())) {
+                tempText = tempText + "" + adsBean.getAdSubTitle();
+            }
+            return tempText;
+        }
+
         private void configAdData(AdsBean adsBean, int width, int height, Message msg) {
             try {
-                if (null == adSpreadBIDViewReference.get()) {
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                }
-                adSpreadBIDViewReference.get().kyViewListener.getSpreadView().loadAdLayout(
+                kySpreadViewListener.getSpreadView().initWidgetLayout(
                         width, height,
                         adsBean.getAdType(),
-                        KyAdBaseView.getAdLayoutType(adSpreadBIDViewReference.get().context,
-                                                    adsBean.getVat(), height,
-                                                    TextUtils.isEmpty(adsBean.getAdText()) ? 0 : 1,
-                                                    adSpreadBIDViewReference.get().isHasSpreadLogo()),
+                        getAdLayoutType(context,
+                                adsBean.getVat(), height,
+                                TextUtils.isEmpty(adsBean.getAdText()) ? 0 : 1,
+                                isHasSpreadLogo()),
                         adsBean.getDeformationMode(),
-                        adSpreadBIDViewReference.get().isHasSpreadLogo(),
-                        adSpreadBIDViewReference.get(),
-                        adSpreadBIDViewReference.get());
+                        isHasSpreadLogo()
+                );
+                kySpreadViewListener.getSpreadView().setContent(adsBean, bitmapPath);
 
-                adSpreadBIDViewReference.get().kyViewListener.getSpreadView().setContent(adsBean, adSpreadBIDViewReference.get().bitmapPath);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -353,30 +360,23 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
         @Override
         public void handleMessage(final Message msg) {
             super.handleMessage(msg);
-            if (null == adSpreadBIDViewReference.get()) {
-                adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-            }
-            final AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-            if (null == adSpreadBIDView) {
-                notifyFaildedIntetface("object is null", msg);
-                return;
-            }
+
             InstlView.CenterTextView adCounter;
 
             switch (msg.what) {
                 // 通知倒计时功能
-                case ConstantValues.COUNTDOWN:
-                    adCounter = (InstlView.CenterTextView) getViewById(ConstantValues.SPREADADCOUNTER, msg);
+                case ConstantValues.SPREAD_RESP_COUNTDOWN:
+                    adCounter = (InstlView.CenterTextView) getViewById(ConstantValues.SPREAD_UI_COUNTERID, msg);
                     switch (msg.arg2) {
                         // 倒计时
                         case AdSpreadBIDView.NOTIFY_COUNTER_NUM:
                             if (1 <= msg.arg1) {
                                 if (null != adCounter) {
-                                    adCounter.text = (msg.arg1 + "s | 跳过");
+                                    adCounter.text = (msg.arg1 + "s | Skip");
                                     adCounter.invalidate();
                                 }
                                 Message mg = new Message();
-                                mg.what = ConstantValues.COUNTDOWN;
+                                mg.what = ConstantValues.SPREAD_RESP_COUNTDOWN;
                                 mg.arg1 = msg.arg1 - 1;
                                 mg.arg2 = AdSpreadBIDView.NOTIFY_COUNTER_NUM;
                                 sendMessageDelayed(mg, 1000);
@@ -385,7 +385,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                         // 跳过按钮
                         case AdSpreadBIDView.NOTIFY_COUNTER_TEXT:
                             if (null != adCounter) {
-                                adCounter.text = ("跳过");
+                                adCounter.text = ("Skip");
                                 adCounter.invalidate();
                             }
                             break;
@@ -396,42 +396,47 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                     }
                     break;
                 // 当用户调用跳过广告时调用
-                case ConstantValues.USERCANCEL:
-                    if (!adSpreadBIDView.isDisplayed)
+                case ConstantValues.SPREAD_RESP_USERCANCEL:
+                    //if (!adSpreadBIDAdapter.isDisplayed)  wilder 2019 covered
+                    if (!isDisplayed) {
                         if (KyAdBaseView.spreadSettleType == KyAdBaseView.SpreadSettleType.CPM)
-                            if ((null != getViewById(ConstantValues.WEBVIEWID, msg) && getViewById(ConstantValues.WEBVIEWID, msg).isShown()) || (null != getViewById(ConstantValues.ICONID, msg) && getViewById(ConstantValues.ICONID, msg).isShown())) {
+                            if ((null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg) &&
+                                    getViewById(ConstantValues.UI_WEBVIEW_ID, msg).isShown()) || (null != getViewById(ConstantValues.MIXED_UI_ICONID, msg)
+                                    && getViewById(ConstantValues.MIXED_UI_ICONID, msg).isShown())) {
                                 notifyImpressionInterface(msg);
                             }
+                    }
                     notifyUserCancelInterface(msg);
                     break;
                 // 广告接受失败时调用
-                case ConstantValues.FAILED:
-                    removeMessages(ConstantValues.STRICT);
-                    removeMessages(ConstantValues.DELAY);
+                case ConstantValues.SPREAD_RESP_FAILED:
+                    removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                    removeMessages(ConstantValues.SPREAD_RESP_DELAY);
                     notifyFaildedIntetface("failed" + msg.arg1, msg);
                     break;
                 // 初始化成功后会接到此消息
                 // 默认展示3秒
-                case ConstantValues.INITSUCCESS:
+                case ConstantValues.SPREAD_REQ_INIT_SUCCESS:
                     Message initMsg = new Message();
-                    initMsg.what = ConstantValues.STRICT;
+                    initMsg.what = ConstantValues.SPREAD_RESP_STRICT;
                     initMsg.arg2 = -1;
                     sendMessageDelayed(initMsg, 3 * 1000l);
                     break;
                 // 获取到web版广告时调用
-                case ConstantValues.WEBVIEWRECIEVED:
+                case ConstantValues.SPREAD_RESP_HTML_RECEIVED:
                     try {
                         if (hasClosed)
                             break;
                         configAdData(adsBean, adsBean.getRealAdWidth(), adsBean.getRealAdHeight(), msg);
-                        final WebView adWebView = (WebView) getViewById(ConstantValues.WEBVIEWID, msg);
+                        final WebView adWebView = (WebView) getViewById(ConstantValues.UI_WEBVIEW_ID, msg);
                         if (null != adWebView) {
-                            if (null != adSpreadBIDView.kyViewListener)
-                                adSpreadBIDView.kyViewListener.setClickMotion((MRAIDView) adSpreadBIDView.kyViewListener.getSpreadView().findViewById(ConstantValues.MRAIDVIEWID), adSpreadBIDView.touchRect);
-//                            .setClickMotion((MRAIDView) adSpreadBIDView.spreadView.findViewById(ConstantValues.MRAIDVIEWID), adsBean, adSpreadBIDView.touchRect);
+                            if (null != kySpreadViewListener) {
+                                kySpreadViewListener.setClickMotion(
+                                        (MRAIDView) kySpreadViewListener.getSpreadView().findViewById(ConstantValues.UI_MRAIDVIEW_ID),
+                                        touchRect);
+                            }
                             if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
-                                //adWebView.loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, adsBean.getXhtml(),"text/html", "UTF-8", null);
-                                KyAdBaseView.loadWebScript(adWebView, adsBean.getXhtml());
+                                AdViewUtils.loadWebContentExt(adWebView, adsBean.getXhtml());
                             } else
                                 adWebView.loadUrl(adsBean.getXhtml());
                         }
@@ -439,82 +444,88 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                         notifyRecievedInterface(msg, true);
 
                         if (KyAdBaseView.spreadSettleType != KyAdBaseView.SpreadSettleType.CPM) {
-                            if (null != getViewById(ConstantValues.WEBVIEWID, msg)
-                                    && (getViewById(ConstantValues.WEBVIEWID, msg)).isShown()) {
+                            if (null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg)
+                                    && (getViewById(ConstantValues.UI_WEBVIEW_ID, msg)).isShown()) {
                                 notifyImpressionInterface(msg);
                             }
                         }
                         notifyReady(msg);
                     } catch (Exception e) {
                         e.printStackTrace();
-                        notifyFaildedIntetface("WEBVIEWRECIEVED failed", msg);
+                        notifyFaildedIntetface("SPREAD_RESP_HTML_RECEIVED failed", msg);
                     }
                     break;
                 // 图片下载完成后调用
                 // 设置背景图片，并且取消初始化消息，重新展示计时
-                case ConstantValues.BITMAPRECIEVED:
+                case ConstantValues.SPREAD_RESP_BITMAP_RECEIVED:
                     try {
                         if (hasClosed)
                             break;
-                        //configAdData(adsBean, adsBean.getRealAdWidth(), adsBean.getRealAdHeight(), msg);
                         configAdData(adsBean, adsBean.getAdWidth(), adsBean.getAdHeight(), msg); //widler 2019 changes
-                        ImageView icon = (ImageView) getViewById(ConstantValues.ICONID, msg);
-                        WebView adWebView = (WebView) getViewById(ConstantValues.WEBVIEWID, msg);
-                        if (null != adSpreadBIDView.kyViewListener) {
-                            adSpreadBIDView.kyViewListener.setClickMotion((MRAIDView) adSpreadBIDView.kyViewListener.getSpreadView().findViewById(ConstantValues.MRAIDVIEWID), adSpreadBIDView.touchRect);
+                        ImageView icon = (ImageView) getViewById(ConstantValues.MIXED_UI_ICONID, msg);
+                        WebView adWebView = (WebView) getViewById(ConstantValues.UI_WEBVIEW_ID, msg);
+                        if (null != kySpreadViewListener) {
+                            kySpreadViewListener.setClickMotion((MRAIDView) kySpreadViewListener.getSpreadView().
+                                    findViewById(ConstantValues.UI_MRAIDVIEW_ID), touchRect);
                         }
 
                         if (AdViewUtils.bitmapOnLine) {
-                            KyAdBaseView.loadWebContentURL(adWebView, adSpreadBIDView.bitmapPath, adsBean.getAdLink()); //wilder 2019 load online
+                            AdViewUtils.loadWebImageURL(adWebView, bitmapPath, adsBean.getAdLink());
                         }else {
-                            KyAdBaseView.loadWebContentLocal(adWebView, adSpreadBIDView.bitmapPath,
-                                                adsBean.getAdLink(),
-                                                adsBean.getDeformationMode() >= ConstantValues.SCALE_NOHTML ? -99 : adsBean.getRealAdWidth(),
-                                                adsBean.getDeformationMode() >= ConstantValues.SCALE_NOHTML ? -99 : adsBean.getRealAdHeight());
+                            AdViewUtils.loadWebImageLocal(adWebView, bitmapPath,
+                                    adsBean.getAdLink(),
+                                    adsBean.getDeformationMode() >= ConstantValues.SPREAD_UI_SCALE_NOHTML ? -99 : adsBean.getRealAdWidth(),
+                                    adsBean.getDeformationMode() >= ConstantValues.SPREAD_UI_SCALE_NOHTML ? -99 : adsBean.getRealAdHeight());
+
                         }
                         notifyRecievedInterface(msg, false);
                         if (KyAdBaseView.spreadSettleType != KyAdBaseView.SpreadSettleType.CPM) {
                             if ((null != adWebView && adWebView.isShown())
                                     || (null != icon && icon.isShown())
-                                    || (null != getViewById(ConstantValues.WEBVIEWID, msg)
-                                    && getViewById(ConstantValues.WEBVIEWID, msg).isShown())) {
+                                    || (null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg)
+                                    && getViewById(ConstantValues.UI_WEBVIEW_ID, msg).isShown())) {
                                 notifyImpressionInterface(msg);
                             }
                         }
                         notifyReady(msg);
                     } catch (Exception e) {
                         e.printStackTrace();
-                        notifyFaildedIntetface("BITMAPRECIEVED failed", msg);
+                        notifyFaildedIntetface("SPREAD_RESP_BITMAP_RECEIVED failed", msg);
                     }
                     break;
                 // 到达规定展示时间后发展示报告
                 // 并且发送延时信息
-                case ConstantValues.STRICT:
+                case ConstantValues.SPREAD_RESP_STRICT:
                     try {
                         Message msg2 = new Message();
                         msg2.copyFrom(msg);
-                        msg2.what = ConstantValues.UIDELAYUPDATE;
+                        msg2.what = ConstantValues.SPREAD_RESP_UIDELAY_UPDATE;
                         if (adsBean.getRuleTime() == 0 || adsBean.getDelayTime() != 0)
                             sendMessage(msg2);
                         sendEmptyMessageDelayed(
-                                ConstantValues.DELAY,
+                                ConstantValues.SPREAD_RESP_DELAY,
                                 null == adsBean ? 1
                                         : adsBean.getDelayTime() * 1000l);
                     } catch (Exception e) {
                     }
                     break;
                 // 展示可以关闭，通知开发者
-                case ConstantValues.DELAY:
+                case ConstantValues.SPREAD_RESP_DELAY:
                     try {
-                        if (!adSpreadBIDView.isDisplayed) {
+                        //if (!adSpreadBIDAdapter.isDisplayed) wilder 2019 covered
+                        if (!isDisplayed)
+                        {
                             if (KyAdBaseView.spreadSettleType == KyAdBaseView.SpreadSettleType.CPM)
-                                if ((null != getViewById(ConstantValues.WEBVIEWID, msg) && getViewById(ConstantValues.WEBVIEWID, msg).isShown()) || (null != getViewById(ConstantValues.ICONID, msg) && getViewById(ConstantValues.ICONID, msg).isShown())) {
+                                if ((null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg) && getViewById(ConstantValues.UI_WEBVIEW_ID, msg).isShown()) ||
+                                        (null != getViewById(ConstantValues.MIXED_UI_ICONID, msg) && getViewById(ConstantValues.MIXED_UI_ICONID, msg).isShown())) {
                                     notifyImpressionInterface(msg);
                                 }
                         }
-                        if (adSpreadBIDView.kyViewListener.isClickableConfirm()) {
+                        //if (adSpreadBIDAdapter.kySpreadViewListener.isClickableConfirm())  wilder 2019 covered
+                        if (kySpreadViewListener.isClickableConfirm())
+                        {
                             hasClosed = true;
-                            removeMessages(ConstantValues.STRICT);
+                            removeMessages(ConstantValues.SPREAD_RESP_STRICT);
                             notifyCloseInterface(msg);
                         }
                     } catch (Exception e) {
@@ -522,12 +533,12 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                         notifyCloseInterface(msg);
                     }
                     break;
-                case ConstantValues.IMPRESSION:
+                case ConstantValues.SPREAD_RESP_IMPRESSION:
                     notifyImpressionInterface(msg);
                     break;
-                case ConstantValues.UIDELAYUPDATE:
+                case ConstantValues.SPREAD_RESP_UIDELAY_UPDATE:
                     try {
-                        adCounter = (InstlView.CenterTextView) getViewById(ConstantValues.SPREADADCOUNTER, msg);
+                        adCounter = (InstlView.CenterTextView) getViewById(ConstantValues.SPREAD_UI_COUNTERID, msg);
                         if (msg.arg1 == AdSpreadBIDView.NOTIFY_COUNTER_TEXT || msg.arg1 == AdSpreadBIDView.NOTIFY_COUNTER_NUM) {
                             if (null != adCounter)
                                 adCounter.setVisibility(View.VISIBLE);
@@ -536,11 +547,11 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                         e.printStackTrace();
                     }
                     break;
-                case ConstantValues.CLOSEDSTATUSCHECK:
+                case ConstantValues.SPREAD_RESP_CLOSEDSTATUS_CHECK:
                     try {
-                        if (!hasMessages(ConstantValues.STRICT))
-                            if (!hasMessages(ConstantValues.DELAY))
-                                sendEmptyMessage(ConstantValues.DELAY);
+                        if (!hasMessages(ConstantValues.SPREAD_RESP_STRICT))
+                            if (!hasMessages(ConstantValues.SPREAD_RESP_DELAY))
+                                sendEmptyMessage(ConstantValues.SPREAD_RESP_DELAY);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -549,33 +560,32 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
         }
     }
 
-    class InitRunnable implements Runnable {
-
-        public InitRunnable() {
-        }
-
-        @Override
-        public void run() {
-            AdsBean adsBean = kyViewListener.getAdsBean();
-            switch (adsBean.getAdType()) {
-                case ConstantValues.HTML:
-                    initRes(null);
-                    break;
-                case ConstantValues.MIXED:
-                    initRes(adsBean.getGetImageUrl() + adsBean.getAdIcon());
-                    break;
-                default:
-                    initRes(adsBean.getGetImageUrl() + adsBean.getAdPic());
-                    break;
-            }
-        }
-    }
+//    class InitRunnable implements Runnable {
+//
+//        public InitRunnable() {
+//        }
+//
+//        @Override
+//        public void run() {
+//            AdsBean adsBean = kySpreadViewListener.getAdsBean();
+//            switch (adsBean.getAdType()) {
+//                case ConstantValues.RESP_ADTYPE_HTML:
+//                    initRes(null);
+//                    break;
+//                case ConstantValues.RESP_ADTYPE_MIXED:
+//                    initRes(adsBean.getGetImageUrl() + adsBean.getAdIcon());
+//                    break;
+//                default:
+//                    initRes(adsBean.getGetImageUrl() + adsBean.getAdPic());
+//                    break;
+//            }
+//        }
+//    }
 
     private void setTouchArea() {
-        AdsBean adsBean = kyViewListener.getAdsBean();
+        //AdsBean adsBean = kySpreadViewListener.getAdsBean();
         if (null != adsBean.getPointArea()) {
-            String[] rectArray = adsBean.getPointArea()
-                    .replace("(", "").replace(")", "").split(",");
+            String[] rectArray = adsBean.getPointArea().replace("(", "").replace(")", "").split(",");
             if (rectArray.length == 4) {
                 touchRect = AdViewUtils.string2Rect(
                         Integer.valueOf(rectArray[0].trim()),
@@ -591,24 +601,23 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
         Rect bitmapRect = null;
         int tempWidth = 0, tempHeight = 0;
         try {
-            AdsBean adsBean = kyViewListener.getAdsBean();
-
+            //AdsBean adsBean = kySpreadViewListener.getAdsBean();
             switch (adsBean.getAdType()) {
-                case ConstantValues.HTML:
+                case ConstantValues.RESP_ADTYPE_HTML:
                     String html = adsBean.getXhtml();
                     if (TextUtils.isEmpty(html)) {
-                        msg.what = ConstantValues.FAILED;
+                        msg.what = ConstantValues.SPREAD_RESP_FAILED;
                         msg.obj = this;
                         handler.sendMessage(msg);
                         return;
                     }
                     tempHeight = (int) (adsBean.getAdHeight() * density);
                     tempWidth = (int) (adsBean.getAdWidth() * density);
-                    msg.what = ConstantValues.WEBVIEWRECIEVED;
+                    msg.what = ConstantValues.SPREAD_RESP_HTML_RECEIVED;
                     break;
                 default:
                     if (TextUtils.isEmpty(bitmapPath)) {
-                        msg.what = ConstantValues.FAILED;
+                        msg.what = ConstantValues.SPREAD_RESP_FAILED;
                         msg.obj = this;
                         handler.sendMessage(msg);
                     }
@@ -620,7 +629,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                     }else {
                         this.bitmapPath = (String) AdViewUtils.getInputStreamOrPath(context, bitmapPath, 1);
                         if (TextUtils.isEmpty(this.bitmapPath)) {
-                            msg.what = ConstantValues.FAILED;
+                            msg.what = ConstantValues.SPREAD_RESP_FAILED;
                             msg.obj = this;
                             handler.sendMessage(msg);
                             return;
@@ -632,19 +641,19 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
                        tempHeight = (int) ((float) screenWidth / (float) options.outWidth * options.outHeight);
                     }
 
-                    msg.what = ConstantValues.BITMAPRECIEVED;
+                    msg.what = ConstantValues.SPREAD_RESP_BITMAP_RECEIVED;
                     break;
             }
             switch (adsBean.getDeformationMode()) {
-                case ConstantValues.SCALE_NOHTML:
-                    if (adsBean.getAdType() != ConstantValues.HTML) {
+                case ConstantValues.SPREAD_UI_SCALE_NOHTML:
+                    if (adsBean.getAdType() != ConstantValues.RESP_ADTYPE_HTML) {
                         tempHeight = (screenHeight - (screenWidth / 4 * isHasSpreadLogo()));
                     }
                     break;
-                case ConstantValues.SCALE_INCLUDEHTML:
+                case ConstantValues.SPREAD_UI_SCALE_INCLUDEHTML:
                     tempHeight = (screenHeight - (screenWidth / 4 * isHasSpreadLogo()));
                     break;
-                case ConstantValues.NOSCALED:
+                case ConstantValues.SPREAD_UI_NOSCALED:
                     break;
             }
             adsBean.setRealAdWidth(adWidth = tempWidth);
@@ -670,15 +679,15 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
         Rect newRect;
         if (null == rectA || null == rectB)
             return null;
-        newRect = new Rect(rectB.left * rectA.right / 1000, rectB.top
-                * rectA.bottom / 1000, rectB.right * rectA.right / 1000,
+        newRect = new Rect(rectB.left * rectA.right / 1000,
+                rectB.top * rectA.bottom / 1000, rectB.right * rectA.right / 1000,
                 rectB.bottom * rectA.bottom / 1000);
         return newRect;
     }
 
     private int isHasSpreadLogo() {
-        AdsBean adsBean = kyViewListener.getAdsBean();
-        if (adsBean.getSpreadType() == ConstantValues.HASLOGO) {
+        //AdsBean adsBean = kySpreadViewListener.getAdsBean();
+        if (adsBean.getSpreadType() == ConstantValues.SPREAD_RESP_HAS_LOGO) {
 //            if (null == getSpreadLogo())
 //                return 0;
 //            else
@@ -687,240 +696,74 @@ public class AdBIDSpreadAdapter extends AdAdapterManager implements KySpreadList
             return 0;
     }
 
+    //////////////////////////////////////////////////////////////////////////////
+    ////////////////////////// override for AdAdapterManager ////////////////////
+    /////////////////////////////////////////////////////////////////////////////
+    @Override
+    protected void initAdapter(Context context) {
+        AdViewUtils.logInfo("initAdapter AdBIDSpreadAdapter");
+        this.context = context;
+    }
+
+    @Override
+    public void handleAd(Context context, Bundle bundle) {
+        screenWidth = bundle.getInt("screenWidth");
+        screenHeight = bundle.getInt("screenHeight");
+        adWidth = bundle.getIntArray("adSize")[0];
+        adHeight = bundle.getIntArray("adSize")[1];
+        density = bundle.getDouble("density");
+
+        kySpreadViewListener = (KySpreadListener) bundle.getSerializable("interface");
+
+        handler = new SpreadHandler(this);
+        //new Thread(new InitRunnable()).start();
+        adsBean = kySpreadViewListener.getAdsBean();
+        switch (adsBean.getAdType()) {
+            case ConstantValues.RESP_ADTYPE_HTML:
+                initRes(null);
+                break;
+            case ConstantValues.RESP_ADTYPE_MIXED:
+                initRes(adsBean.getGetImageUrl() + adsBean.getAdIcon());
+                break;
+            default:
+                initRes(adsBean.getGetImageUrl() + adsBean.getAdPic());
+                break;
+        }
+    }
+
+    @Override
+    public View getAdView() {
+        return null;
+    }
+
     @Override
     public void sendMessage(int msg) {
         handler.sendEmptyMessage(msg);
     }
-
     @Override
     public void removeMessage(int msg) {
         handler.removeMessages(msg);
     }
-
     @Override
     public void cancelSpreadAd() {
         Message userCancelMsg = new Message();
-        userCancelMsg.what = ConstantValues.USERCANCEL;
+        userCancelMsg.what = ConstantValues.SPREAD_RESP_USERCANCEL;
         userCancelMsg.obj = this;
         handler.sendMessage(userCancelMsg);
     }
-
-
-    @Override
-    public void onCloseBtnClicked() {
-        cancelSpreadAd();
-    }
-
-    @Override
-    public void onViewClicked(MotionEvent e, AgDataBean agDataBean, String url, float downX, float downY) {
-
-    }
-
-
-    @Override
-    public boolean isClickableConfirm() {
-        return false;
-    }
-
-    @Override
-    public void setClickMotion(MRAIDView view, Rect touchRect) {
-    }
-
-    @Override
-    public WebResourceResponse shouldInterceptRequest(String url) {
-        return kyViewListener.shouldInterceptRequest(url);
-    }
-
-    @Override
-    public boolean needConfirmDialog() {
-        return false;
-    }
-
-    @Override
-    public void checkClick(String url) {
-
-    }
-
-    @Override
-    public void onReady(AgDataBean agDataBean, boolean force) {
-
-    }
-
-    @Override
-    public void onReceived(AgDataBean agDataBean, boolean force) {
-
-    }
-
-    @Override
-    public void onAdFailed(AgDataBean agDataBean, String error, boolean force) {
-
-    }
-
-    @Override
-    public void onDisplay(AgDataBean agDataBean, boolean force) {
-
-    }
-
-    @Override
-    public boolean getCloseble() {
-        return false;
-    }
-
-    @Override
-    public String getAdLogo() {
-        if (null != kyViewListener)
-            return kyViewListener.getAdLogo();
-        return null;
-    }
-
-    @Override
-    public String getAdIcon() {
-        if (null != kyViewListener)
-            return kyViewListener.getAdIcon();
-        return null;
-    }
-
-    @Override
-    public Drawable getSpreadLogo() {
-        if (null != kyViewListener)
-            return kyViewListener.getSpreadLogo();
-        return null;
-    }
-
-    @Override
-    public int getNotifyType() {
-        if (null != kyViewListener)
-            return kyViewListener.getNotifyType();
-        return AdSpreadBIDView.NOTIFY_COUNTER_NUM;
-    }
-
-    @Override
-    public AdsBean getAdsBean() {
-        return null;
-    }
-
-    @Override
-    public void rotatedAd(Message msg) {
-
-    }
-
-    @Override
-    public String getBehaveIcon() {
-        return null;
-    }
-
-    @Override
-    public SpreadView getSpreadView() {
-        return null;
-    }
-
-    @Override
-    public SpreadView getSkipView() {
-        return null;
-    }
-
-    @Override
-    public void onAdNotifyCustomCallback(ViewGroup view, int ruleTime, int delayTime) {
-
-    }
-
-    @Override
-    public void mraidNativeFeatureDownload(String url) {
-        if (null != kyViewListener)
-            kyViewListener.checkClick(url);
-    }
-
-    @Override
-    public void mraidNativeFeatureCallTel(String url) {
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_DIAL); // android.intent.action.DIAL
-        intent.setData(Uri.parse(url));
-        context.startActivity(intent);
-    }
-
-    @Override
-    public void mraidNativeFeatureOpenDeeplink(String url) {
-        if (url.startsWith("mraid")) {
-            try {
-                url = URLDecoder.decode(url.replace("mraid://openDeeplink?url=", ""), "UTF-8");
-                if (null != kyViewListener) {
-                    AdsBean adsBean = kyViewListener.getAdsBean();
-                    adsBean.setDeeplink(url);
-                }
-                if (null != kyViewListener)
-                    kyViewListener.checkClick(url);
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    @Override
-    public void mraidNativeFeatureOpenBrowser(String url) {
-        if (null != kyViewListener)
-            kyViewListener.checkClick(url);
-    }
-
-    @Override
-    public void mraidNativeFeatureSendSms(String url) {
-        AdViewUtils.sendSms(context, url);
-    }
-
-    @Override
-    public void mraidNativeFeatureCreateCalendarEvent(String eventJSON) {
-    }
-
-    @Override
-    public void mraidNativeFeatureStorePicture(String url) {
-    }
-
-
-    @Override
-    public void mraidViewLoaded(MRAIDView mraidView) {
+    //wilder 2019 covered --- added
+    public void mraidViewHasLoaded() {
         //(wilder 2019) for page finished then start counter
         if (handler != null && !isPageDone ) {
             isPageDone = true;
-            handler.notifyCountDown(handler.adsBean.getRuleTime() + handler.adsBean.getDelayTime(),
-                    kyViewListener.getNotifyType());
+            handler.notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(),
+                    kySpreadViewListener.getNotifyType());
         }
         //end wilder 2019
     }
 
-    @Override
-    public void mraidViewExpand(MRAIDView mraidView) {
-    }
+    ////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////// AdVGListener //////////////////////////////
 
-    @Override
-    public void mraidViewClose(MRAIDView mraidView) {
-    }
-
-    @Override
-    public boolean mraidViewResize(MRAIDView mraidView, int width, int height, int offsetX, int offsetY) {
-        return false;
-    }
-
-    @Override
-    public void onShouldOverride(String url) {
-        // 至少触摸过才可以点击跳转
-        if (null != kyViewListener) {
-            AdsBean adsBean = kyViewListener.getAdsBean();
-            if (adsBean.getTouchStatus() > MRAIDView.ACTION_DEFAULT) {
-                kyViewListener.checkClick(url);
-            }
-        }
-    }
-
-    @Override
-    public WebResourceResponse onShouldIntercept(String data) {
-        if (null != kyViewListener)
-            return kyViewListener.shouldInterceptRequest(data);
-        return null;
-    }
-
-    @Override
-    public void loadDataError(int errorType) {
-        if (null != kyViewListener)
-            kyViewListener.onAdFailed(null, "Custom://" + errorType, false);
-    }
 
 }

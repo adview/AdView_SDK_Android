@@ -5,16 +5,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.ConstantValues;
 
+/*该activity 用于安装apk的时候的UI逻辑*/
 public class AdActivity extends Activity {
-    //    private String sdkKey = null;
-//    private String adId = null;
-//    private int videoType;
-//    private String installedPackagename = null;
+    private final static int ACTION_ID_INSTALLED = 6;
+
     private Uri uri = null;
     private String[] instlReport;
     private String gdtExtraUrls;
@@ -49,10 +47,11 @@ public class AdActivity extends Activity {
             // 汇报成功安装
             AdViewUtils.reportEffect(instlReport);
             if (!TextUtils.isEmpty(gdtExtraUrls))
-                AdViewUtils.reportEffect(new String[]{AdViewUtils.getGdtActionLink(gdtExtraUrls, clickId_gdt, ConstantValues.ACTION_ID_INSTALLED)});
+                AdViewUtils.reportEffect(new String[]{
+                        AdViewUtils.getGdtActionLink(gdtExtraUrls, clickId_gdt, ACTION_ID_INSTALLED)});
 
 //
-            Toast.makeText(this, "应用安装成功", 0).show();
+            //Toast.makeText(this, "应用安装成功", 0).show();
             AdViewUtils.logInfo("Install Done");
 //            }
         } else {

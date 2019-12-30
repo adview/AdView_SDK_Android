@@ -1,10 +1,8 @@
 package com.kuaiyou.video;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.Window;
@@ -12,6 +10,7 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 import com.kuaiyou.adbid.AdVideoBIDView;
+import com.kuaiyou.interfaces.AdViewVideoInterface;
 import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.utils.AdViewUtils;
 
@@ -52,14 +51,12 @@ public class AdViewVideoActivity extends Activity {
 
             mvastView = new AdVASTView(this, -1, -1, false, AdVideoBIDView.getInstance(this.getParent()).getAdAdapterManager());
             if (mvastView != null) {
-
                 if (mAppInterface != null) {
                     mvastView.setVideoAppListener(mAppInterface);
                 }
                 setContentView(mvastView, new FrameLayout.LayoutParams(-1, -1));
 
                 mvastView.processVastVideo(this, bd);
-                //mvastView.video_handlerAd(this, adsBean, true, -1, null, getIntent().getExtras());
             }
         }catch ( Exception e) {
             e.printStackTrace();
@@ -82,7 +79,7 @@ public class AdViewVideoActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        AdViewUtils.logInfo("entered on onResume --(life cycle event)");
+        AdViewUtils.logInfo("====== AdViewVideoActivity:: onResume() --(life cycle event) =====");
         try {
 //            showProgressBar();
             if (mvastView != null) {
@@ -95,7 +92,7 @@ public class AdViewVideoActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        AdViewUtils.logInfo("entered on onPause --(life cycle event)");
+        AdViewUtils.logInfo("====== AdViewVideoActivity:: onPause() --(life cycle event) ===========");
         try {
            if(mvastView != null) {
                mvastView.onPause();

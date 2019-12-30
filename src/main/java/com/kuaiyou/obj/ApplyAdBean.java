@@ -1,9 +1,11 @@
 package com.kuaiyou.obj;
 
+import com.kuaiyou.utils.AdViewUtils;
+
 import java.io.Serializable;
 
 /**
- * 设备和应用程序属�?
+ * 设备和应用程序
  */
 public class ApplyAdBean implements Serializable {
 
@@ -68,6 +70,9 @@ public class ApplyAdBean implements Serializable {
     private String ua = null;       //Web useragent
     private String android_ID = null;  //ANDROID_ID作为唯一设备标识号（刷机、重置系统后可变）
 
+    //有关华为 OAID
+    private String oaID = null;
+
     // 适配gdt广告
     private Integer adHeight = 0;
     private Integer adWidth = 0;
@@ -84,7 +89,7 @@ public class ApplyAdBean implements Serializable {
     private Integer gdpr = 0;
     private String consent = "";
 
-    // 适配交换广告。直投广�?
+    // 适配交换广告。直投广告
     private Integer serviceId = 996;
     private Integer sex = 0;
     private String appVersion = "0";
@@ -309,22 +314,15 @@ public class ApplyAdBean implements Serializable {
     public void setGpId(String gpId) {
         this.gpId = gpId;
     }
-
-    public void setGdpr(Integer gdpr) {
-        this.gdpr = gdpr;
+    //OAid
+    public String getOAId() {
+        return oaID;
     }
 
-    public Integer getGdpr() {
-        return gdpr;
+    public void setOAId(String oaid) {
+        this.oaID = oaid;
     }
-    //for GDPR
-    public void setConsent(String consent) {
-        this.consent = consent;
-    }
-    public String getConsent() {
-        return consent;
-    }
-    //end GDPR
+
     public String getUa() {
         return ua;
     }
@@ -430,7 +428,12 @@ public class ApplyAdBean implements Serializable {
     }
 
     public String getBundleId() {
-        return bundleId;
+        //wilder 2019 for test custom package
+        if (AdViewUtils.test_UserPackage.length() > 0) {
+            return AdViewUtils.test_UserPackage;
+        }else {
+            return bundleId;
+        }
     }
 
     public void setBundleId(String bundleId) {

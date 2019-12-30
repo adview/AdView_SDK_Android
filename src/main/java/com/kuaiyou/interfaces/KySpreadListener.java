@@ -5,10 +5,9 @@ import android.view.ViewGroup;
 
 import com.kuaiyou.utils.SpreadView;
 
-public interface KySpreadListener extends KyViewListener {
+public interface KySpreadListener extends AdVGListener {
 
-    void onAdNotifyCustomCallback(ViewGroup view, int ruleTime,
-                                  int delayTime);
+    void onAdNotifyCustomCallback(ViewGroup view, int ruleTime, int delayTime);
 
     SpreadView getSpreadView();
 
@@ -19,4 +18,6 @@ public interface KySpreadListener extends KyViewListener {
     int getNotifyType();
 
     String getBehaveIcon();
+
+    void mraidViewHasLoaded(); //wilder 2019 added
 }

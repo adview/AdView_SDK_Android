@@ -4,289 +4,241 @@ import android.os.Environment;
 
 public class ConstantValues {
 
-    //请求广告类型
-    public static final int BANNERTYPE = 0;
-    public static final int INSTLTYPE = 1;
-    public static final int SPREADTYPE = 4;
-    public static final int VIDEOTYPE = 5;
-    public static final int NATIVEADTYPE = 6;
-    public static final int MRECTYPE = 11;      //wilder 2019 for mrec
+    //代码中的动态使用的类名,主要用于download功能和video
+    public final static String ADACTIVITY_CLASS      = "com.kuaiyou.utils.AdActivity";
+    public final static String DOWNLOADSERVICE_CLASS = "com.kuaiyou.utils.DownloadService";
+    public final static String ADVIEW_LANDINGPAGE_CLASS   = "com.kuaiyou.utils.AdViewLandingPage";
+    public final static String VIDEOACTIVITY_CLASS   = "com.kuaiyou.video.AdViewVideoActivity";
 
-    //浏览器类型
-    public final static int INAPP = 0;
-    public final static int SYS = 1;
+    //请求广告类型,对应RTB接口协议中的 st (sdkType) ，返回值里也是没有st的，详见sdk接口v3.3,
+    public static final int SDK_REQ_TYPE_BANNER = 0;
+    public static final int SDK_REQ_TYPE_INSTL = 1;
+    public static final int SDK_REQ_TYPE_SPREAD = 4;
+    public static final int SDK_REQ_TYPE_VIDEO = 5;
+    public static final int SDK_REQ_TYPE_NATIVE = 6;
+    public static final int SDK_REQ_TYPE_MREC = 11;      //wilder 2019 for mrec
 
-    // 响应广告类型
-    public final static int FULLIMAGE = 0; //banner纯图片
-    public final static int INTERLINK = 1; //banner文字链
-    public final static int MIXED = 2;  //banner图文混合
-    public final static int INSTL = 3;  //插屏
-    public final static int HTML = 4;    //html
-    public final static int SPREAD = 5; //开屏纯图片
-    public final static int VIDEO = 6; //激励视频
-    public final static int VIDEO_PASTER = 7 ;//贴片视频
-    public final static int NATIVE = 8; //原生广告
-    public final static int VIDEO_EMBED = 11; //MREC 嵌入视频
+    //请求广告的route类型
+    public final static int SDK_REQ_ROUTE_ADFILL = 0; // 补余
+    public final static int SDK_REQ_ROUTE_SSP = 1; // 聚合
+    public final static int SDK_REQ_ROUTE_RTB = 2;// 竞价
 
-    // SSP渠道号
-    public final static int ADS_ADVIEW = 1;
-    public final static int ADS_BAIDU = 2;
-    public final static int ADS_INMOBI = 4;
-    public final static int ADS_MIAOZHEN = 5;
-    public final static int ADS_GDT = 6;
-    public final static int ADS_ALI = 8;
-    public final static int ADS_PINYOU = 12;
+    // 响应广告类型,对应RTB接口协议中的 at (adType) ，请求里是没有at的，BID->DSP的请求中的at是BID从开发者后台取得的，详见sdk接口v3.3
+    //其中 0-4 都是采用mraidview 的webview来加载
+    public final static int RESP_ADTYPE_FULLIMAGE = 0; //banner纯图片
+    public final static int RESP_ADTYPE_INTERLINK = 1; //banner文字链
+    public final static int RESP_ADTYPE_MIXED = 2;  //banner图文混合
+    public final static int RESP_ADTYPE_INSTL = 3;  //插屏
+    public final static int RESP_ADTYPE_HTML = 4;    //html
+    public final static int RESP_ADTYPE_SPREAD = 5; //开屏纯图片
+    public final static int RESP_ADTYPE_VIDEO = 6; //激励视频
+    public final static int RESP_ADTYPE_VIDEO_PASTER = 7 ;//贴片视频
+    public final static int RESP_ADTYPE_NATIVE = 8; //原生广告
+    public final static int RESP_ADTYPE_VIDEO_EMBED = 11; //MREC 嵌入视频
 
-    // 广告行为
-    public final static int ACT_OPENWEB = 1;
-    public final static int ACT_DOWNLOAD = 2;
-    public final static int ACT_OPENMAP = 4;
-    public final static int ACT_SENDMSG = 8;
-    public final static int ACT_SENDEMAIL = 16;
-    public final static int ACT_CALL = 32;
-    public final static int ACT_PALYVIDEO = 64;
-    public final static int ACT_WECHATAPP = 128;
+    // 广告行为,对应resp包的act字段， 1- 广告落地页，2-下载， 3- 打开小程序（海外版不支持）
+    public final static int RESP_ACT_OPENWEB = 1;
+    public final static int RESP_ACT_DOWNLOAD = 2;
+    public final static int RESP_ACT_OPENMAP = 4;
+    public final static int RESP_ACT_SENDMSG = 8;
+    public final static int RESP_ACT_SENDEMAIL = 16;
+    public final static int RESP_ACT_CALL = 32;
+    public final static int RESP_ACT_PLAYVIDEO = 64;
+    public final static int RESP_ACT_WECHATAPP = 128;
 
-    // 联网方式
+    // 服务器下发的代发字段
+    public static final int RESP_SERVICEAGENT = 1;
+    public static final int RESP_SDKAGENT = 0;
+
+    //通用广告的ui,logo & icon,closebutton等
+    public final static int     UI_ADICON_ID = 90001;
+    public final static int     UI_ADLOGO_ID = 90002;
+    public final static int     UI_CLOSEBTN_ID = 90003;
+    public final static int     UI_MRAIDVIEW_ID = 90004;
+    public final static int     UI_WEBVIEW_ID = 90005;
+    public final static String  UI_VIDEOICON_BG_COLOR = "#5FA0A0A0"; //背景色
+
+    // 联网方式，用于kybaseview的网络发包
     public final static String POST = "POST";
     public final static String GET = "GET";
 
-    // spread logo
-    public final static int HASLOGO = 1;
-    public final static int NOLOGO = 2;
+    //native resp 原生广告：浏览器类型
+    public final static int NATIVE_RESP_TYPE_INAPP = 0;
+    public final static int NATIVE_RESP_TYPE_SYS = 1;
 
-    // banner大小
-    public final static int BANNER_AUTO_FILL = 0;
-    public final static int BANNER_MREC = 1;        //320x250
-    public final static int BANNER_480X75 = 2;
-    public final static int BANNER_728X90 = 3;
-    public final static int BANNER_SMART = 5;
+    // banner 请求的size大小
+    public final static int BANNER_REQ_SIZE_AUTO_FILL = 0;
+    public final static int BANNER_REQ_SIZE_MREC = 1;        //320x250
+    public final static int BANNER_REQ_SIZE_480X75 = 2;
+    public final static int BANNER_REQ_SIZE_728X90 = 3;
+    public final static int BANNER_REQ_SIZE_SMART = 5;
 
-    //INSTL 插屏广告大小
-    public final static int INSTL_SIZE = 4; //300 x 300
-    public final static int INSTL_320X480 = 8;
-    public final static int INSTL_600X500 = 7;
-    public final static int INSTL_300X250 = 6;
+    //INSTL 请求的插屏广告大小
+    public final static int INSTL_REQ_SIZE = 4; //300 x 300
+    public final static int INSTL_REQ_SIZE_320X480 = 8;
+    public final static int INSTL_REQ_SIZE_600X500 = 7;
+    public final static int INSTL_REQ_SIZE_300X250 = 6;
 
     // handler信息通知
-    public final static int NOTIFYTIMEOUTCHECK = -1;
-    public final static int NOTIFYRECEIVEADOK = 0;
-    public final static int NOTIFYRECEIVEADERROR = 1;
-    public final static int NOTIFYCONNCETFAIL = 2;
-    public final static int NOTIFYROTATEAD = 3;
-    public final static int NOTIFYSTATUS= 4; //native used
+    public final static int NOTIFY_RESP_TIMEOUT_CHECK = -1;
+    public final static int NOTIFY_RESP_RECEIVEAD_OK = 0;
+    public final static int NOTIFY_RESP_RECEIVEAD_ERROR = 1;
+    public final static int NOTIFY_RESP_CONNCET_FAIL = 2;
+    public final static int NOTIFY_RESP_ROTATE_AD = 3;
+    public final static int NOTIFY_NATIVE_RESP_STATUS= 4; //native used
+    public final static int NOTIFY_REQ_GPID_FETCH_DONE = 8; //gpid got done,发生在reqad()之前
 
-    /*------------------spread handler status--------------------*/
-    public static final int FAILED = -1;
-    public static final int INITSUCCESS = 0;
-    public static final int BITMAPRECIEVED = 1;
-    public static final int WEBVIEWRECIEVED = 4;
-    public static final int DELAY = 2;
-    public static final int STRICT = 3;
-    public static final int COUNTDOWN = 5;
-    public static final int USERCANCEL = 6;
-    public static final int IMPRESSION = 7;
-    public static final int UIDELAYUPDATE = 8;
-    public static final int CLOSEDSTATUSCHECK = 9;
+    /*------------------spread 相关： handler status--------------------*/
+    public static final int SPREAD_RESP_FAILED = -1;
+    public static final int SPREAD_REQ_INIT_SUCCESS = 0;
+    public static final int SPREAD_RESP_BITMAP_RECEIVED = 1;
+    public static final int SPREAD_RESP_HTML_RECEIVED = 4;
+    public static final int SPREAD_RESP_DELAY = 2;
+    public static final int SPREAD_RESP_STRICT = 3;
+    public static final int SPREAD_RESP_COUNTDOWN = 5;
+    public static final int SPREAD_RESP_USERCANCEL = 6;
+    public static final int SPREAD_RESP_IMPRESSION = 7;
+    public static final int SPREAD_RESP_UIDELAY_UPDATE = 8;
+    public static final int SPREAD_RESP_CLOSEDSTATUS_CHECK = 9;
 
-    /*------------------spread handler status--------------------*/
+    // spread logo
+    public final static int SPREAD_RESP_HAS_LOGO = 1;
+    public final static int SPREAD_RESP_NO_LOGO = 2;
 
-    public final static int ADICONID = 90001;
-    public final static int ADLOGOID = 90002;
-    public final static int MRAIDVIEWID = 90003;
-    public final static int CLOSEBTNID = 90004;
+    /*------------------------- spread  end      --------------------*/
 
-    // 广告布局控件ID
-    public final static int ICONID = 10001;
-    public final static int TITLEID = 10002;
-    public final static int SUBTITLEID = 10003;
-    public final static int BEHAVICONID = 10004;
-    public final static int DESCRIPTTEXTID = 10005;
-    public final static int WEBVIEWID = 10006;
 
-    public final static int SPREADTEXTID = 10007;
-    public final static int SPREADMIXLAYOUTID = 10008;
+    /***** ---------------------- Mixed 广告类型使用 ------------------***/
+    // MIXED 广告布局控件ID
+    public final static int MIXED_UI_ICONID = 10001;
+    public final static int MIXED_UI_TITLEID = 10002;
+    public final static int MIXED_UI_SUBTITLE_ID = 10003;
+    public final static int MIXED_UI_BEHAVEICON_ID = 10004;
+    public final static int MIXED_UI_DESCRIPTTEXT_ID = 10005;
 
-    public static final int SPREADADFRAMEID = 70003;
-    public final static int SPREADNOTIFYLAYOUT = 10009;
-    public final static int SPREADADCOUNTER = 10010;
+    // spread UI使用
+    public final static int SPREAD_UI_TEXTID = 10007;
+    public final static int SPREAD_UI_MIXLAYOUTID = 10008;  //mixed 使用
+    public static final int SPREAD_UI_FRAMEID = 10009;
+    public final static int SPREAD_UI_NOTIFYLAYOUTID = 10010;
+    public final static int SPREAD_UI_COUNTERID = 10011;
+    public static final int SPREAD_UI_LOGOIMAGEID = 10013;
 
-    // spread
-//    public static final int SPREADADIMAGEID = 70001;
-    public static final int SPREADLOGOIMAGEID = 70002;
-//    public static final int SPREADADFRAMEID = 70003;
-//    public static final int SPREADLOGOFRAMEID = 70004;
-//    public static final int SPREADADTEXTID = 70005;
-//    public static final int SPREADTEXTFRAMEID = 70006;
-//    public static final int SPREADADWEBVIEWID = 70007;
-//    public static final int SPREADADNOTIFYID = 70008;
-//    public static final int SPREADADNOTIFYLAYOUTID = 70009;
-//    public static final int SPREADADICONID = 70010;
+    // spread UI 开屏布局分部常量
+    public final static int SPREAD_UI_EXTRA1 = -1;
+    public final static int SPREAD_UI_EXTRA2 = -2;
+    public final static int SPREAD_UI_EXTRA3 = -3;
+    public final static int SPREAD_UI_NULL = 0;
+    public final static int SPREAD_UI_TOP = 1;
+    public final static int SPREAD_UI_CENTER = 2;
+    public final static int SPREAD_UI_BOTTOM = 3;
+    public final static int SPREAD_UI_ALLCENTER = 4;
+    public final static int SPREAD_UI_SCALE_NOHTML = 5;
+    public final static int SPREAD_UI_SCALE_INCLUDEHTML = 6;
+    public final static int SPREAD_UI_NOSCALED = 7;
 
-    // 开屏布局分部常量
-    public final static int EXTRA1 = -1;
-    public final static int EXTRA2 = -2;
-    public final static int EXTRA3 = -3;
-    public final static int NULL = 0;
-    public final static int TOP = 1;
-    public final static int CENTER = 2;
-    public final static int BOTTOM = 3;
-    public final static int ALL_CENTER = 4;
-
-    public final static int SCALE_NOHTML = 1;
-    public final static int SCALE_INCLUDEHTML = 2;
-    public final static int NOSCALED = 0;
-
-    // 广告条颜色类名称
-    public static final String ICONBACKGROUNDCOLOR = "icon";
-    public static final String BEHAVEBACKGROUNDCOLOR = "behave";
-    public static final String PARENTBACKGROUNDCOLOR = "parent";
-    public static final String TITLEBACKGROUNDCOLOR = "title";
-    public static final String SUBTITLEBACKGROUNDCOLOR = "subtitle";
-    public static final String KEYWORDBACKGROUNDCOLOR = "keyword";
+    // 混合Mixed类型所使用广告条颜色类名称
+    public static final String MIXED_ICONBACKGROUND_COLOR = "icon";
+    public static final String MIXED_BEHAVEBACKGROUND_COLOR = "behave";
+    public static final String MIXED_PARENTBACKGROUND_COLOR = "parent";
+    public static final String MIXED_TITLEBACKGROUND_COLOR = "title";
+    public static final String MIXED_SUBTITLEBACKGROUND_COLOR = "subtitle";
+    public static final String MIXED_KEYWORDBACKGROUND_COLOR = "keyword";
 
     // 插屏点击广播
-    public final static String CLICKBROADCAST = "clickadview";
+    public final static String INSTL_CLICKBROADCAST = "clickadview";
 
+    public final static String INSTL_POPWINDOW_WEBVIEW_BACKGOUNDCOLOR = "#aa212121";
     // 插屏布局名称常量
-    public final static String SCREENWIDTH = "screenWidth";
-    public final static String SCREENHEIGHT = "screenHeight";
-    public final static String FRAMEWIDTH = "frameWidth";
-    public final static String FRAMEHEIGHT = "frameHeight";
-    public final static String INSTLWIDTH = "instlWidth";
-    public final static String INSTLHEIGHT = "instlHeight";
+    public final static String INSTL_WIDTH_KEY = "instlWidth";
+    public final static String INSTL_HEIGHT_KEY = "instlHeight";
 
     // sharedPreference files name
-    public final static String SP_BITMAPMAPPING = "sp_bitmap_local";
-    public final static String SP_LASTMODIFY = "sp_imagemodifysince";
-    public final static String SP_LASTVISIT = "sp_lastvisittime";
-    public final static String SP_ADVINFO = "sp_dev_info";
-    public final static String SP_SPREADINFO = "sp_spread_info";
+    public final static String INSTL_SP_BITMAPMAPPING_FILE = "sp_bitmap_local";
+    public final static String SP_LASTMODIFY_FILE = "sp_imagemodifysince";
+    public final static String SP_LASTVISIT_FILE = "sp_lastvisittime";
+    public final static String SP_ADVINFO_FILE = "sp_dev_info";
+    public final static String SP_SPREADINFO_FILE = "sp_spread_info";
 
-    public final static String SP_INSTLINFO = "sp_instl_info";
-    public final static String SP_BANNERINFO = "sp_banner_info";
-    public final static String SP_VIDEO_NAME = "local_dw_video";
-
+    public final static String SP_INSTLINFO_FILE = "sp_instl_info";
+    public final static String SP_BANNERINFO_FILE = "sp_banner_info";
+    public final static String SP_VIDEO_NAME_FILE = "local_dw_video";
     public final static String SP_DOWNLOAD_INFO = "sp_download_info";
-
-    // banner文字动画位移常量
-    public final static int UP_OUT = 0;
-    public final static int UP_IN = 1;
-    public final static int DOWN_OUT = 2;
-    public final static int DOWN_IN = 3;
-
     // for district spp or adfill
-    public final static String ADFILL_ANDROID = "x791zcfub19w2vioo7rpnadkgne03wwo";
-    public final static String SSP_ANDROID = "rfkghh59eyryzx7wntlgry0mff0yx7z1";
-    public final static String RTB_ANDROID = "nzg884l0iqykvsi5eu3i022cjq3qhvff";
-    public final static String UPDATE_ANDROID = "f0hDgR7qfpOL8L9gPEpB1nILo2ttTJug";
+    public final static String ROUTE_ADFILL_ANDROID_MD5KEY = "x791zcfub19w2vioo7rpnadkgne03wwo";
+    public final static String ROUTE_SSP_ANDROID_MD5KEY = "rfkghh59eyryzx7wntlgry0mff0yx7z1";
+    public final static String ROUTE_RTB_ANDROID_MD5KEY = "nzg884l0iqykvsi5eu3i022cjq3qhvff";
+    //这个UPDATE_ANDROID一定不能删除，在InitSDKManager中有getDeclaredField(CONSTANT_CLASS_NAME, "UPDATE_ANDROID")
+    public final static String UPDATE_ANDROID_MD5KEY = "f0hDgR7qfpOL8L9gPEpB1nILo2ttTJug";
 
-
-    // 服务器代发
-    public static final int SERVICEAGENT = 1;
-    public static final int SDKAGENT = 0;
-
-    // 竞价 & 补余 & 服务器聚合
-    public final static int ADFILL_TYPE = 997;
-    public final static int ADBID_TYPE = 998;
-    public final static int ADRTB_TYPE = 996;
-
-    public final static int ADFILL_ROUTE = 0; // 补余
-    public final static int SSP_ROUTE = 1; // 聚合
-    public final static int ADRTB_ROUTE = 2;// 竞价
+    // 广告请求的route类型，竞价 & 补余 & 服务器聚合，用于内部开发
+    public final static int ROUTE_ADFILL_TYPE = 997;
+    public final static int ROUTE_ADBID_TYPE = 998;
+    public final static int ROUTE_ADRTB_TYPE = 996;
 
     // 网络连接超时时间
-    public final static int REQUESTTIMEOUT = 15 * 1000;
+    public final static int REQUEST_CONNECT_TIMEOUT = 15 * 1000;
     // 广告缓存时间
-    public static final int DEFAULTCACHEPEROID = 5;// seconds
+    public static final int DEFAULT_CACHE_PEROID = 5;// seconds
 
     public final static long AD_EXPIRE_TIME = 20 * 60 * 1000;//广告有效期 20分钟 过期时间
-    public final static int VIDEOCACHESIZE = 200 * 1024 * 1024;//视频缓存大小200M
+    public final static int VIDEO_CACHE_SIZE = 200 * 1024 * 1024;//视频缓存大小200M
     // 误点击常量
-    public final static int CLICKERROR = 1;
-    public final static int CLICKNORMAL = 0;
-    public final static int CLICKNONE = -1;
+    public final static int CLICK_ERROR = 1;
+    public final static int CLICK_NORMAL = 0;
+    public final static int CLICK_NONE = -1;
 
     // 文字匹配正则表达式
-    public final static String REGULAR_MATCHNUM = "([0-9]|%|\\.){1}"; // 匹配数字
-    public final static String REGULAR_MATCHBIGBRACKETS = "\\{([^\\}]*)\\}"; // 匹配{}
+    public final static String REGULAR_MATCH_NUM = "([0-9]|%|\\.){1}"; // 匹配数字
+    public final static String REGULAR_MATCH_BIGBRACKETS = "\\{([^\\}]*)\\}"; // 匹配{}
 
-    // webview 图片地址
+    // webview 和使用的图片地址，都放到assets中
     public static final String WEBVIEW_IMAGE_BASE_PATH = "/assets/";
-    // webview 控件id
-    public static final int BTN_TO_PREV = 1;
-    public static final int BTN_TO_NEXT = 2;
-    public static final int BTN_DO_REFRESH = 3;
-    public static final int BTN_DO_SHARE = 4;
-    public static final int BTN_DO_CLOSE = 5;
-    public static final int BTN_DO_STOP = 6;
-    public static final int TOOLBAR_ID = 88;
 
     public final static String DL_DOWNLOADING_STATUS    = "download_status_downloading";
     public final static String DL_DOWNLOADED_STATUS     = "download_status_downloaded";
-    public final static String DL_DOWNLOADFAILED_STATUS = "download_status_status";
+    public final static String DL_DOWNLOADFAILED_STATUS = "download_status_failed";
+    //关闭落地页会广播closed事件，在spread中会有条件接受
+    public final static String ADWEBVIEW_BROADCAST_CLOSED_STATUS = "adwebview_closed_status";
 
-    public final static String ADWEBVIEW_CLOSED_STATUS = "adwebview_closed_status";
+    //请求和report的thread的并发数量
+    public final static int REPORT_THREADPOOL_NUM = 4;
+    public final static int REQUEST_THREADPOOL_NUM = 1;
 
-    public final static int DL_DOWNLOADING_STATUS_INT = 4;
-    public final static int DL_DOWNLOADED_STATUS_INT = 8;
-    public final static int DL_DOWNLOADFAILED_STATUS_INT = 16;
-
-    public final static String HK_CLICKAREA = "{CLICKAREA}";
-    public final static String HK_RELATIVE_COORD = "{RELATIVE_COORD}";
-    public final static String HK_ABSOLUTE_COORD = "{ABSOLUTE_COORD}";
-    public final static String HK_LONGITUDE = "{LONGITUDE}";
-    public final static String HK_LATITUDE = "{LATITUDE}";
-    public final static String HK_UUID = "{UUID}";
-
-    public final static String HK_GDT_DOWN_X = "__DOWN_X__";
-    public final static String HK_GDT_DOWN_Y = "__DOWN_Y__";
-    public final static String HK_GDT_UP_X = "__UP_X__";
-    public final static String HK_GDT_UP_Y = "__UP_Y__";
-
-    public final static String HK_DURATION = "__DURATION__";
-    public final static String HK_BEGINTIME = "__BEGINTIME__";
-    public final static String HK_ENDTIME = "__ENDTIME__";
-    public final static String HK_FIRST_FRAME = "__FIRST_FRAME__";
-    public final static String HK_LAST_FRAME = "__LAST_FRAME__";
-    public final static String HK_SCENE = "__SCENE__";
-    public final static String HK_TYPE = "__TYPE__";
-    public final static String HK_BEHAVIOR = "__BEHAVIOR__";
-    public final static String HK_STATUS = "__STATUS__";
-
-    public final static int ADLINK_NORMAL = 0;
-    public final static int ADLINK_GDT = 1;
-
-    public final static int ACTION_ID_DOWNLOAD_START = 5;
-    public final static int ACTION_ID_INSTALLED = 6;
-    public final static int ACTION_ID_DOWNLOAD_FINISHED = 7;
-
-
-    public final static String ADACTIVITY_DECLARATIONS      = "com.kuaiyou.utils.AdActivity";
-    public final static String DOWNLOADSERVICE_DECLARATIONS = "com.kuaiyou.utils.DownloadService";
-    public final static String ADVIEWWEBVIEW_DECLARATIONS   = "com.kuaiyou.utils.AdViewLandingPage";
-    public final static String VIDEOACTIVITY_DECLARATIONS   = "com.kuaiyou.video.AdViewVideoActivity";
-
-    public final static int ACTIVITY_REQUEST_CODE = 8888;
-    public final static int REPORT_THREADPOOLNUM = 4;
-    public final static int REQUEST_THREADPOOLNUM = 1;
-
+    ////////////////////// 该权限需要WRITE_EXTERNAL_STORAGE，目前同步用于downloadAPP（海外版已取消该功能）////////////////
+    // ////////////        downloadVideo(海外版用的是在线video)         /////////////////////////////////////
     public final static String BASE_PATH = Environment.getExternalStorageDirectory().getAbsolutePath() + "/Adview/";
-
     public final static String DOWNLOAD_APP_PATH = BASE_PATH + "download/apps/";
-    public final static String CACHE_AD_PATH = BASE_PATH + "ad/";
     public final static String DOWNLOAD_VIDEO_PATH = BASE_PATH + "download/video/";
+    //public final static String CACHE_AD_PATH = BASE_PATH + "ad/"; 该目录用于存放adicon和adlogo，海外版会不下发这2个字段，如下发则使用应用内存储
+    ////////////////// 权限 end//////////////////////////////////////////////////////////////////////////////////////////
 
-    public final static int LOADERROR_BLANK = 2;
-    public final static int LOADERROR_AUTORUN = 1;
+    public final static int MRAID_LOADERROR_BLANK = 2;  //mraid 白屏
+    public final static int MRAID_LOADERROR_AUTORUN = 1;    //mraid 自动运行
 
-    public static String VIDEO_ICON_BG_COLOR = "#5FA0A0A0";
+    public final static String WEBVIEW_BASEURL = "http://www.adview.com"; //wilder 2019, for some base url should be baseurl, else may cause some error
+    public final static String VAST_OMSDK_ASSETS_URL = "file:///android_asset"; //for OMSDK used for native js file for vast video
 
-    public final static String WEBVIEW_BASEURL = "http://www.adview.com"; //wilder 2019
+    //混合视频广告 Mixed vast video used
+    public final static int MIXED_VAST_START_TYPE = 1;
+    public final static int MIXED_VAST_MIDDLE_TYPE = 2;
+    public final static int MIXED_VAST_END_TYPE = 3;
+    public final static int MIXED_VAST_DURATION_TYPE = 4;
+    public final static int MIXED_VAST_MEDIA_FILE = 5;
+    public final static int MIXED_VAST_IMPRESSION = 6;
+    public final static int MIXED_VAST_CLICKTHROUGH = 7;
+    public final static int MIXED_VAST_CLICKTRACKING = 8;
+    public final static int MIXED_VAST_EXTENSION = 9;
 
-//    public static String MRAID_BITMAP_HTMLSTYLE = "<meta charset='utf-8'><style type='text/css'>html,body{}* { padding: 0px; margin: 0px;}a:link { text-decoration: none;}p { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align: middle;}</style>"
-//            + "<body><a href=\"AD_LINK\"><img src=\"IMAGE_PATH\" alt=\"\" width=\"BITMAP_WIDTH\" height=\"BITMAP_HEIGHT\" ></a>"
-//            + " </body>";
+    public static String MIXED_VAST_STARTEVENT_STR = "__START_EVENT__";
+    public static String MIXED_VAST_MIDDLEEVENT_STR = "__MIDDLE_EVENT__";
+    public static String MIXED_VAST_ENDEVENT_STR = "__END_EVENT__";
+    public static String MIXED_VAST_DURATION_STR = "__DURATION__";
+    public static String MIXED_VAST_MEDIAFILE_STR = "__MEDIAFILE__";
+    public static String MIXED_VAST_IMPRESSION_STR = "__IMPRESSION__";
+    public static String MIXED_VAST_CLICKTHROUGHT_STR = "__CLICKTHROUGHT__";
+    public static String MIXED_VAST_CLICKTRACKING_STR = "__CLICKTRACKING__";
+    public static String MIXED_VAST_EXTENSION_STR = "__EXTENSION__";
 
     //(wilder 2019) picture center in view
     public static String MRAID_BITMAP_HTMLSTYLE = "<HTML><Div align=\"center\"  margin=\"0px\">"
@@ -299,11 +251,16 @@ public class ConstantValues {
 //            + " </body>"
 //            + "</Div></HTML>";
 
-
 //    public static String MRAID_SCRIPT_HTMLSTYLE = "<Div align=\"center\" margin=\"0px\">"
 //            + "__SCRIPT__"
 //            + "</Div>";
-    public static String MRAID_SCRIPT_HTMLSTYLE = "<Div align=\"center\" style=\"margin: 0 auto; text-align: center\">"
+
+    public static String MRAID_SCRIPT_HTMLSTYLE =
+            "<Div align=\"center\" style=\"margin: 0 auto; text-align: center\">"
+            + "<script src=\"file:///android_asset/MRAID.js\" type=\"text/javascript\"></script>"
+            + "<script src=\"file:///android_asset/omsdk-v1.js\" type=\"text/javascript\"></script>"
+            // + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=2,user-scalable=yes\" />"
+            //        + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no\" />"
             + "__SCRIPT__"
             + "</Div>";
 //    public static String MRAID_SCRIPT_HTMLSTYLE = "<meta charset='utf-8'><style type='text/css'>html,body{}* { padding: 0px; margin: 0 auto;}a:link { text-decoration: none;}p { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; vertical-align: middle;}</style>"
@@ -320,4 +277,64 @@ public class ConstantValues {
 //            "        </tr>\n" +
 //            "    </table>\n" +
 //            "</body>";
+
+
+    /////////////////////////////////////////////////VPAID used ///////////////////////////////////////////////////////////////
+    public static final String ENVIRONMENT_VARS = "{ " +
+            "slot: document.getElementById('adview-slot'), " +
+            "videoSlot: document.getElementById('adview-videoslot'), " +
+            "videoSlotCanAutoPlay: true }";
+
+    public static final String VPAID_CREATIVE_URL_STRING = "[VPAID_CREATIVE_URL]";
+    public static final String VPAID_BRIDGE_JS_STRING = "[VPAID_BRIDGE_JS]";
+/*    public static final String VPAID_HTML =
+            "<html>\n" +
+                    "    <header>\n" +
+                    "    </header>\n" +
+                    "    <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'>" +
+                    "    <body style=\"margin:0\">\n" +
+                    "         <script type=\"text/javascript\">\n" +
+                    "            [VPAID_BRIDGE_JS]\n" +
+                    "         </script>\n" +
+                    "        <script src=\"[VPAID_CREATIVE_URL]\" type=\"text/javascript\"></script>\n" +
+                    "        <video id=\"adview-videoslot\" style=\"position:absolute; width:100%; height:100%; z-index:1; -webkit-transform: translate3d(0, 0, 0);\" ></video>\n" +
+                    "        <div id=\"adview-slot\" style=\"width:100%; height:100%; z-index: 3; position:absolute; -webkit-user-select: none;\" ></div>\n" +
+                    "    </body>\n" +
+                    "</html>";*/
+
+     /*
+  "        <script src=\"[VPAID_BRIDGE_JS]\" type=\"text/javascript\"></script>\n" +
+          "        <script src=\"[VPAID_UI_JS]\" type=\"text/javascript\"></script>\n" +
+          "        <script src=\"[VPAID_CREATIVE_URL]\" type=\"text/javascript\"></script>\n" +
+   */
+    /*
+    "        <video style=\"position:absolute; width:100%; height:100%; z-index:1;\" id=\"adview-videoslot\"></video>\n" +
+
+    object-fit:contain;
+    object-fit:fill;
+    "        <video id=\"adview-videoslot\" width=\"100%\" height=\"100%\" preload=\"none\" style=\"-webkit-transform: translate3d(0, 0, 0)\">" +
+     "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\" />\n" +
+    * */
+
+    /*
+    private static final String VPAID_HTML =
+            "<html>\n" +
+                    "  <head>\n" +
+                    "  </head>\n" +
+                    "\n" +
+                    "  <body>\n" +
+                    "    <div id=\"mainContainer\" style = \"width:100%; height:100%; position:relative;\">\n" +
+                    "      <div id=\"content\" style = \"width:100%; height:100%; position:absolute;\">\n" +
+                    "        <video id=\"contentElement\" style = \"width:100%; height:100%; overflow: hidden;\">\n" +
+                    "        </video>\n" +
+                    "      </div>\n" +
+                    "      <div id=\"adContainer\" style = \"width:100%; height:100%; position:absolute;\"></div>\n" +
+                    "    </div>\n" +
+                    "         <script type=\"text/javascript\">\n" +
+                    "            [VPAID_BRIDGE_JS]\n" +
+                    "         </script>\n" +
+                    "        <script src=\"[VPAID_CREATIVE_URL]\" type=\"text/javascript\"></script>\n" +
+                    "  </body>\n" +
+            "</html>";
+    */
 }

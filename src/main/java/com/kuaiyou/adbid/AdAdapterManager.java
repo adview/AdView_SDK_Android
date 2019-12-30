@@ -11,29 +11,16 @@ import android.view.View;
 
 import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.adbid.banner.adapter.AdBIDBannerAdapter;
-import com.kuaiyou.adbid.banner.adapter.AdBaiduBannerAdapter;
-import com.kuaiyou.adbid.banner.adapter.AdGDTBannerAdapter;
-import com.kuaiyou.adbid.banner.adapter.AdTTAdBannerAdapter;
 import com.kuaiyou.adbid.instl.adapter.AdBIDInstlAdapter;
-import com.kuaiyou.adbid.instl.adapter.AdBaiduInstlAdapter;
-import com.kuaiyou.adbid.instl.adapter.AdGDTInstlAdapter;
-import com.kuaiyou.adbid.instl.adapter.AdTTAdInstlAdapter;
 import com.kuaiyou.adbid.nativee.adapter.AdBIDNativeAdapter;
-import com.kuaiyou.adbid.nativee.adapter.AdBaiduNativeAdapter;
-import com.kuaiyou.adbid.nativee.adapter.AdGDTNativeAdapter;
-import com.kuaiyou.adbid.nativee.adapter.AdGDTNativeExpressAdapter;
 import com.kuaiyou.adbid.spread.adapter.AdBIDSpreadAdapter;
-import com.kuaiyou.adbid.spread.adapter.AdBaiduSpreadAdapter;
-import com.kuaiyou.adbid.spread.adapter.AdGDTSpreadAdapter;
-import com.kuaiyou.adbid.spread.adapter.AdTTAdSpreadAdapter;
 import com.kuaiyou.adbid.video.adapter.AdBIDVideoAdapter;
 import com.kuaiyou.interfaces.KyNativeListener;
 import com.kuaiyou.interfaces.KyVideoListener;
-import com.kuaiyou.interfaces.KyViewListener;
+import com.kuaiyou.interfaces.AdVGListener;
 import com.kuaiyou.obj.AgDataBean;
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.ConstantValues;
-import com.kuaiyou.adbid.video.adapter.AdTTVideoAdapter;
 import com.kuaiyou.video.vast.VASTPlayer;
 import com.kuaiyou.video.vast.VASTPlayerListener;
 
@@ -41,9 +28,6 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 public abstract class AdAdapterManager implements VASTPlayerListener {
-    public final static String GDT_TYPE = "1006";
-    public final static String BAIDU_TYPE = "1007";
-    public final static String TOUTIAO_TYPE = "1008";
     public final static String BID_TYPE = "9999";
 
     private boolean hasResult = false;
@@ -54,7 +38,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
 
     protected AgDataBean agDataBean;
 
-    private KyViewListener onAdListener;
+    private AdVGListener onAdListener;
     private KyNativeListener nativeListener;
     private KyVideoListener kyVideoListener;
 
@@ -71,7 +55,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
         this.nativeListener = nativeListener;
     }
 
-    public void setCallback(KyViewListener onAdListener) {
+    public void setCallback(AdVGListener onAdListener) {
         this.onAdListener = onAdListener;
     }
 
@@ -185,52 +169,25 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
 
     private static Class<? extends AdAdapterManager> getAdapterClass(int sdkType, String type, int express) {
         switch (sdkType) {
-            case ConstantValues.BANNERTYPE:
+            case ConstantValues.SDK_REQ_TYPE_BANNER:
                 if (type.equals(BID_TYPE))
                     return AdBIDBannerAdapter.class;//return AdBIDBannerAdapter.class;
-                else if (type.equals(GDT_TYPE))
-                    return AdGDTBannerAdapter.class;//return AdGDTBannerAdapter.class;
-                else if (type.equals(BAIDU_TYPE))
-                    return AdBaiduBannerAdapter.class;//return AdBIDBannerAdapter.class;
-                else if (type.equals(TOUTIAO_TYPE))
-                    return AdTTAdBannerAdapter.class;//return AdBIDBannerAdapter.class;
                 break;
-            case ConstantValues.INSTLTYPE:
+            case ConstantValues.SDK_REQ_TYPE_INSTL:
                 if (type.equals(BID_TYPE))
                     return AdBIDInstlAdapter.class;//return AdBIDBannerAdapter.class;
-                else if (type.equals(GDT_TYPE))
-                    return AdGDTInstlAdapter.class;//return AdGDTBannerAdapter.class;
-                else if (type.equals(BAIDU_TYPE))
-                    return AdBaiduInstlAdapter.class;//return AdGDTBannerAdapter.class;
-                else if (type.equals(TOUTIAO_TYPE))
-                    return AdTTAdInstlAdapter.class;//return AdGDTBannerAdapter.class;
                 break;
-            case ConstantValues.SPREADTYPE:
+            case ConstantValues.SDK_REQ_TYPE_SPREAD:
                 if (type.equals(BID_TYPE))
                     return AdBIDSpreadAdapter.class;
-                else if (type.equals(GDT_TYPE))
-                    return AdGDTSpreadAdapter.class;
-                else if (type.equals(BAIDU_TYPE))
-                    return AdBaiduSpreadAdapter.class;
-                else if (type.equals(TOUTIAO_TYPE))
-                    return AdTTAdSpreadAdapter.class;
                 break;
-            case ConstantValues.NATIVEADTYPE:
+            case ConstantValues.SDK_REQ_TYPE_NATIVE:
                 if (type.equals(BID_TYPE))
                     return AdBIDNativeAdapter.class;
-                else if (type.equals(GDT_TYPE)) {
-                    if (express == 1)
-                        return AdGDTNativeExpressAdapter.class;
-                    return AdGDTNativeAdapter.class;
-                } else if (type.equals(BAIDU_TYPE))
-                    return AdBaiduNativeAdapter.class;
                 break;
-            case ConstantValues.VIDEOTYPE:
+            case ConstantValues.SDK_REQ_TYPE_VIDEO:
                 if (type.equals(BID_TYPE))
-                    //return AdTTVideoAdapter.class;
                     return AdBIDVideoAdapter.class;
-                else if (type.equals(TOUTIAO_TYPE))
-                    return AdTTVideoAdapter.class;
                 break;
         }
         return null;
@@ -445,13 +402,6 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
             kyVideoListener.onDownloadCancel();
     }
 
-    //wilder 2019 for mrec
-    protected  void onAdPlayReady(Bundle bundle) {
-        if (null != kyVideoListener) {
-            kyVideoListener.onVideoPlayReady(bundle);
-        }
-    }
-
     public void destroyAd() {
     }
     ////////////////////////////// add video interface //////////////////////////////////////////
@@ -473,7 +423,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
     @Override
     public void vastParseDone(VASTPlayer mp){
         /*
-        if ( adsBean.getAdType() == ConstantValues.VIDEO_PASTER) {
+        if ( adsBean.getAdType() == ConstantValues.RESP_ADTYPE_VIDEO_PASTER) {
             onVideoReceieved(adsBean.getVast());
         }
         */
@@ -491,8 +441,8 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
     }
     @Override
     public void vastClick(){
-        //onAdClick(null,null, 0,0); //wilder 2019
-        //AdViewUtils.logInfo("vastClick");
+        onAdClick(null,"", 0,0); //wilder 2019
+        AdViewUtils.logInfo("vastClick");
     }
     @Override
     public void vastComplete(){
@@ -519,9 +469,10 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
     }
     @Override
     public void vastPlayReady(Bundle bundle) {
-
-        this.onAdPlayReady(bundle); //through kyvideolistener pass to caller, such as bunnerView etc.
-
+        if (null != kyVideoListener) {
+            //这里将真正加载video并准备播放
+            kyVideoListener.onVideoPlayReady(bundle);
+        }
         this.onVideoStartPlay(); //start play event
     }
     ///////////////////end VAST listener ////////////////////////////////////

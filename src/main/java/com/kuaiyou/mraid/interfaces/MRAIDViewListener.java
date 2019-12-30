@@ -25,6 +25,7 @@ public interface MRAIDViewListener {
 
 	void loadDataError(int errorType);
 
+	void mraidViewOMJSInjected( MRAIDView mraidView ); //OMSDK v1.2 used
 //	public void mraidViewVideoPlayStarted(MRAIDView mraidView);
 //
 //	public void mraidViewVideoPlayFinished(MRAIDView mraidView);

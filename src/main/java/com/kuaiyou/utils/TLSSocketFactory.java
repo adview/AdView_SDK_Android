@@ -36,8 +36,6 @@ public class TLSSocketFactory extends SSLSocketFactory
         super();
         SSLContext context = SSLContext.getInstance("TLS");
 
-        ////
-        ////
         context.init(null, null, null);
         internalSSLSocketFactory = context.getSocketFactory();
     }

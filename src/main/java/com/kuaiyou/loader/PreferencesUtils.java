@@ -15,10 +15,8 @@ import java.util.Set;
  * @author Magic_Chen
  */
 public class PreferencesUtils {
-
-
     /**
-     * 根据文件名获�?SharedPreferences
+     * 根据文件名获SharedPreferences
      *
      * @param context
      * @param name
@@ -85,8 +83,7 @@ public class PreferencesUtils {
      */
     public synchronized static boolean commitSharedPreferencesValue(Context context,
                                                                     String name, String key, Object value) {
-        SharedPreferences preferences = context.getSharedPreferences(name,
-                Context.MODE_PRIVATE);
+        SharedPreferences preferences = context.getSharedPreferences(name,Context.MODE_PRIVATE);
         return commitSharedPreferencesValue(preferences, key, value);
     }
 
@@ -113,14 +110,10 @@ public class PreferencesUtils {
      * @param key
      * @return true表示保存成功，否则false
      */
-    public synchronized static boolean minusSharedPreferencesValue(Context context,
-                                                                   String name, String key, long value) {
+    public synchronized static boolean minusSharedPreferencesValue(Context context,String name, String key, long value) {
         SharedPreferences preferences = context.getSharedPreferences(name,
                 Context.MODE_PRIVATE);
         long tempSize = preferences.getLong(key, 0l);
-//        if(TextUtils.isEmpty(tempSize)||tempSize.equals("null"))
-//            return false;
-//        long size= Long.valueOf(tempSize);
         if (tempSize <= 0)
             return true;
         return commitSharedPreferencesValue(preferences, key, tempSize - value);

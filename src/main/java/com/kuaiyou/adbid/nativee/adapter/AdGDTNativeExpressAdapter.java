@@ -19,7 +19,7 @@ import java.util.List;
 
 public class AdGDTNativeExpressAdapter extends AdAdapterManager implements NativeExpressAD.NativeExpressADListener {
     private ArrayList<NativeExpressADView> adData = new ArrayList<NativeExpressADView>();
-    private KyNativeListener kyViewListener;
+    private KyNativeListener kyNativeListener;
     private int total = 0;
     private ArrayList<HashMap<String, Object>> nativeAdInfos = new ArrayList<HashMap<String, Object>>();
 
@@ -43,9 +43,9 @@ public class AdGDTNativeExpressAdapter extends AdAdapterManager implements Nativ
             key2 = bundle.getString("posId");
 //            key1 = "1107802763";
 //            key2 = "1020847490414083";
-            kyViewListener = (KyNativeListener) bundle.getSerializable("interface");
-            NativeExpressAD nativeAd = new NativeExpressAD(context, new ADSize(kyViewListener.getNativeWidth(), kyViewListener.getNativeHeight()), key1, key2, this);
-            nativeAd.loadAD(kyViewListener.getAdCount());
+            kyNativeListener = (KyNativeListener) bundle.getSerializable("interface");
+            NativeExpressAD nativeAd = new NativeExpressAD(context, new ADSize(kyNativeListener.getNativeWidth(), kyNativeListener.getNativeHeight()), key1, key2, this);
+            nativeAd.loadAD(kyNativeListener.getAdCount());
         } catch (Exception e) {
             e.printStackTrace();
             AdGDTNativeExpressAdapter.this.onAdFailed("com.qq.e.ads.nativ.NativeExpressADView not found,maybe other init error");

@@ -33,8 +33,13 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
+import android.support.annotation.Nullable;
+import android.support.customtabs.CustomTabsIntent;
 import android.telephony.CellLocation;
 import android.telephony.TelephonyManager;
 import android.telephony.cdma.CdmaCellLocation;
@@ -48,15 +53,30 @@ import android.util.Log;
 import android.view.Display;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.widget.Toast;
 
-import com.google.android.gms.ads.identifier.AdvertisingIdClient;
+
+import com.iab.omid.library.adview.Omid;
+import com.iab.omid.library.adview.adsession.AdEvents;
+import com.iab.omid.library.adview.adsession.AdSession;
+import com.iab.omid.library.adview.adsession.AdSessionConfiguration;
+import com.iab.omid.library.adview.adsession.AdSessionContext;
+import com.iab.omid.library.adview.adsession.ErrorType;
+import com.iab.omid.library.adview.adsession.Owner;
+import com.iab.omid.library.adview.adsession.Partner;
+import com.iab.omid.library.adview.adsession.VerificationScriptResource;
+import com.iab.omid.library.adview.adsession.video.Position;
+import com.iab.omid.library.adview.adsession.video.VastProperties;
+import com.iab.omid.library.adview.adsession.video.VideoEvents;
+import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.interfaces.DownloadConfirmInterface;
+import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.obj.ApplyAdBean;
+import com.kuaiyou.obj.VideoBean;
 
 import org.apache.http.conn.ssl.BrowserCompatHostnameVerifier;
 
@@ -74,18 +94,23 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.NetworkInterface;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
@@ -95,74 +120,85 @@ import java.util.zip.GZIPInputStream;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSocketFactory;
 
+import static com.iab.omid.library.adview.adsession.ErrorType.GENERIC;
+
 
 public class AdViewUtils {
-    public static boolean isTest = false;// false
+    /////////////////////////////// 核心版本号 ////////////////////////////////
+    ////////////////改动版本号需要同时注意以下文件  ////////////////////////////
+    /////////////// video_vast_js.html ， vast_vpaid_js.html在 resources中 ////
+
+    public static int       VERSION = 415;
+    public static String    ADVIEW = "AdView SDK v4.1.5.rev.001";
+
+    private static String   OMSDK_PARTNER_NAME = "Adview";
+    private static String   OMSDK_PARTNER_SDK_APP_VER = "4.1.5"; //最好是x.y
+
+    /* -------------------------  正式线 ----------------------------------------*/
+    public static String adbidAddr = "https://bid.adview.com/agent/getAd";  //正式线 server
+
+    /* ------------------------- 测试线 -----------------------------------------*/
+    //public static String adbidAddr = "https://gbjtest.adview.com/agent/getAd"; //测试线 test server
+
+    ////////////////////////////////////////////////////////////////
+    //public static boolean isTest = false;// false
     public static boolean cacheMode = false;
     public static boolean logMode = true;
 
-    public static ScheduledExecutorService repScheduler;
+    //测试客户用的客户的应用包名,正式release必须设为空
+    public static String test_UserPackage = "";//"com.particlenews.newsbreak";
+
+    //测试用客户的gpid，该值会和posid或者渠道绑定,正式release必须设为空
+    //78629a4e-38b9-44c4-8df2-452242e3c14c , 这个gpid号是10002
+    //3015ae49-a6f0-4f46-a193-cf310c3d50bc   这个gpid号是535
+    //e46487ae-5536-49fb-aa9c-bba9419f213e; //tester number -> 535 chanel
+    public static String test_UserGPID = "";
 
     //wilder 2019 , play all video online
-    public static boolean playOnLine = true;
+    public static boolean playOnLine = true;    //是否在线播放视频
     public static boolean bitmapOnLine = true; //wilder 2019 for load bitmap online
-    public static boolean VideoAutoPlay = true;
-    public static boolean htmlUseBlankErrorPage = true; //(wilder 2019) use self blank page for webview load xs error
+    public static boolean videoAutoPlay = false;  //是否自动播放视频
+    public static boolean htmlUseBlankErrorPage = false; //(wilder 2019) use self blank page for webview load xs error
     public static String htmlErrorPage = "http://www.adview.com/videoadtest";
-    //定制化需求
-    public static boolean useIMEI = false;
-    //正式线
-    public static String adbidAddr = "https://bid.adview.com/agent/getAd";
-    //测试线 test server
-    //public static String adbidAddr = "http://gbjtest.adview.com/agent/getAd";
+    /////////////////    定制化需求    /////////////////////////
+    public static boolean useIMEI = false;  //使用IMEI的话，必须提供 READ_PHONE_STATE 权限
+    public static boolean useDownloadService = false;  //使用download功能对应 RESP_ACT_DOWNLOAD,现在海外版的点击打开模式是ACT_OPENWEB
+                                                    //在国内使用download直接安装广告里的apk，需要以下权限和定义：
+                                                    // permission : installpackage,
+                                                    //<service android:name="com.kuaiyou.utils.DownloadService" />
+		                                            //<activity android:name="com.kuaiyou.utils.AdActivity" />
+    public static boolean useSelfIcon = true; //用于downloadservice: 下载的小图标为app的icon
+    public static boolean useWechatApp = false;     //是否支持ACT_WECHATAPP，海外版目前不支持
+    public static boolean useOMSDK = true;          //从3.1.5开始将始终支持omsdk
+    public static boolean useCustomTab = true;      //采用chrome的Chrome Custom Tab 模式，我们默认是采用landingpage模块，即Chorme Webview
+    public static boolean useHuaWeiOAID = true;     //支持华为OAID的上传在华为设备上
+    public static boolean useVideoFullScreen = true; //支持mrec video全屏播放
+    public static boolean useVastBehavedView = false; //支持vast的companion, icon等extension
+    public static boolean useVastFinalPage = true; //支持从companion -> finalpage
+    private static boolean useOMSDKFeature = false; //flag can be closed by compile
 
-    public static String adfillAddr = "https://adfill.adview.cn/agent/getAd";
-    public static String adfillAgent1 = "https://adfill.adview.cn/agent/click";
-    public static String adfillAgent2 = "https://adfill.adview.cn/agent/display";
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public static String adrtbAddr = "https://rtb.adview.cn/agent/getAd";
-    public static String adrtbAgent1 = "https://rtb.adview.cn/agent/click";
-    public static String adrtbAgent2 = "https://rtb.adview.cn/agent/display";
-
-
-
-    public static String adbidClickLink = "https://bid.adview.com/agent/click";
-    public static String adbidDisplayLink = "https://bid.adview.com/agent/display";
-    public static String adbidErrorLink = "https://bid.adview.com/agent/reportError.php";
-
-
-    public static String adfillAddr_test = "http://test2018.adview.cn/agent/getAd";
-
-
-    public static String check_url = "https://bid.adview.com/agent/front/checkUpdate";//"http://test2018.adview.cn/agent/front/checkUpdate";
-    public static String check_url_test = "http://test2018.adview.com/agent/front/checkUpdate";
-    //  public final static String load_report_url = "https://bid.adview.cn/agent/front/dexLoadReport";
-    //核心版本号
-    public static int VERSION = 400;
-    public static String ADVIEW = "AdView SDK v4.0.0";
-
-    public final static String channel = "";
-
+    //用于video上行MD5
     public final static String BID_ANDROID_VIDEO = "rfkghh59eyryzx7wntlgry0mff0yx7z1";// "rfkghh59eyryzx7wntlgry0mff0yx7z1";//dur75pt6jlyim2910rroamiyv54qszuk
 
+    public static ScheduledExecutorService repScheduler;
     public static String userAgent = "";
 
     private static Location location = null;
 
-    public static boolean useSelfIcon = true;
-
-    // private static int adWidth;
-    // private static int adHeight;
-
+    //////////////OMSDK v1.2, these define must be same as IAB's site, see https://tools.iabtechlab.com/omsdk  /////////////////////
+    private static Partner OMSDKPartner = null;
+    private static List<VerificationScriptResource> verificationScriptResources;
+    private static AdEvents adNativeEvents = null;
+    private static VideoEvents videoNativeEvents = null;
+    ///////////////////////////////// end omsdk ///////////////////////////////////////////////////
+    //iab's gdpr
+    //从Android 7.0开始，一个应用提供自身文件给其它应用使用时，如果给出一个file://格式的URI的话，应用会抛出FileUriExposedException
+    //用以下方法解决
     static {
-        if (isTest) {
-            adfillAddr = adfillAddr_test;
-            adbidAddr = adfillAddr_test;
-            check_url = check_url_test;
-            adbidErrorLink = "http://test2018.adview.cn/agent/reportError.php";
-        }
         try {
-            if (Build.VERSION.SDK_INT > 23) {
+            if ( Build.VERSION.SDK_INT >= Build.VERSION_CODES.N ) {
                 StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder();
                 StrictMode.setVmPolicy(builder.build());
                 builder.detectFileUriExposure();
@@ -171,6 +207,7 @@ public class AdViewUtils {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        //设置所有的http连接由系统自动处理重定向
         HttpURLConnection.setFollowRedirects(true);
     }
 
@@ -178,39 +215,29 @@ public class AdViewUtils {
         super();
     }
 
-//    public final static int ADFILL_TYPE = 997;
-//    public final static int ADBID_TYPE = 998;
-//    public final static int ADRTB_TYPE = 996;
-//
-//    public final static int ADFILL_ROUTE = 0; // 补余
-//    public final static int SSP_ROUTE = 1; // 聚合
-//    public final static int ADRTB_ROUTE = 2;// 竞价
+    ////////////////////  以下聚合所使用，目前海外版没有聚合 ///////////////////////////////////
+    public static String adrtbAddr = "https://rtb.adview.cn/agent/getAd";
+    public static String adbidErrorLink = "https://bid.adview.com/agent/reportError.php";
+    public static String adfillAddr = "https://adfill.adview.cn/agent/getAd";
+    public static String adfillAgent1 = "https://adfill.adview.cn/agent/click";
+    public static String adfillAgent2 = "https://adfill.adview.cn/agent/display";
 
     public static void setServerUrl(boolean isRtb) {
-        if (!isTest) {
-            if (isRtb) {
-                adfillAddr = adrtbAddr;
-                adbidAddr = adrtbAddr;
-            }
-        } else {
-            adfillAddr = adfillAddr_test;
-            adbidAddr = adfillAddr_test;
-            adrtbAddr = adfillAddr_test;
+        if (isRtb) {
+               adfillAddr = adrtbAddr;
+               adbidAddr = adrtbAddr;
         }
     }
-
     public static void setAdfillAddr(String adfillAddr) {
         AdViewUtils.adfillAddr = adfillAddr;
     }
-
     public static void setAdbidAddr(String adbidAddr) {
         AdViewUtils.adbidAddr = adbidAddr;
     }
-
     public static void setAdrtbAddr(String adrtbAddr) {
         AdViewUtils.adrtbAddr = adrtbAddr;
     }
-
+    //////////////////////////////// end 聚合 ///////////////////////////////////////////////
     /**
      * 修改文本颜色
      *
@@ -333,7 +360,7 @@ public class AdViewUtils {
      * @param context
      * @return
      */
-    public static int getDaoHangHeight(Context context) {
+    public static int getNaviBarHeight(Context context) {
         try {
             if (!checkDeviceHasNavigationBar(context))
                 return 0;
@@ -633,7 +660,7 @@ public class AdViewUtils {
 
     public static boolean openDeepLink(Context context, String url) {
         try {
-            if (TextUtils.isEmpty(url) || url.startsWith("http://") || url.startsWith("https://") || url.startsWith("ftp://") || url.startsWith("javacript"))
+            if (null != url && TextUtils.isEmpty(url) || url.startsWith("http://") || url.startsWith("https://") || url.startsWith("ftp://") || url.startsWith("javacript"))
                 return false;
             else {
                 int flag = 0;
@@ -697,7 +724,7 @@ public class AdViewUtils {
     public static void reportEffect(String[] links) {
         if (null != links) {
             if (null == AdViewUtils.repScheduler)
-                AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOLNUM);
+                AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOL_NUM);
             for (int i = 0; i < links.length; i++) {
                 if (!TextUtils.isEmpty(links[i])) {
                     AdViewUtils.repScheduler.execute(new ClientReportRunnable("", links[i], false));
@@ -746,9 +773,9 @@ public class AdViewUtils {
             while (null != (temp = br.readLine())) {
                 sb.append(temp);
             }
-            if (!status_ok)
+            if (!status_ok) {
                 AdViewUtils.logInfo(sb.toString());
-
+            }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -865,7 +892,7 @@ public class AdViewUtils {
     }
 
     public static String getResponse(String link, String content) {
-        return getResponse(link, content, ConstantValues.REQUESTTIMEOUT);
+        return getResponse(link, content, ConstantValues.REQUEST_CONNECT_TIMEOUT);
     }
 
     public static String postResponse(String link, String content, boolean getContent) {
@@ -902,8 +929,8 @@ public class AdViewUtils {
                 conn = (HttpURLConnection) url.openConnection();
             if (null != conn) {
                 conn.setInstanceFollowRedirects(true);
-                conn.setConnectTimeout(ConstantValues.REQUESTTIMEOUT);
-                conn.setReadTimeout(ConstantValues.REQUESTTIMEOUT);
+                conn.setConnectTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
+                conn.setReadTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
                 /* if get image */
                 conn.setUseCaches(false);
 
@@ -1000,16 +1027,14 @@ public class AdViewUtils {
     private static String getResponseResult(HttpURLConnection connection) {
         String result = null;
         StringBuilder sb = new StringBuilder();
-        BufferedReader br;
+        BufferedReader br = null;
         InputStream sbs = null;
         String temp;
 //        ByteArrayBuffer bt = new ByteArrayBuffer(4096);
         try {
             if (null != connection.getHeaderField("Content-Encoding")
-                    && connection.getHeaderField("Content-Encoding").equals(
-                    "gzip")) {
-                GZIPInputStream gis = new GZIPInputStream(
-                        new BufferedInputStream(connection.getInputStream()));
+                    && connection.getHeaderField("Content-Encoding").equals("gzip")) {
+                GZIPInputStream gis = new GZIPInputStream(new BufferedInputStream(connection.getInputStream()));
                 InputStreamReader isr = new InputStreamReader(gis);
                 br = new BufferedReader(isr);
                 while ((temp = br.readLine()) != null) {
@@ -1021,8 +1046,7 @@ public class AdViewUtils {
 //                return new String(bt.toByteArray(), StandardCharsets.UTF_8.name());
                 return sb.toString();
             } else if (null != connection.getHeaderField("Content-Encoding")
-                    && connection.getHeaderField("Content-Encoding").equals(
-                    "deflate")) {
+                    && connection.getHeaderField("Content-Encoding").equals("deflate")) {
                 ByteArrayOutputStream swapStream = new ByteArrayOutputStream();
                 byte[] buff = new byte[100]; // buff用于存放循环读取的临时数据
                 int rc = 0;
@@ -1041,6 +1065,7 @@ public class AdViewUtils {
                 sb.append(temp);
             }
             result = sb.toString();
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -1058,10 +1083,8 @@ public class AdViewUtils {
     private static String getContentString(InputStream inStream)
             throws IOException {
         StringBuilder builder = new StringBuilder();
-        BufferedReader bufferedReader2 = new BufferedReader(
-                new InputStreamReader(inStream, "UTF-8"));
-        for (String s = bufferedReader2.readLine(); s != null; s = bufferedReader2
-                .readLine()) {
+        BufferedReader bufferedReader2 = new BufferedReader( new InputStreamReader(inStream, "UTF-8"));
+        for (String s = bufferedReader2.readLine(); s != null; s = bufferedReader2.readLine()) {
             builder.append(s);
         }
         return builder.toString();
@@ -1069,7 +1092,7 @@ public class AdViewUtils {
 
 
     /**
-     * 获得图片路径的输入流 || 路径
+     * 获得图片路径的输入流 || 路径，该函数主要用于将广告内容存到本地在播放，海外版都改为在线显示图片
      *
      * @param context
      * @param url
@@ -1095,13 +1118,13 @@ public class AdViewUtils {
                 return null;
             myFileUrl = new URL(url);
             long modifysince = 0;
-            SharedPreferences imagemodifysince = context.getSharedPreferences(ConstantValues.SP_LASTMODIFY, Context.MODE_PRIVATE);
-            SharedPreferences lastVisitTime = context.getSharedPreferences(ConstantValues.SP_LASTVISIT, Context.MODE_PRIVATE);
+            SharedPreferences imagemodifysince = context.getSharedPreferences(ConstantValues.SP_LASTMODIFY_FILE, Context.MODE_PRIVATE);
+            SharedPreferences lastVisitTime = context.getSharedPreferences(ConstantValues.SP_LASTVISIT_FILE, Context.MODE_PRIVATE);
 
             String filename = url.hashCode() + "";
-            //String a_path = context.getFilesDir() + "/Adview/";
-
-            updateDir = new File(ConstantValues.CACHE_AD_PATH);
+            String a_path = context.getFilesDir() + "/Adview/";
+            //针对海外版，采用应用内不的文件系统，随着app的卸载，广告所属应当清除
+            updateDir = new File(/*ConstantValues.CACHE_AD_PATH*/a_path);
             updateFile = new File(updateDir.getPath(), filename);
 
 //            if ("mounted".equals(Environment.getExternalStorageState())) { // SD卡状态：正常挂载
@@ -1134,8 +1157,8 @@ public class AdViewUtils {
                     conn = (HttpURLConnection) myFileUrl.openConnection();
                 if (modifysince > 0)
                     conn.setIfModifiedSince(modifysince);
-                conn.setConnectTimeout(ConstantValues.REQUESTTIMEOUT);
-                conn.setReadTimeout(ConstantValues.REQUESTTIMEOUT);
+                conn.setConnectTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
+                conn.setReadTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
                 //(wilder 20190321) add for TLS 1.2 for socket
                 if(url.startsWith("https://")) {
                     ((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory("mode2"));
@@ -1227,8 +1250,8 @@ public class AdViewUtils {
             } else {
                 conn = (HttpURLConnection) nextUrl.openConnection();
             }
-            conn.setConnectTimeout(ConstantValues.REQUESTTIMEOUT);
-            conn.setReadTimeout(ConstantValues.REQUESTTIMEOUT);
+            conn.setConnectTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
+            conn.setReadTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
             //conn.connect();
             if (nextUri.startsWith("https://")) {
                 ((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory());
@@ -1335,12 +1358,13 @@ public class AdViewUtils {
     }
 
     /**
-     * 手机SIM卡的国家代号、网络代号
+     * 手机SIM卡的国家代号、网络代号，对应上传字段 se ( wilder 2019 海外版无需提供）
      *
      * @param context
      * @return
      */
     public static String getServicesPro(Context context) {
+/*
         try {
             TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
             if (tm == null)
@@ -1355,6 +1379,7 @@ public class AdViewUtils {
             // TODO: handle exception
             return "";
         }
+*/
         return "";
     }
 
@@ -1409,13 +1434,13 @@ public class AdViewUtils {
     /**
      * 生成MD5加密token
      *
-     * @param applyAdBean applyAdBean
+     * @param reqAdBean applyAdBean
      * @return token token
      */
-    public static String makeBIDMd5Token(ApplyAdBean applyAdBean) {
-        return MD5Utils.MD5Encode(applyAdBean.getBundleId()
-                + applyAdBean.getAppId() + applyAdBean.getAdSize()
-                + applyAdBean.getUuid() + applyAdBean.getTime()
+    public static String makeBIDMd5Token(ApplyAdBean reqAdBean) {
+        return MD5Utils.MD5Encode(reqAdBean.getBundleId()
+                + reqAdBean.getAppId() + reqAdBean.getAdSize()
+                + reqAdBean.getUuid() + reqAdBean.getTime()
                 + AdViewUtils.BID_ANDROID_VIDEO);
     }
 
@@ -1454,16 +1479,17 @@ public class AdViewUtils {
     }
 
     /**
-     * 获取基站信息
+     * 获取基站信息 (wilder 2019 ,海外版无需该参数）
      *
      * @throws Exception
      */
     public static int[] getCellInfo(Context context) {
         int[] loc = new int[2];
-        /** 调用API获取基站信息 */
-        try {
-            TelephonyManager mTelephonyManager = (TelephonyManager) context
-                    .getSystemService(Context.TELEPHONY_SERVICE);
+        /** 调用API获取基站信息 ,wilder 2019 set 0*/
+        loc[0] = 0;
+        loc[1] = 0;
+/*        try {
+            TelephonyManager mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
             // 返回值MCC + MNC
             String operator = mTelephonyManager.getNetworkOperator();
             if (TextUtils.isEmpty(operator)) {
@@ -1502,7 +1528,7 @@ public class AdViewUtils {
             loc[1] = cellId;
 
         } catch (Exception e) {
-        }
+        }*/
         return loc;
     }
 
@@ -1537,9 +1563,10 @@ public class AdViewUtils {
      */
     public static String getSSID(Context context) {
         String ssid = "";
+
+/*  (wilder 20190818)海外版不传该字段
         try {
-            WifiManager mWifiManager = (WifiManager) context
-                    .getSystemService(Context.WIFI_SERVICE);
+            WifiManager mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
 
             WifiInfo mWifiInfo = mWifiManager.getConnectionInfo();
             if (mWifiInfo != null) {
@@ -1549,24 +1576,29 @@ public class AdViewUtils {
         } catch (Exception e) {
             // TODO: handle exception
         }
+*/
+
         return ssid;
     }
 
     // 得到接入点的BSSID
     public static String getBSSID(Context context) {
+
+/*      (wilder 20190818)海外版不传该字段
         try {
-            WifiManager mWifiManager = (WifiManager) context
-                    .getSystemService(Context.WIFI_SERVICE);
+            WifiManager mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
 
             WifiInfo mWifiInfo = mWifiManager.getConnectionInfo();
             return (mWifiInfo == null) ? "" : mWifiInfo.getBSSID();
         } catch (Exception e) {
             // TODO: handle exception
         }
+*/
         return "";
     }
 
     public static String getMacAddress(Context context) {
+/*        (wilder 20190818) android 7.0之后google禁止取得mac地址，直接返回空串，6.0以前取得mac需要WIFI_STATE
         try {
             String macAddress;
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP_MR1) {
@@ -1603,7 +1635,7 @@ public class AdViewUtils {
             }
         } catch (Exception ex) {
             ex.printStackTrace();
-        } // for now eat exceptions
+        } // for now eat exceptions*/
         return "";
     }
 
@@ -1674,21 +1706,21 @@ public class AdViewUtils {
 //    }
 
     /**
-     * 信号类型
+     * 信号类型, 对应上传的 nt 字段  （wilder 2019 海外版无需TELEPHONY_SERVICE做进一步判断，只需返回是否wifi）
      *
      * @param context
      * @return 0：UNKNOW、 1：WIFI、 2：2_G、 3： 3_G、 4：4_G、
      */
     public static String getNetworkType(Context context) {
         try {
-            ConnectivityManager cm = (ConnectivityManager) context
-                    .getSystemService(Context.CONNECTIVITY_SERVICE);
+            ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo ni = cm.getActiveNetworkInfo();
             String netName = ni.getSubtypeName();
-            TelephonyManager manager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+            //TelephonyManager manager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
 
             if (ni.getType() == ConnectivityManager.TYPE_MOBILE) {
-                switch (manager.getNetworkType()) {
+                return "4G"; //(wilder 2019) 海外版直接返回4G即可
+/*                switch (manager.getNetworkType()) {
                     case TelephonyManager.NETWORK_TYPE_GPRS:
                     case TelephonyManager.NETWORK_TYPE_EDGE:
                     case TelephonyManager.NETWORK_TYPE_CDMA:
@@ -1712,7 +1744,7 @@ public class AdViewUtils {
                             return "3G";
                         }
                         return "OTHER";// NETWORK_CLASS_UNKNOWN;
-                }
+                }*/
             } else if (ni.getType() == ConnectivityManager.TYPE_WIFI)
                 return "WIFI";
             else
@@ -1721,6 +1753,32 @@ public class AdViewUtils {
             // TODO: handle exception
         }
         return "NONETWORK";
+    }
+
+    /**
+     *  打开落地页
+     */
+    public static void openLandingPage(final Context context, final String url, final boolean isVideo) {
+        //采用 custom tab方式
+        if (TextUtils.isEmpty(url))
+            return;
+        AdViewUtils.logInfo("######### openLandingPage() : " + url + "#########");
+        if ( useCustomTab && !url.contains("market://")) {
+            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
+            CustomTabsIntent customTabsIntent = builder.build();
+            customTabsIntent.launchUrl(context, Uri.parse(url));
+        }else {
+            //采用landingpageactivity的方式来打开落地页,其中isVideo可能会启动下载service
+            final Intent i = new Intent();
+            i.putExtra("adview_url", url);
+            i.setClass(context, AdViewLandingPage.class);
+
+            if (context instanceof Activity) {
+            } else {
+                i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+            context.startActivity(i);
+        }
     }
 
     /**
@@ -1735,7 +1793,7 @@ public class AdViewUtils {
                 String tmpUrl = url.substring(0, 4);
                 int res = tmpUrl.compareTo(new String("http"));
                 if (res == 0) {
-                    if (url.toLowerCase().endsWith(".apk")) {
+                    if (url.toLowerCase().endsWith(".apk") && AdViewUtils.useDownloadService) { //只有支持downloadservice才能下载
                         if (AdViewUtils.getNetworkType(context).equals("WIFI")) {
                             Intent i = new Intent();
                             i.setClass(context, DownloadService.class);
@@ -1818,14 +1876,14 @@ public class AdViewUtils {
 
     public static boolean checkClickLimitTime(Context context, int type, String adId) {
         SharedPreferences preferences = null;
-        if (type == ConstantValues.SPREADTYPE) {
-            preferences = context.getSharedPreferences(ConstantValues.SP_SPREADINFO, Context.MODE_PRIVATE);
-        } else if (type == ConstantValues.INSTLTYPE) {
-            preferences = context.getSharedPreferences(ConstantValues.SP_INSTLINFO, Context.MODE_PRIVATE);
-        } else if (type == ConstantValues.BANNERTYPE) {
-            preferences = context.getSharedPreferences(ConstantValues.SP_BANNERINFO, Context.MODE_PRIVATE);
-        } else if (type == ConstantValues.MRECTYPE) {
-            preferences = context.getSharedPreferences(ConstantValues.SP_BANNERINFO, Context.MODE_PRIVATE);
+        if (type == ConstantValues.SDK_REQ_TYPE_SPREAD) {
+            preferences = context.getSharedPreferences(ConstantValues.SP_SPREADINFO_FILE, Context.MODE_PRIVATE);
+        } else if (type == ConstantValues.SDK_REQ_TYPE_INSTL) {
+            preferences = context.getSharedPreferences(ConstantValues.SP_INSTLINFO_FILE, Context.MODE_PRIVATE);
+        } else if (type == ConstantValues.SDK_REQ_TYPE_BANNER) {
+            preferences = context.getSharedPreferences(ConstantValues.SP_BANNERINFO_FILE, Context.MODE_PRIVATE);
+        } else if (type == ConstantValues.SDK_REQ_TYPE_MREC) {
+            preferences = context.getSharedPreferences(ConstantValues.SP_BANNERINFO_FILE, Context.MODE_PRIVATE);
         }
         if (null == preferences)
             return false;
@@ -1837,7 +1895,7 @@ public class AdViewUtils {
             return true;
     }
 
-    public static boolean checkClickPermission(Context context, String premission, int getType) {
+    public static boolean checkClickPermission(Context context, String permission, int getType) {
         if (!AdViewUtils.isConnectInternet(context)) {
             AdViewUtils.logInfo("Please check network");
             return false;
@@ -1845,15 +1903,14 @@ public class AdViewUtils {
         PackageManager packageManager = context.getPackageManager();
         try {
             if (getType == PackageManager.GET_SERVICES)
-                packageManager.getServiceInfo(new ComponentName(context.getPackageName(), premission), getType);
+                packageManager.getServiceInfo(new ComponentName(context.getPackageName(), permission), getType);
             else if (getType == PackageManager.GET_ACTIVITIES)
-                packageManager.getActivityInfo(new ComponentName(context.getPackageName(), premission), getType);
+                packageManager.getActivityInfo(new ComponentName(context.getPackageName(), permission), getType);
             else
                 AdViewUtils.logInfo("PackageManager GETTYPE ERROR");
         } catch (NameNotFoundException e) {
-            Toast.makeText(context,
-                    "请在AndroidManifest中添加" + premission + "声明",
-                    Toast.LENGTH_SHORT).show();
+            //Toast.makeText(context,"请在AndroidManifest中添加" + permission + "声明",Toast.LENGTH_SHORT).show();
+            AdViewUtils.logInfo("!!!! err: pls add " + permission + "declaration in AndroidManifest.xml !!!!");
             return false;
         }
 //        try {
@@ -1862,7 +1919,7 @@ public class AdViewUtils {
 //                    PackageManager.GET_SERVICES);
 //        } catch (NameNotFoundException e) {
 //            Toast.makeText(context,
-//                    "请在AndroidManifest中添加com.kyview.DownloadService声明",
+//                    "请在AndroidManifest中添加com.AdVG.DownloadService声明",
 //                    Toast.LENGTH_SHORT).show();
 //            return false;
 //        }
@@ -2038,9 +2095,7 @@ public class AdViewUtils {
      * @return
      */
     public static String getUserAgent(final Context context) {
-        final SharedPreferences sharedPreferences = context
-                .getSharedPreferences(ConstantValues.SP_ADVINFO,
-                        Context.MODE_PRIVATE);
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
         String ua;
         try {
             ua = sharedPreferences.getString("ua", "");
@@ -2075,65 +2130,286 @@ public class AdViewUtils {
      * @param context
      * @return
      */
+    public static String gpId = "00000000-0000-0000-0000-000000000000";
+    public static boolean gpid_limited = false;
+
+    //wilder 2019 for oaid
+    public static String oaId = "00000000-0000-0000-0000-000000000000";
+    public static boolean oaid_limited = false;
+
+    public static boolean getInstallPackageInfo(final Context context , String name) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packInfo;
+            //getPackageInfo("com.huawei.hwid", 0);
+            packInfo = packageManager.getPackageInfo(name, 0);
+        }catch (Exception e ) {
+            return false;
+        }
+        return true;
+    }
+
+    private static void getDevice_GPID(final Context context ) {
+
+        if (!checkClass("com.google.android.gms.ads.identifier.AdvertisingIdClient"))
+            return;
+
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
+        com.google.android.gms.ads.identifier.AdvertisingIdClient.Info info;
+        try {
+            info = com.google.android.gms.ads.identifier.AdvertisingIdClient.getAdvertisingIdInfo(context);
+            gpid_limited = info.isLimitAdTrackingEnabled();
+            if (!gpid_limited) {
+                gpId = info.getId();
+                AdViewUtils.logInfo("########## Google GPID ##########");
+            }
+        }catch (Exception e) {
+            gpid_limited = true;
+        }
+
+        if (!gpid_limited) {
+            AdViewUtils.logInfo("#### first ###### gpId = " + gpId + " ###########");
+        }else {
+            gpId = "00000000-0000-0000-0000-000000000000";
+            AdViewUtils.logInfo("#### first ###### gpId is closed ###########");
+        }
+        Editor editor = sharedPreferences.edit();
+        editor.putString("gpid", gpId);
+        editor.putLong("gpid_time", System.currentTimeMillis());
+        editor.putBoolean("gpid_limited",gpid_limited );
+        editor.commit();
+    }
+    private static void getDevice_OAID(final Context context) {
+        if (!useHuaWeiOAID || !checkClass("com.huawei.hms.ads.identifier.AdvertisingIdClient"))
+            return;
+        com.huawei.hms.ads.identifier.AdvertisingIdClient.Info info;
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
+
+        try {
+            info = com.huawei.hms.ads.identifier.AdvertisingIdClient.getAdvertisingIdInfo(context);
+            if (null != info) {
+                oaid_limited = info.isLimitAdTrackingEnabled();
+                if (!oaid_limited) {
+                    oaId = info.getId();
+                    AdViewUtils.logInfo("########## HuaWei OAID ##########");
+                }
+            } else {
+                oaid_limited = true;
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+            oaid_limited = true;
+        }
+
+        if (!oaid_limited) {
+            AdViewUtils.logInfo("#### first ###### oaId = " + oaId + " ###########");
+        }else {
+            oaId = "00000000-0000-0000-0000-000000000000";
+            AdViewUtils.logInfo("#### first ###### oaId is closed ###########");
+        }
+
+        //put config
+        Editor editor = sharedPreferences.edit();
+        editor.putString("oaid", oaId);
+        editor.putLong("oaid_time", System.currentTimeMillis());
+        editor.putBoolean("oaid_limited",oaid_limited );
+        editor.commit();
+    }
+
+    public static void getDeviceIdFirstTime(final Context context, final KyAdBaseView baseView) {
+        //final long lastGpidTime = sharedPreferences.getLong("gpid_time", 0);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                //com.google.android.gms.ads.identifier.AdvertisingIdClient;
+                //com.huawei.hms.ads.identifier.AdvertisingIdClient;
+                try {
+                    //oaid
+                    getDevice_OAID(context);
+                    //gpid
+                    getDevice_GPID(context);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    AdViewUtils.logInfo("#### first ###### device ID service  not available ###########");
+                }
+
+                if (null != baseView) {
+                    baseView.notifyMsg(ConstantValues.NOTIFY_REQ_GPID_FETCH_DONE, "OK");
+                }
+            }
+        }).start();
+    }
+
     public static String getGpId(final Context context) {
         //AdViewUtils.logInfo("=========== getGPId() ==========");
-        try {
-            if (null == Class.forName("com.google.android.gms.ads.identifier.AdvertisingIdClient"))
-                return "";
-        } catch (ClassNotFoundException e1) {
-            // TODO Auto-generated catch block
-            return "";
+        if (null != test_UserGPID && !test_UserGPID.isEmpty()) {
+            return test_UserGPID;
         }
-        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO,
-                                        Context.MODE_PRIVATE);
+        if (!checkClass("com.google.android.gms.ads.identifier.AdvertisingIdClient"))
+            return "00000000-0000-0000-0000-000000000000";
+
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
         final long lastGpidTime = sharedPreferences.getLong("gpid_time", 0);
-        if (System.currentTimeMillis() - lastGpidTime > 5 * 1000) {// 5s
+        if (System.currentTimeMillis() - lastGpidTime >  5 * 60 * 1000 )// 5mins
+        {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    AdvertisingIdClient.Info info;
-                    String gpId = "";
                     try {
-                        info = AdvertisingIdClient.getAdvertisingIdInfo(context);
-                        gpId = info.getId();
-                        Editor editor = sharedPreferences.edit();
-                        editor.putString("gpid", gpId);
-                        editor.putLong("gpid_time", System.currentTimeMillis());
-                        AdViewUtils.logInfo("########## gpId = " + gpId +" ###########");
-                        editor.commit();
+                        getDevice_GPID(context);
                     } catch (Exception e) {
-                        AdViewUtils.logInfo("########## Google Play not available ###########");
+                        e.printStackTrace();
+                        AdViewUtils.logInfo("##########  google play service  not available ###########");
                     }
                 }
             }).start();
         }
-        return sharedPreferences.getString("gpid", "");
+        //if no timeout, can use old one, the ad id user can change anytime
+        if (!sharedPreferences.getBoolean("gpid_limited",false)/*gpid_enabled*/)
+            return sharedPreferences.getString("gpid", "");
+            //return gpId;
+        else
+            return "00000000-0000-0000-0000-000000000000";
     }
 
+    public static String getOAId(final Context context) {
+        //AdViewUtils.logInfo("=========== getOAId() ==========");
+        if (!useHuaWeiOAID || !checkClass("com.huawei.hms.ads.identifier.AdvertisingIdClient"))
+            return "00000000-0000-0000-0000-000000000000";
+
+        final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
+        final long lastOAIDTime = sharedPreferences.getLong("oaid_time", 0);
+        if (System.currentTimeMillis() - lastOAIDTime >  5 * 60 * 1000 ) //30 sec
+        {// 5mins
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        getDevice_OAID(context);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        AdViewUtils.logInfo("##########  HUAWEI OAID service  not available ###########");
+                    }
+                }
+            }).start();
+        }
+        //if no timeout, can use old one, the ad id user can change anytime
+        if (!sharedPreferences.getBoolean("oaid_limited",false)/*gpid_enabled*/)
+            return sharedPreferences.getString("oaid", "");
+            //return oaId;
+        else
+            return "00000000-0000-0000-0000-000000000000";
+    }
+
+/*
+    ////////////////////////////////////// newest method  //////////////////////////////////////
+    private static String sAdvertisingIdClientClassName = "com.google.android.gms.ads.identifier.AdvertisingIdClient";
+    @Nullable
+    static public String fetchAdvertisingInfoSync(final Context context) {
+        if (context == null) {
+            return null;
+        }
+        Object adInfo = null;
+        String advertisingId = null;
+        boolean isLimitAdTrackingEnabled = false;
+
+        try {
+            Reflection.MethodBuilder methodBuilder = MethodBuilderFactory.create(null, "getAdvertisingIdInfo")
+                    .setStatic(Class.forName(sAdvertisingIdClientClassName))
+                    .addParam(Context.class, context);
+
+            adInfo = methodBuilder.execute();
+            advertisingId = reflectedGetAdvertisingId(adInfo, advertisingId);
+            isLimitAdTrackingEnabled = reflectedIsLimitAdTrackingEnabled(adInfo, isLimitAdTrackingEnabled);
+        } catch (Exception e) {
+            //MoPubLog.log(CUSTOM, "Unable to obtain Google AdvertisingIdClient.Info via reflection.");
+            return null;
+        }
+
+        //return new AdvertisingInfo(advertisingId, isLimitAdTrackingEnabled);
+        return advertisingId;
+    }
+
+    static String reflectedGetAdvertisingId(final Object adInfo, final String defaultValue) {
+        try {
+            return (String) MethodBuilderFactory.create(adInfo, "getId").execute();
+        } catch (Exception exception) {
+            return defaultValue;
+        }
+    }
+
+    static boolean reflectedIsLimitAdTrackingEnabled(final Object adInfo, final boolean defaultValue) {
+        try {
+            Boolean result = (Boolean) MethodBuilderFactory.create(adInfo, "isLimitAdTrackingEnabled").execute();
+            return (result != null) ? result : defaultValue;
+        } catch (Exception exception) {
+            return defaultValue;
+        }
+    }
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+*/
+    /**
+     * 取得 GDPR,因为该值会变化，所以每次调用该函数的时候都去取一下
+     *
+     * @param context
+     * @return
+     */
+    public static HashMap<String, Object> getGDPRInfo(Context context) {
+        HashMap<String, Object> gdprList = new HashMap<String, Object>();
+        try {
+            SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+            //String consentString = mPreferences.getString("IABConsent_ConsentString", "");
+            gdprList.put("IABConsent_CMPPresent", mPreferences.getBoolean("IABConsent_CMPPresent", false));
+            gdprList.put("IABConsent_ConsentString", mPreferences.getString("IABConsent_ConsentString", ""));
+            gdprList.put("IABConsent_SubjectToGDPR", mPreferences.getString("IABConsent_SubjectToGDPR", ""));
+            gdprList.put("IABConsent_ParsedPurposeConsents", mPreferences.getString("IABConsent_ParsedPurposeConsents", ""));
+            gdprList.put("IABConsent_ParsedVendorConsents", mPreferences.getString("IABConsent_ParsedVendorConsents", ""));
+        }catch(Exception e) {
+            e.printStackTrace();
+        }
+        return gdprList;
+    }
+
+//    public static String getGDPR_ConsentString(final Context context) {
+//        //Context mContext = getApplicationContext();
+//        SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+//        String consentString = mPreferences.getString("IABConsent_ConsentString", "");
+//        return consentString;
+//    }
+//    public static boolean getGDPR_CMPPresent(final Context context) {
+//        SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+//        Boolean cmpPresent = mPreferences.getBoolean("IABConsent_CMPPresent", false);
+//        return cmpPresent;
+//    }
+
+    //取得US-Pirvacy-User-Signal : CCPA 的值从系统设置
+    public static String getCCPA_String(final Context context) {
+        //Context mContext = getApplicationContext();
+        String  ccpaString = "";
+        try {
+            SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+            ccpaString = mPreferences.getString("IABUSPrivacy_String", "");
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
+        return ccpaString;
+    }
     /**
      * 应用程序列表(暂未用)
      *
      * @param context
      * @return
      */
-    public static HashMap<String, HashMap<String, Object>> getApplicationList(
-            Context context) {
+    public static HashMap<String, HashMap<String, Object>> getApplicationList(Context context) {
         HashMap<String, HashMap<String, Object>> packcageList = new HashMap<String, HashMap<String, Object>>();
-        List<PackageInfo> packageInfos = context.getPackageManager()
-                .getInstalledPackages(
-                        PackageManager.GET_UNINSTALLED_PACKAGES
-                                | PackageManager.GET_ACTIVITIES);
+        List<PackageInfo> packageInfos = context.getPackageManager().getInstalledPackages(
+                                        PackageManager.GET_UNINSTALLED_PACKAGES | PackageManager.GET_ACTIVITIES);
         for (int i = 0; i < packageInfos.size(); i++) {
             HashMap<String, Object> itemInfo = new HashMap<String, Object>();
-            itemInfo.put("lable", packageInfos.get(i).applicationInfo
-                    .loadLabel(context.getPackageManager()).toString());
-            itemInfo.put("pakcage", packageInfos.get(i).applicationInfo
-                    .loadLabel(context.getPackageManager()).toString());
-            itemInfo.put("icon", packageInfos.get(i).applicationInfo
-                    .loadIcon(context.getPackageManager()));
-            packcageList.put(
-                    packageInfos.get(i).applicationInfo.loadLabel(
-                            context.getPackageManager()).toString(), itemInfo);
+            itemInfo.put("lable", packageInfos.get(i).applicationInfo.loadLabel(context.getPackageManager()).toString());
+            itemInfo.put("pakcage", packageInfos.get(i).applicationInfo.loadLabel(context.getPackageManager()).toString());
+            itemInfo.put("icon", packageInfos.get(i).applicationInfo.loadIcon(context.getPackageManager()));
+            packcageList.put(packageInfos.get(i).applicationInfo.loadLabel(context.getPackageManager()).toString(), itemInfo);
         }
         return packcageList;
     }
@@ -2179,6 +2455,8 @@ public class AdViewUtils {
         try {
             File files = new File(filePath);
             if (!files.exists())
+                return;
+            if(null == files.listFiles())
                 return;
             for (File file : files.listFiles()) {
                 if (file.isFile()) {
@@ -2265,6 +2543,24 @@ public class AdViewUtils {
         return new String(Data);
     }
 
+    public static String loadAssetsFileByContext(String path, Context ctx) {
+        byte[] Data = null;
+        ///assets/test/vpaid--fix2.xml  , vast-test1.xml
+        //InputStream abpath = getActivity().getClass().getResourceAsStream(path); //
+        InputStream abpath = null;
+        try {
+            abpath = ctx.getResources().getAssets().open(path);
+            //ByteArrayOutputStream bytestream = new ByteArrayOutputStream();
+            //int ch;
+            int lenght = abpath.available();
+            Data = new byte[lenght];
+            abpath.read(Data);
+            abpath.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return new String(Data);
+    }
     /**
      * 从Assets中读取图片
      */
@@ -2323,6 +2619,579 @@ public class AdViewUtils {
          return "";
      }
 
+    /*
+                   xmltype = 2，混合Vast元素格式的时候根据内容自己生成Vast格式下发
+
+    */
+    public static String generalMixedVast(AdsBean adsBean) {
+        VideoBean videoBean = adsBean.getVideoBean();
+        String videoVast = Assets.getJsFromBase64(Assets.NATIVEVIDEOVAST);
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_DURATION_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_DURATION_TYPE, videoBean.getDuration() + ""));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_IMPRESSION_STR, vastMixedEsEc(ConstantValues.MIXED_VAST_IMPRESSION, adsBean.getExtSRpt()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_STARTEVENT_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_START_TYPE, adsBean.getSpTrackers()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_MIDDLEEVENT_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_MIDDLE_TYPE, adsBean.getMpTrackers()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_ENDEVENT_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_END_TYPE, adsBean.getCpTrackers()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_CLICKTHROUGHT_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_CLICKTHROUGH, adsBean.getAdLink()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_CLICKTRACKING_STR, vastMixedEsEc(ConstantValues.MIXED_VAST_CLICKTRACKING, adsBean.getExtCRpt()));
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_MEDIAFILE_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_MEDIA_FILE, videoBean.getVideoUrl(), videoBean.getHeight() + "", videoBean.getWidth() + ""));
+
+        String[] extensionLinks = new String[7];
+        extensionLinks[0] = videoBean.getEndHtml();
+        extensionLinks[1] = videoBean.getEndImgUrl();
+        extensionLinks[2] = videoBean.getEndIconUrl();
+        extensionLinks[3] = videoBean.getEndDesc();
+        extensionLinks[4] = videoBean.getEndTitle();
+        extensionLinks[5] = videoBean.getEndButtonText();
+        extensionLinks[6] = videoBean.getEndButtonUrl();
+
+        videoVast = videoVast.replace(ConstantValues.MIXED_VAST_EXTENSION_STR, vastMixedLinkPart(ConstantValues.MIXED_VAST_EXTENSION, extensionLinks));
+
+        return videoVast;
+    }
+
+    public static String vastMixedEsEc(int type, HashMap<String, String[]> maps) {
+        String temp = "";
+        Iterator iterator = maps.keySet().iterator();
+        while (iterator.hasNext()) {
+            String[] links = maps.get(iterator.next());
+            temp = temp + vastMixedLinkPart(type, links);
+        }
+        return temp;
+    }
+
+    public static String vastMixedLinkPart(int type, String... links) {
+        String temp = "";
+        for (String link : links) {
+            switch (type) {
+                case ConstantValues.MIXED_VAST_START_TYPE:
+                    temp = temp + "<Tracking event=\"start\">\n" +
+                            "   <![CDATA[" + link + "]]>" +
+                            "</Tracking>";
+                    break;
+                case ConstantValues.MIXED_VAST_MIDDLE_TYPE:
+                    temp = temp + "<Tracking event=\"midpoint\">\n" +
+                            "   <![CDATA[" + link + "]]>" +
+                            "</Tracking>";
+                    break;
+                case ConstantValues.MIXED_VAST_END_TYPE:
+                    temp = temp + "<Tracking event=\"complete\">\n" +
+                            "   <![CDATA[" + link + "]]>" +
+                            "</Tracking>";
+                    break;
+                case ConstantValues.MIXED_VAST_IMPRESSION:
+                    temp = temp + "<Impression>\n" +
+                            "   <![CDATA[" + link + "]]>\n" +
+                            "</Impression>";
+                    break;
+                case ConstantValues.MIXED_VAST_CLICKTHROUGH:
+                    temp = temp + "<ClickThrough>\n" +
+                            "   <![CDATA[" + link + "]]>\n" +
+                            " </ClickThrough>";
+                    break;
+                case ConstantValues.MIXED_VAST_CLICKTRACKING:
+                    temp = temp + "<ClickTracking>\n" +
+                            "   <![CDATA[" + link + "]]>\n" +
+                            "</ClickTracking>";
+                    break;
+            }
+        }
+
+        switch (type) {
+            case ConstantValues.MIXED_VAST_DURATION_TYPE:
+                int duration = Integer.valueOf(links[0]);
+                int seconds = duration % 60;
+                int minutes = duration / 60;
+                int hours = minutes / 24;
+                minutes = minutes % 60;
+                temp = "<Duration>" + hours + ":" + minutes + ":" + seconds + "</Duration>";
+                break;
+            case ConstantValues.MIXED_VAST_MEDIA_FILE:
+                temp = "<MediaFile type=\"video/mp4\" width=\"" + links[2] + "\" height=\"" + links[1] + "\">\n" +
+                        "        <![CDATA[" + links[0] + "]]>\n" +
+                        " </MediaFile>";
+                break;
+            case ConstantValues.MIXED_VAST_EXTENSION:
+                temp = (TextUtils.isEmpty(links[0]) ? "" : ("<Ky_EndHtml><![CDATA[" + links[0] + "]]></Ky_EndHtml>\n")) +
+                        (TextUtils.isEmpty(links[1]) ? "" : "<Ky_EndImage><![CDATA[" + links[1] + "]]></Ky_EndImage>\n") +
+                        (TextUtils.isEmpty(links[2]) ? "" : "<Ky_EndIconUrl><![CDATA[" + links[2] + "]]></Ky_EndIconUrl>\n") +
+                        (TextUtils.isEmpty(links[3]) ? "" : "<Ky_EndDesc><![CDATA[" + links[3] + "]]></Ky_EndDesc>\n") +
+                        (TextUtils.isEmpty(links[4]) ? "" : "<Ky_EndTitle><![CDATA[" + links[4] + "]]></Ky_EndTitle>\n") +
+                        (TextUtils.isEmpty(links[5]) ? "" : "<Ky_EndText><![CDATA[" + links[5] + "]]></Ky_EndText>\n") +
+                        (TextUtils.isEmpty(links[6]) ? "" : "<Ky_EndLink><![CDATA[" + links[6] + "]]></Ky_EndLink>");
+                break;
+        }
+        return temp;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////load url interfaces ///////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Mraid + OMSDK support template
+    public static WebView loadWebContentExt(WebView webView, String script) {
+        String otherHtml = ConstantValues.MRAID_SCRIPT_HTMLSTYLE;
+        try {
+            if (null == webView )
+                return null;
+
+            otherHtml = otherHtml.replace("__SCRIPT__", script);
+
+            webView.loadDataWithBaseURL(
+                                    //ConstantValues.WEBVIEW_BASEURL
+                                    ConstantValues.VAST_OMSDK_ASSETS_URL,
+                                    otherHtml, "text/html", "UTF-8", null);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        return webView;
+    }
+
+    //vast video holder
+    public static WebView loadWebVideoURL(WebView webView, String html) {
+        try {
+            if (null == webView )
+                return null;
+
+//            webView.loadData(html,"text/html","UTF-8");
+            webView.loadDataWithBaseURL(
+                    //(url.startsWith("http")||url.startsWith("https")) ? "" :"file://" + url.substring(0,url.lastIndexOf("/") + 1),
+                    //ConstantValues.WEBVIEW_BASEURL
+                    ConstantValues.VAST_OMSDK_ASSETS_URL,
+                    html, "text/html", "UTF-8", null);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        return webView;
+    }
+
+    //use by load url with picture or other resource
+    public static WebView loadWebImageURL(WebView webView, String bitmapURL, String adLink) {
+        String imageHtml = new String(ConstantValues.MRAID_BITMAP_HTMLSTYLE);
+        try {
+            if (null == webView || null == bitmapURL)
+                return null;
+
+            imageHtml = imageHtml
+                    .replace("IMAGE_PATH", bitmapURL)
+                    .replace("BITMAP_WIDTH", /*adWidth == -99 ? "auto" : adWidth + ""*/ "100%") //(wilder) 2019 for let pic fit the view
+                    .replace("BITMAP_HEIGHT", /*adHeight == -99 ? "100%" : adHeight + ""*/ "auto")
+                    .replace("AD_LINK", adLink);
+
+            webView.loadData(imageHtml,"text/html","UTF-8");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        return webView;
+    }
+
+    //load bitmap & picture
+    public static WebView loadWebImageLocal(WebView webView, String bitmapPath, String adLink, int adWidth, int adHeight) {
+        String imageHtml = new String(ConstantValues.MRAID_BITMAP_HTMLSTYLE);
+        try {
+            if (null == webView || null == bitmapPath)
+                return null;
+//            if (adHeight > 0 && adWidth > 0) {
+//                adWidth = ((int) (adWidth / (float) density)) + 1;
+//                adHeight = ((int) (adHeight / (float) density)) + 1;
+//            }
+            imageHtml = imageHtml
+                    .replace("IMAGE_PATH", bitmapPath.substring( bitmapPath.lastIndexOf("/") + 1, bitmapPath.length()))
+                    .replace("BITMAP_WIDTH", /*adWidth == -99 ? "auto" : adWidth + ""*/ "auto") //(wilder) 2019 for let pic fit the view
+                    .replace("BITMAP_HEIGHT", /*adHeight == -99 ? "100%" : adHeight + ""*/ "100%")
+                    .replace("AD_LINK", adLink);
+
+            webView.loadDataWithBaseURL(
+                    "file://" + bitmapPath.substring(0,bitmapPath.lastIndexOf("/") + 1),
+                    imageHtml,
+                    "text/html",
+                    "UTF-8", "");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        return webView;
+    }
+
+    public static void loadVPAIDURL(WebView wv, String vpaidURL) {
+        //if (!vpaidURL.startsWith("https"))
+        {
+            String vpURL = vpaidURL;
+            //mWebView = wv;
+            if(vpURL.startsWith("//")){
+                vpURL = "http:" + vpURL;
+            }
+            AdViewUtils.logInfo("++++++++++++++ loadVPAIDURL(): vpaid mode +++++++++++++");
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    try {
+                        //String html = ConstantValues.VPAID_HTML;
+                        String html = AdViewUtils.loadAssetsFile("VAST_VPAID_JS.html");
+                        String finalHtml = html.replace(ConstantValues.VPAID_CREATIVE_URL_STRING, vpaidURL);
+                        //finalHtml = finalHtml.replace(ConstantValues.VPAID_BRIDGE_JS_STRING,js_bridge);
+                        //AdViewUtils.logInfo("++++ html: " + finalHtml);
+                        //(wilder 2019) for google IMA3.0, if not set baseURL , it will cause "Uncaught SecurityError"
+                        wv.loadDataWithBaseURL( ConstantValues.VAST_OMSDK_ASSETS_URL, //ConstantValues.WEBVIEW_BASEURL,
+                                finalHtml,
+                                "text/html",
+                                "UTF-8",//StandardCharsets.UTF_8.toString(),
+                                null);
+                    } catch (Exception e) {
+                        AdViewUtils.logInfo("+++ Can't read assets: " + e.getMessage() + "++++");
+                    }
+                } else {
+                    wv.loadUrl(vpURL);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    public static boolean checkClass(String classes) {
+        try {
+            if (Class.forName(classes) != null) {
+                return true;
+            }
+        } catch (ClassNotFoundException e) {
+        }
+        return false;
+    }
+    ///////////////////////////////////////////////////////////////////////////////
+    /////////////////////////  for OMSDK v1.2  ////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////
+    public static void checkOMSDKFeatrue() {
+
+        if (!useOMSDK) {
+            //彻底关闭omsdk功能
+            useOMSDKFeature = false;
+        }else if (KyAdBaseView.checkClass("com.iab.omid.library.adview.adsession.AdSession")) {
+            useOMSDKFeature = true;
+        }
+    }
+
+    public static boolean canUseOMSDK() {
+        if (Omid.isCompatibleWithOmidApiVersion(Omid.getVersion())) {
+            useOMSDKFeature = true;
+        }else
+            useOMSDKFeature = false;
+
+        return useOMSDKFeature;
+
+    }
+    //wilder 2019 for sdk -> BID
+    public static String getOMPartnerName() {
+        if (canUseOMSDK())
+            return OMSDK_PARTNER_NAME;
+        else
+            return "";
+    }
+
+    public static String getOMPartnerVer() {
+        if (canUseOMSDK())
+            return OMSDK_PARTNER_SDK_APP_VER;
+        else
+            return "";
+    }
+
+    public static void createOMPartner() {
+        if (!canUseOMSDK())
+            return;
+        try {
+
+            OMSDKPartner = Partner.createPartner( OMSDK_PARTNER_NAME, OMSDK_PARTNER_SDK_APP_VER );
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static Partner getOMPartner() {
+         return OMSDKPartner;
+    }
+
+    public static boolean addOMVerificationScriptResource(String vendorKey, String scriptUrl, String params) {
+        if (!canUseOMSDK())
+            return false;
+        verificationScriptResources = new ArrayList<VerificationScriptResource>();
+        //new OMIDVerificationScriptResource(vendorKey, url,params);
+        try {
+            URL url = new URL(scriptUrl);
+            VerificationScriptResource veriScriptResource =
+                    VerificationScriptResource.createVerificationScriptResourceWithParameters(vendorKey,url, params);
+            //VerificationScriptResource.createVerificationScriptResourceWithoutParameters(vendorKey, url, params);
+            verificationScriptResources.add(veriScriptResource);
+        } catch (IllegalArgumentException e ) {
+            e.printStackTrace();
+            return false;
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    public static AdSession startOMAdSessionNATIVE(View v) {
+        if (!canUseOMSDK())
+            return null;
+        AdSession adSession = null;
+        try {
+            String customReferenceData = "";
+            if (verificationScriptResources.size() == 0)
+                return null;
+
+            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js");
+            AdSessionContext adSessionContext = AdSessionContext.createNativeAdSessionContext(
+                    AdViewUtils.getOMPartner(),
+                    OMID_JS_SERVICE_CONTENT,
+                    verificationScriptResources,
+                    customReferenceData);
+
+            //(2)Designate event layer
+            Owner owner = Owner.NATIVE;
+            AdSessionConfiguration adSessionConfiguration = null;
+            adSessionConfiguration = AdSessionConfiguration.createAdSessionConfiguration(owner, null, false);
+            //(3)Create the session.
+            adSession = AdSession.createAdSession(adSessionConfiguration, adSessionContext);
+            //register view
+            adSession.registerAdView(v);
+            // Start the session
+            adSession.start();
+            AdViewUtils.logInfo("++++++++++++++ [OMSDK-Native] startOMAdSessionNATIVE() : successfull ++++++++++++++++");
+
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+
+        return adSession;
+    }
+
+    public static AdSession createOMAdSessionNATIVEVideo(View v) {
+        if (!canUseOMSDK())
+            return null;
+        AdSession adSession = null;
+        try {
+            String customReferenceData = "";
+            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js");
+            AdSessionContext adSessionContext = AdSessionContext.createNativeAdSessionContext(
+                    AdViewUtils.getOMPartner(),
+                    OMID_JS_SERVICE_CONTENT,
+                    verificationScriptResources,
+                    customReferenceData);
+
+            //(2)Designate event layer
+            Owner owner = Owner.NATIVE;
+            AdSessionConfiguration adSessionConfiguration = null;
+            //native video
+            adSessionConfiguration = AdSessionConfiguration.createAdSessionConfiguration(owner, owner, false);
+            //(3)Create the session.
+            adSession = AdSession.createAdSession(adSessionConfiguration, adSessionContext);
+            //register view
+            adSession.registerAdView(v);
+            //create event publisher
+            adNativeEvents = AdEvents.createAdEvents(adSession); //该事件没有用上
+            videoNativeEvents = VideoEvents.createVideoEvents(adSession);
+            // Start the session
+            //adSession.start();
+            AdViewUtils.logInfo("++++++++++++++ [OMSDK-Native] createOMAdSessionNATIVEVideo-VIDEO() : successfull ++++++++++++++++");
+
+        } catch (IllegalArgumentException e ) {
+            e.printStackTrace();
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+
+        return adSession;
+    }
+    public static AdSession createOMAdSessionHTML(WebView wv) {
+        if (!canUseOMSDK())
+            return null;
+        AdSession adSession = null;
+        try {
+            //(1)Create context
+            String customReferenceData = "";
+            AdSessionContext context = AdSessionContext.createHtmlAdSessionContext(
+                    AdViewUtils.getOMPartner(),
+                    wv,
+                    customReferenceData);
+            //(2)Designate event layer
+            Owner owner = Owner.NATIVE;
+            AdSessionConfiguration adSessionConfiguration =
+                    AdSessionConfiguration.createAdSessionConfiguration(owner, null, false);
+            //(3)Create the session.
+            adSession = AdSession.createAdSession(adSessionConfiguration, context);
+            adSession.registerAdView(wv);
+            // Start the session, here or in app side ?
+            //adSession.start();
+            AdViewUtils.logInfo("++++++++++++++ [OMSDK-HTML] createOMAdSessionHTML() : successfull ++++++++++++++++");
+
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+        return adSession;
+    }
+
+    public static AdSession startOMAdSessionJS(WebView wv) {
+        if (!canUseOMSDK())
+            return null;
+        AdSession adSession = null;
+        try {
+            //(1)Create context
+            String customReferenceData = "";
+            AdSessionContext context = AdSessionContext.createHtmlAdSessionContext(
+                    AdViewUtils.getOMPartner(),
+                    wv,
+                    customReferenceData);
+            //(2)Designate event layer
+            Owner owner = Owner.JAVASCRIPT;
+            /*
+            you should decide on the appropriate value for the isolateVerificationScripts parameter.
+            The effect of a true value is that measurement resources will be placed in a sandboxed iframe where they cannot access the video ad element.
+            If you specify false, they will be placed into a same-origin iframe.
+             */
+            AdSessionConfiguration adSessionConfiguration =
+                        AdSessionConfiguration.createAdSessionConfiguration(owner, owner, false /*isolateVerificationScripts*/);
+
+            //(3)Create the session.
+            adSession = AdSession.createAdSession(adSessionConfiguration, context);
+            adSession.registerAdView(wv);
+            // Start the session
+            adSession.start();
+
+            AdViewUtils.logInfo("++++++++++++++ [SDK] startOMAdSessionJS() : successfull ++++++++++++++++");
+
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+        return adSession;
+    }
+
+    public static void startAdSession(AdSession adSession) {
+        if (!canUseOMSDK())
+            return ;
+//        if (Omid.isCompatibleWithOmidApiVersion(Omid.getVersion())) {
+//            useOMSDKFeature = false;
+//            return;
+//        }
+        //for html / native video , may have friendly observers
+        try {
+            if (null != adSession) {
+                adSession.start();
+                AdViewUtils.logInfo("++++++++++++++ [SDK] startAdSession() : successfull ++++++++++++++++");
+            }
+        }catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void AddOMObstructions(View v, AdSession adSession) {
+        if (!canUseOMSDK())
+            return ;
+        if (adSession == null || v == null)
+            return;
+        try {
+            AdViewUtils.logInfo("++++++++++++++[SDK]  AddOMObstructions():" + v.getId() +  "++++++++++++++");
+            adSession.addFriendlyObstruction(v);
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
+    //if call this function multi times, it will cause error, so it must be triggered at last
+    public static void  signalImpressionEvent(AdSession adSession) {
+        if (!canUseOMSDK())
+            return ;
+        try {
+            if (null != adSession /*&& !isImpressionTrigged*/) {
+                AdViewUtils.logInfo("++++++++++++++[SDK]  signalImpressionEvent ()  ++++++++++++++");
+                AdEvents adEvents = AdEvents.createAdEvents(adSession);
+                adEvents.impressionOccurred();
+                //isImpressionTrigged = true;
+            }
+        } catch (IllegalArgumentException e ) {
+            e.printStackTrace();
+        } catch ( IllegalStateException e ) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void signalErrorEvent (AdSession adSession, ErrorType type, String info) {
+        if (!canUseOMSDK())
+            return ;
+        if (null != adSession) {
+            AdViewUtils.logInfo("++++++++++++++[SDK]  signalErrorEvent ():" + info + "++++++++++++++");
+            adSession.error(type,info);
+        }
+    }
+
+    public static void stopOMAdSession(AdSession adSession) {
+        if (!canUseOMSDK())
+            return ;
+        if (null != adSession) {
+            AdViewUtils.logInfo("++++++++++++++[SDK]  stopOMAdSession ()  ++++++++++++++");
+
+            adSession.finish();
+            adSession = null;
+        }
+    }
+    //native video used
+    public static void signalOMNativeVideoEvent(int status) {
+        if (!canUseOMSDK())
+            return ;
+        try {
+            if (null == videoNativeEvents)
+                return;
+            switch(status) {
+                case NativeVideoStatus.START:
+                    videoNativeEvents.start(0.0f, 1.0f);
+                    break;
+                case NativeVideoStatus.FIRSTQUARTILE:
+                    videoNativeEvents.firstQuartile();
+                    break;
+                case NativeVideoStatus.MEDIUM:
+                    videoNativeEvents.midpoint();
+                    break;
+                case NativeVideoStatus.END:
+                    videoNativeEvents.complete();
+                    break;
+                case NativeVideoStatus.STOP:
+                    videoNativeEvents.complete();
+                    break;
+                case NativeVideoStatus.RESUME:
+                    videoNativeEvents.resume();
+                    break;
+                case NativeVideoStatus.THIRDQUARTILE:
+                    videoNativeEvents.thirdQuartile();
+                    break;
+                case NativeVideoStatus.PAUSE:
+                    videoNativeEvents.pause();
+                    break;
+                case NativeVideoStatus.SKIPPED:
+                    videoNativeEvents.skipped();
+                    break;
+                case NativeVideoStatus.VOLUMECHANGE:
+                    videoNativeEvents.volumeChange(0.5f);
+                    break;
+
+            }
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+    }
+    public static void signalNativeVideoLoad(float skipOffset, boolean isAutoPlay) {
+        if (!canUseOMSDK())
+            return ;
+        //Position pos = Position.STANDALONE.toString();
+        final VastProperties vProps = VastProperties.createVastPropertiesForSkippableVideo(skipOffset, isAutoPlay, Position.STANDALONE);
+        try {
+            videoNativeEvents.loaded(vProps);
+        } catch (Exception e) {
+        }
+    }
+    ///////////////////////// end wilder for OMSDK v1.2 //////////////////////////////////
+    //////////////////
     /**
      * *************** Android output logs ****************************
      */

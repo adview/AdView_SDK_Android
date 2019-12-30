@@ -1,6 +1,6 @@
 package com.kuaiyou.interfaces;
 
-public interface KyInstalListener extends KyViewListener {
+public interface KyInstalListener extends AdVGListener {
 
     int getDisplayMode();
 

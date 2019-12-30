@@ -1,0 +1,208 @@
+<html>
+<header></header>
+<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'>
+<body style="margin:0" onload="initOMSDK()">
+      <script src="file:///android_asset/ad_vbridge.js" type="text/javascript"></script>
+      <script src="file:///android_asset/omid-session-client-v1.js" type="text/javascript"></script>
+      <script src="[VPAID_CREATIVE_URL]" type="text/javascript"></script>
+      <video id="adview-videoslot" style="position:absolute; width:100%; height:100%; z-index:1; -webkit-transform: translate3d(0, 0, 0);" ></video>
+      <div id="adview-slot" style="width:100%; height:100%; z-index: 3; position:absolute; -webkit-user-select: none;" ></div>
+
+      <script type="text/javascript">
+			const vid = document.getElementById("adview-videoslot");
+			var isSkipped=false;
+			var isPlayed=false;
+            //omsdk v1.2
+            var omURL;
+            var omPara;
+            var omVendor;
+            var skipoffset;
+
+            var adEvents;
+            var videoEvents;
+            var adSession;
+            var isVideoLoaded = false;
+            var isFullScreen = false;
+            var isOmsdkSupported = false;
+            var is_autoplay = true;
+
+              //Create a SessionClient. this version number can be found in omid-session-client-v1.js
+              var sessionClient;
+              sessionClient = OmidSessionClient['1.2.15-iab990'];
+              if (!sessionClient) {
+                console.log("*****[VpaidJS]************ no session Client !!!!!!! **** ");
+              }
+              const AdSession = sessionClient.AdSession;
+              const Partner = sessionClient.Partner;
+              const Context = sessionClient.Context;
+              const VerificationScriptResource = sessionClient.VerificationScriptResource;
+              const AdEvents = sessionClient.AdEvents;
+              const VideoEvents = sessionClient.VideoEvents;
+              console.log("*****[VpaidJS]************ init session Client successfull ******* ");
+
+            function initOMSDK() {
+                callNative("ominited");
+            }
+            function startOMSession() {
+                //Initialize the JS ad session
+                var resources = [];
+                try {
+                    //Prepare the measurement resources
+                    var resource = new VerificationScriptResource(omURL, omVendor, omPara);
+                    resources.push(resource);
+
+                    var partner = new Partner("Adview", "4.1.5");
+                    var context = new Context(partner, resources);
+                    adSession = new AdSession(context);
+                    //Cross-domain iframe, if video element in iframe
+                    //Set the video element
+                    context.setVideoElement(vid);
+
+                    //Create the event publishers
+                    adEvents = new AdEvents(adSession);
+                    videoEvents = new VideoEvents(adSession);
+
+                    //Start the session in native layer
+                    //adSession.start();
+                    console.log("*********[VpaidJS]******* prepare session  OK ******* ");
+                }catch (e) {
+                    console.log("*********[VpaidJS]******* (JS)prepare session ERROR :" + e.message +" **** ");
+                }
+                signalOMLoadedEvent(); //now can send loaded event
+
+            }
+            function setOMParameters(vendor, para, url, skip, autop) {
+                omURL = url;
+                omVendor = vendor;
+                omPara = para;
+                skipoffset = skip;
+                is_autoplay = autop;
+
+                //console.log("*****[VpaidJS]setOMParameters: url["+ omURL + "],vendor[" + omVendor + "],para[" + omPara + "]");
+                if(!vendor || !para || !url) {
+                    //normal vast
+                    isOmsdkSupported = false;
+                }else {
+                    isOmsdkSupported = true;
+                    startOMSession();
+                }
+                if(is_autoplay){
+                    console.log("******* now auto play !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*****");
+                    playVideo();
+                }
+            }
+            function setFullScreen(isFull) {
+                isFullScreen = isFull;
+            }
+
+            function signalOMLoadedEvent() {
+             //omsdk
+                adSession.registerSessionObserver((event) => {
+                  if (event.type === "sessionStart") {
+                    // setup code
+                    // load event
+                    var canSkip = false;
+                    if (skipoffset.length > 0)
+                        canSkip = true;
+                    videoEvents.loaded({ isSkippable: isSkipped, skipOffset: skipoffset, isAutoPlay: is_autoplay, position: 0 });
+                    isVideoLoaded = true;
+                    console.log("*********[VpaidJS]******* signalOMLoadedEvent() call Native (omLoaded) ************");
+                    callNative("omLoaded");
+                    // other event code
+                  } else if (event.type === "sessionError") {
+                    // handle error
+                  } else if (event.type === "sessionFinish") {
+                    // clean up
+                  }
+                });
+            }
+            function signalImpressionEvent() {
+                //impression
+                if (!isVideoLoaded || !isOmsdkSupported) {
+                    console.log("*********[VpaidJS]******* signalImpressionEvent: failed , isVideoLoaded is FALSE or omsdk is unsupported*****");
+                    return;
+                }
+                adEvents.impressionOccurred();
+                console.log("*********[VpaidJS]******* signalImpressionEvent() ************");
+                //wilder set play state change
+                //signalStateChange(isFullScreen);
+                //start play, before native will send start but video meta still not loaded, here will trigger
+                //signalPlaybackEvent("start");
+            }
+            function signalPlaybackEvent(evt) {
+                if (!isVideoLoaded || !isOmsdkSupported) {
+                    console.log("***** [VpaidJS] ******* signalPlaybackEvent:(" + evt + "), !isVideoLoaded or omsdk is not supported *****");
+                    return;
+                }
+                console.log("*********[VpaidJS]******* PlayBackEvent(" + evt + ") ***********");
+                try {
+                    if (evt == 'start') {
+                        if (!isNaN(vid.duration)) {
+                          videoEvents.start(vid.duration, vid.volume);
+                        } else {
+                          // wait until duration is available to start
+                        }
+                    }else if (evt == 'firstQuartile') {
+                        videoEvents.firstQuartile();
+                    }else if (evt == 'midpoint') {
+                        videoEvents.midpoint();
+                    }else if (evt == 'thirdQuartile') {
+                        videoEvents.thirdQuartile();
+                    }else if (evt == 'complete') {
+                        videoEvents.complete();
+                    }else if (evt == 'pause') {
+                        videoEvents.pause();
+                    }else if (evt == 'resume') {
+                        videoEvents.resume();
+                    }else if (evt == 'bufferStart') {
+                        videoEvents.bufferStart();
+                    }else if (evt == 'bufferFinish') {
+                        videoEvents.bufferFinish();
+                    }else if (evt == 'click') {
+                        videoEvents.adUserInteraction('click'); //wilder 2019 add click
+                    }else if (evt == 'invitationAccept') {
+                        videoEvents.adUserInteraction('invitationAccept');
+                    }
+                }catch (e) {
+                    console.log("*******[VpaidJS]******* signalPlaybackEvent ERROR :" + e.message +" ********");
+                }
+            }
+            function signalSkipVideo() {
+                if (isOmsdkSupported) {
+                    console.log("*********[VpaidJS]******* signalSkipVideo()***********");
+                    videoEvents.skipped();
+                }
+            }
+            function signalVolumeEvent() {
+                if (isOmsdkSupported) {
+                    //console.log("*********[VpaidJS]******* signalVolumeEvent:" + vid.volume + "***********");
+                    videoEvents.volumeChange(vid.volume);
+                }
+            }
+            function signalStateChange(state) {
+                // entering fullscreen
+                if (!isOmsdkSupported) return;
+
+                videoEvents.playerStateChange(state);
+
+            }
+
+            /////////////// end omsdk v1.2  /////////////
+            function fixSize(w,h){
+                //vid.width=w;
+                //vid.height=h;
+                console.log("****** [VpaidJS] fixsize: " + w + " x " + h + " *******");
+                //vid.videoWidth = w;
+                //vid.videoHeight = h;
+            }
+
+            function callNative(command) {
+				var iframe = document.createElement("IFRAME");
+				iframe.setAttribute("src", "mraid://" + command);
+				document.documentElement.appendChild(iframe);
+				iframe.parentNode.removeChild(iframe);
+				iframe = null;
+			}
+      </script>
+</body>
+</html>

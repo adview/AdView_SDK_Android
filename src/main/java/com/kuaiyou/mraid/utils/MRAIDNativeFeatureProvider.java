@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -148,8 +149,15 @@ public class MRAIDNativeFeatureProvider {
 	}
 
 	public void playVideo(String url) {
-		Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-		context.startActivity(intent);
+		//Uri u = Uri.parse(url);
+		try {
+			String str = URLDecoder.decode(url, "UTF-8");
+			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(str));
+			context.startActivity(intent);
+		}catch (Exception e) {
+			e.printStackTrace();
+		}
+		//AdViewUtils.openLandingPage(context,url, true);
 	}
 
 	// public void openBrowser(String url) {

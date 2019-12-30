@@ -14,8 +14,6 @@ import android.widget.TextView;
 
 import com.kuaiyou.adbid.AdSpreadBIDView;
 import com.kuaiyou.interfaces.KySpreadListener;
-import com.kuaiyou.mraid.interfaces.MRAIDNativeFeatureListener;
-import com.kuaiyou.mraid.interfaces.MRAIDViewListener;
 import com.kuaiyou.obj.AdsBean;
 
 import java.util.HashMap;
@@ -29,7 +27,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     private int screenHeight;
     private int layoutType;
     private int sHeight, sWidth;
-    private KySpreadListener kyViewListener;
+    private KySpreadListener kySpreadListener;
     private Rect touchRect;
     private int padding = 4;
     private float downX, downY;
@@ -39,13 +37,15 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     private boolean isHtml = false;
     private Rect closeRect = new Rect();
 
+    private InstlView instlView = null; //wilder 20190612
     private int deformation = 0;
 
     public SpreadView(Context context) {
         super(context);
         int[] screenSize = AdViewUtils.getWidthAndHeight(context.getApplicationContext(), true, true);
         screenWidth = screenSize[0];
-        screenHeight = screenSize[1] - AdViewUtils.getDaoHangHeight(context) - AdViewUtils.getStatusBarHeight(context);
+        //这个高度减去导航条和状态条的高度
+        screenHeight = screenSize[1] - AdViewUtils.getNaviBarHeight(context) - AdViewUtils.getStatusBarHeight(context);
 //        this.setBackgroundColor(Color.WHITE);
         this.densityScale = AdViewUtils.getScaledDensity(context);
         this.density = AdViewUtils.getDensity(context);
@@ -57,16 +57,20 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         return screenHeight - (hasLogo * (screenWidth / 4));
     }
 
+    public InstlView getInstlView() {
+        return instlView;
+    }
+
     public void init() {
         ImageView logo = new ImageView(getContext());
         logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        logo.setId(ConstantValues.SPREADLOGOIMAGEID);
+        logo.setId(ConstantValues.SPREAD_UI_LOGOIMAGEID);
         addView(logo);
         try {
-            if (null != kyViewListener) {
-                Drawable drawable = kyViewListener.getSpreadLogo();
+            if (null != kySpreadListener) {
+                Drawable drawable = kySpreadListener.getSpreadLogo();
                 if (null != drawable)
-                    ((ImageView) findViewById(ConstantValues.SPREADLOGOIMAGEID)).setImageDrawable(drawable);
+                    ((ImageView) findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)).setImageDrawable(drawable);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -77,10 +81,10 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 
     public void updateLogo() {
         try {
-            if (null != kyViewListener) {
-                Drawable drawable = kyViewListener.getSpreadLogo();
+            if (null != kySpreadListener) {
+                Drawable drawable = kySpreadListener.getSpreadLogo();
                 if (null != drawable)
-                    ((ImageView) findViewById(ConstantValues.SPREADLOGOIMAGEID)).setImageDrawable(drawable);
+                    ((ImageView) findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)).setImageDrawable(drawable);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -90,7 +94,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     private void updateLogoLayer() {
         try {
             ImageView logoImage;
-            if (null != (logoImage = (ImageView)findViewById(ConstantValues.SPREADLOGOIMAGEID))) {
+            if (null != (logoImage = (ImageView)findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID))) {
                 removeView(logoImage);
                 addView(logoImage);
             }
@@ -105,67 +109,69 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         setMeasuredDimension(screenWidth, screenHeight);
     }
 
-    public void setSpreadViewListener(KySpreadListener kyViewListener) {
-        this.kyViewListener = kyViewListener;
+    public void setSpreadViewListener(KySpreadListener kySpreadListener) {
+        this.kySpreadListener = kySpreadListener;
     }
 
-    public void loadAdLayout(int width, int height, int adType, int layoutType, int deformation, int hasLogo, MRAIDNativeFeatureListener nativeFeatureListener, MRAIDViewListener mraidViewListener) {
+    public void initWidgetLayout(int width, int height, int adType, int layoutType, int deformation, int hasLogo/*, MRAIDNativeFeatureListener nativeFeatureListener, MRAIDViewListener mraidViewListener*/) {
         this.layoutType = layoutType;
         this.sWidth = screenWidth;
         this.sHeight = sWidth * height / width;
         this.hasLogo = hasLogo;
-        this.isHtml = adType == ConstantValues.HTML;
+        this.isHtml = ( adType == ConstantValues.RESP_ADTYPE_HTML );
         this.deformation = deformation;
         HashMap<String, Integer> sizeMap = new HashMap<String, Integer>();
         switch (adType) {
-            case ConstantValues.MIXED:
-                sizeMap.put(ConstantValues.INSTLWIDTH, sWidth);
-                sizeMap.put(ConstantValues.INSTLHEIGHT, sWidth * 5 / 6);
+            case ConstantValues.RESP_ADTYPE_MIXED:
+                sizeMap.put(ConstantValues.INSTL_WIDTH_KEY, sWidth);
+                sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, sWidth * 5 / 6);
                 break;
             default:
-                sizeMap.put(ConstantValues.INSTLWIDTH, sWidth);
-                if (layoutType == ConstantValues.EXTRA3 || hasLogo == 0) {
-                    if (deformation == ConstantValues.SCALE_NOHTML && adType == ConstantValues.HTML)
-                        sizeMap.put(ConstantValues.INSTLHEIGHT, sHeight);
+                sizeMap.put(ConstantValues.INSTL_WIDTH_KEY, sWidth);
+                if (layoutType == ConstantValues.SPREAD_UI_EXTRA3 || hasLogo == 0) {
+                    if (deformation == ConstantValues.SPREAD_UI_SCALE_NOHTML && adType == ConstantValues.RESP_ADTYPE_HTML)
+                        sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, sHeight);
                     else
-                        sizeMap.put(ConstantValues.INSTLHEIGHT, screenHeight);
+                        sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, screenHeight);
                 } else {
-                    if (deformation == ConstantValues.SCALE_INCLUDEHTML)
-                        sizeMap.put(ConstantValues.INSTLHEIGHT, screenHeight - (screenWidth / 4));
-                    else if (deformation == ConstantValues.SCALE_NOHTML) {
-                        if (adType != ConstantValues.HTML)
-                            sizeMap.put(ConstantValues.INSTLHEIGHT, sHeight = (screenHeight - (screenWidth / 4)));
+                    if (deformation == ConstantValues.SPREAD_UI_SCALE_INCLUDEHTML)
+                        sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, screenHeight - (screenWidth / 4));
+                    else if (deformation == ConstantValues.SPREAD_UI_SCALE_NOHTML) {
+                        if (adType != ConstantValues.RESP_ADTYPE_HTML)
+                            sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, sHeight = (screenHeight - (screenWidth / 4)));
                         else
-                            sizeMap.put(ConstantValues.INSTLHEIGHT, sHeight);
+                            sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, sHeight);
                     } else
-                        sizeMap.put(ConstantValues.INSTLHEIGHT, sHeight);
+                        sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, sHeight);
                 }
                 break;
         }
-        InstlView instlView = new InstlView(getContext(),
-                sizeMap, adType, nativeFeatureListener, mraidViewListener);
-        instlView.setId(adType != ConstantValues.MIXED ? ConstantValues.SPREADADFRAMEID : ConstantValues.SPREADMIXLAYOUTID);
+        instlView = new InstlView(getContext(),sizeMap, adType /*, nativeFeatureListener, mraidViewListener*/);
+        instlView.setId(adType != ConstantValues.RESP_ADTYPE_MIXED ? ConstantValues.SPREAD_UI_FRAMEID : ConstantValues.SPREAD_UI_MIXLAYOUTID);
         if (null != instlView && null != instlView.getMraidView())
             instlView.getMraidView().setClickCheckable(false);
+        //wilder 2019 for spread listener
+        instlView.setInstlViewListener(kySpreadListener);
+
         addView(instlView);
-        if (adType != ConstantValues.MIXED)
+        if (adType != ConstantValues.RESP_ADTYPE_MIXED)
             addSpreadText();
 
         this.setOnTouchListener(this);
         instlView.setOnTouchListener(this);
+
         updateLogoLayer();
         addCloseBtn();
-        instlView.removeView(instlView.findViewById(ConstantValues.ADICONID));
-        instlView.removeView(instlView.findViewById(ConstantValues.ADLOGOID));
+        instlView.removeView(instlView.findViewById(ConstantValues.UI_ADICON_ID));
+        instlView.removeView(instlView.findViewById(ConstantValues.UI_ADLOGO_ID));
         addLogoIcon();
-
     }
 
     public void setContent(AdsBean adsBean, String bitmapPath) {
-        if (null != findViewById(ConstantValues.SPREADADFRAMEID))
-            ((InstlView) findViewById(ConstantValues.SPREADADFRAMEID)).setContent(adsBean, bitmapPath);
-        else if (null != findViewById(ConstantValues.SPREADMIXLAYOUTID))
-            ((InstlView) findViewById(ConstantValues.SPREADMIXLAYOUTID)).setContent(adsBean, bitmapPath);
+        if (null != findViewById(ConstantValues.SPREAD_UI_FRAMEID))
+            ((InstlView) findViewById(ConstantValues.SPREAD_UI_FRAMEID)).setContent(adsBean, bitmapPath);
+        else if (null != findViewById(ConstantValues.SPREAD_UI_MIXLAYOUTID))
+            ((InstlView) findViewById(ConstantValues.SPREAD_UI_MIXLAYOUTID)).setContent(adsBean, bitmapPath);
         setAdTextDescription(adsBean.getAdTitle(), adsBean.getAdBgColor(), adsBean.getAdTitleColor());
 //        setAdTextDescription("陪我玩会奥利奥小游戏好么？", adsBean.getAdBgColor(), adsBean.getAdTitleColor());
         setLogoIcon();
@@ -175,19 +181,19 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         try {
             if (TextUtils.isEmpty(textDescription))
                 return;
-            if (null != findViewById(ConstantValues.SPREADTEXTID)) {
+            if (null != findViewById(ConstantValues.SPREAD_UI_TEXTID)) {
                 setTextSize();
-                (((InstlView.CenterTextView) findViewById(ConstantValues.SPREADTEXTID))).text = textDescription;
+                (((InstlView.CenterTextView) findViewById(ConstantValues.SPREAD_UI_TEXTID))).text = textDescription;
                 if (!TextUtils.isEmpty(titleColor))
-                    (((InstlView.CenterTextView) findViewById(ConstantValues.SPREADTEXTID))).setTextColor(Color.parseColor(titleColor));
+                    (((InstlView.CenterTextView) findViewById(ConstantValues.SPREAD_UI_TEXTID))).setTextColor(Color.parseColor(titleColor));
                 else
-                    (((InstlView.CenterTextView) findViewById(ConstantValues.SPREADTEXTID))).setTextColor(Color.WHITE);
+                    (((InstlView.CenterTextView) findViewById(ConstantValues.SPREAD_UI_TEXTID))).setTextColor(Color.WHITE);
                 if (!TextUtils.isEmpty(bgColor))
-                    findViewById(ConstantValues.SPREADTEXTID).setBackgroundColor(Color.parseColor(bgColor));
+                    findViewById(ConstantValues.SPREAD_UI_TEXTID).setBackgroundColor(Color.parseColor(bgColor));
                 else
-                    findViewById(ConstantValues.SPREADTEXTID).setBackgroundColor(Color.parseColor("#3e3e3d3d"));
-                if (!TextUtils.isEmpty(textDescription) && null != kyViewListener)
-                    setBehaveIcon(kyViewListener.getBehaveIcon());
+                    findViewById(ConstantValues.SPREAD_UI_TEXTID).setBackgroundColor(Color.parseColor("#3e3e3d3d"));
+                if (!TextUtils.isEmpty(textDescription) && null != kySpreadListener)
+                    setBehaveIcon(kySpreadListener.getBehaveIcon());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -195,17 +201,17 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     }
 
     private void setBehaveIcon(String behaveIcon) {
-        if (null != findViewById(ConstantValues.BEHAVICONID)) {
+        if (null != findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID)) {
             //BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),getClass().getResourceAsStream(behaveIcon));
             BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),AdViewUtils.getImageFromAssetsFile(behaveIcon));
-            ((ImageView) findViewById(ConstantValues.BEHAVICONID)).setImageDrawable(selfBehavIcon);
-            findViewById(ConstantValues.BEHAVICONID).setBackgroundColor(Color.parseColor("#663e3d3d"));
+            ((ImageView) findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID)).setImageDrawable(selfBehavIcon);
+            findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID).setBackgroundColor(Color.parseColor("#663e3d3d"));
         }
     }
 
     private void setTextSize() {
         try {
-            InstlView.CenterTextView title = (InstlView.CenterTextView) findViewById(ConstantValues.SPREADTEXTID);
+            InstlView.CenterTextView title = (InstlView.CenterTextView) findViewById(ConstantValues.SPREAD_UI_TEXTID);
             if (density <= 1.5) {
                 title.textSize = (int) (16 * densityScale);
             } else if (density > 1.5 && density < 3) {
@@ -228,62 +234,62 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
             for (int i = 0; i < getChildCount(); i++) {
                 View child = getChildAt(i);
                 switch (child.getId()) {
-                    case ConstantValues.MRAIDVIEWID:
+                    case ConstantValues.UI_MRAIDVIEW_ID:
                         break;
-                    case ConstantValues.SPREADNOTIFYLAYOUT:
+                    case ConstantValues.SPREAD_UI_NOTIFYLAYOUTID:
                         child.layout(0, 0, screenWidth, screenWidth / 5);
                         break;
-                    case ConstantValues.SPREADADCOUNTER:
+                    case ConstantValues.SPREAD_UI_COUNTERID:
                         int spreadNotifyType = 1;
-                        if (null != kyViewListener) {
-                            spreadNotifyType = kyViewListener.getNotifyType();
+                        if (null != kySpreadListener) {
+                            spreadNotifyType = kySpreadListener.getNotifyType();
                         }
                         if (spreadNotifyType == AdSpreadBIDView.NOTIFY_COUNTER_NUM || spreadNotifyType == AdSpreadBIDView.NOTIFY_COUNTER_TEXT) {
                             child.layout((int) (screenWidth - screenWidth / 5 - padding * density), (int) (padding * density), (int) (screenWidth - padding * density / 2), (int) ((screenWidth / 11) + (padding * density)));
                         }
                         break;
 
-                    case ConstantValues.SPREADLOGOIMAGEID:
+                    case ConstantValues.SPREAD_UI_LOGOIMAGEID:
                         switch (layoutType) {
-                            case ConstantValues.NULL:
-                            case ConstantValues.TOP:
-                            case ConstantValues.CENTER:
-                            case ConstantValues.BOTTOM:
-                            case ConstantValues.ALL_CENTER:
-                            case ConstantValues.EXTRA2:
-                            case ConstantValues.EXTRA1:
-                                if (hasLogo == ConstantValues.HASLOGO)
+                            case ConstantValues.SPREAD_UI_NULL:
+                            case ConstantValues.SPREAD_UI_TOP:
+                            case ConstantValues.SPREAD_UI_CENTER:
+                            case ConstantValues.SPREAD_UI_BOTTOM:
+                            case ConstantValues.SPREAD_UI_ALLCENTER:
+                            case ConstantValues.SPREAD_UI_EXTRA2:
+                            case ConstantValues.SPREAD_UI_EXTRA1:
+                                if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO)
                                     child.layout(0, screenHeight - (screenWidth / 4), screenWidth, screenHeight);
                                 else
                                     child.setVisibility(View.GONE);
                                 break;
-                            case ConstantValues.EXTRA3:
+                            case ConstantValues.SPREAD_UI_EXTRA3:
                                 child.setVisibility(View.GONE);
                                 break;
                         }
                         break;
-                    case ConstantValues.SPREADADFRAMEID:
+                    case ConstantValues.SPREAD_UI_FRAMEID:
                         switch (deformation) {
-                            case ConstantValues.SCALE_NOHTML:
-                            case ConstantValues.SCALE_INCLUDEHTML:
+                            case ConstantValues.SPREAD_UI_SCALE_NOHTML:
+                            case ConstantValues.SPREAD_UI_SCALE_INCLUDEHTML:
                                 switch (layoutType) {
-                                    case ConstantValues.CENTER:
+                                    case ConstantValues.SPREAD_UI_CENTER:
                                         if (!isHtml)
                                             child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
                                         else
                                             child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 - sHeight / 2, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
                                         break;
-                                    case ConstantValues.BOTTOM:
+                                    case ConstantValues.SPREAD_UI_BOTTOM:
                                         if (!isHtml)
                                             child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
                                         else
                                             child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - sHeight, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
                                         break;
-                                    case ConstantValues.TOP:
-                                    case ConstantValues.ALL_CENTER:
-                                    case ConstantValues.EXTRA3:
-                                    case ConstantValues.EXTRA2:
-                                    case ConstantValues.EXTRA1:
+                                    case ConstantValues.SPREAD_UI_TOP:
+                                    case ConstantValues.SPREAD_UI_ALLCENTER:
+                                    case ConstantValues.SPREAD_UI_EXTRA3:
+                                    case ConstantValues.SPREAD_UI_EXTRA2:
+                                    case ConstantValues.SPREAD_UI_EXTRA1:
                                         if (!isHtml)
                                             child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
                                         else
@@ -293,55 +299,55 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                                 break;
                             default:
                                 switch (layoutType) {
-                                    case ConstantValues.CENTER:
+                                    case ConstantValues.SPREAD_UI_CENTER:
                                         child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 - sHeight / 2, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
                                         break;
-                                    case ConstantValues.BOTTOM:
+                                    case ConstantValues.SPREAD_UI_BOTTOM:
                                         child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - sHeight, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
                                         break;
-                                    case ConstantValues.TOP:
-                                    case ConstantValues.ALL_CENTER:
-                                    case ConstantValues.EXTRA3:
-                                    case ConstantValues.EXTRA2:
-                                    case ConstantValues.EXTRA1:
+                                    case ConstantValues.SPREAD_UI_TOP:
+                                    case ConstantValues.SPREAD_UI_ALLCENTER:
+                                    case ConstantValues.SPREAD_UI_EXTRA3:
+                                    case ConstantValues.SPREAD_UI_EXTRA2:
+                                    case ConstantValues.SPREAD_UI_EXTRA1:
                                         child.layout(0, 0, sWidth, sHeight);
                                         break;
                                 }
                                 break;
                         }
                         break;
-                    case ConstantValues.ADICONID:
-                        if (null != findViewById(ConstantValues.SPREADLOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREADLOGOIMAGEID).getHeight())
+                    case ConstantValues.UI_ADICON_ID:
+                        if (null != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID).getHeight())
                             if (sHeight == screenHeight)
                                 child.layout(0, screenHeight - screenWidth / 25, screenWidth / 8, screenHeight);
                             else if (sHeight > screenHeight - (screenWidth / 4))
                                 child.layout(0, (screenHeight - screenWidth / 4) - screenWidth / 25, screenWidth / 8, (screenHeight - screenWidth / 4));
                             else {
                                 switch (layoutType) {
-                                    case ConstantValues.CENTER:
+                                    case ConstantValues.SPREAD_UI_CENTER:
                                         child.layout(0, ((screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
                                         break;
-                                    case ConstantValues.BOTTOM:
+                                    case ConstantValues.SPREAD_UI_BOTTOM:
                                         child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - screenWidth / 25, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
                                         break;
-                                    case ConstantValues.TOP:
-                                    case ConstantValues.ALL_CENTER:
-                                    case ConstantValues.EXTRA3:
-                                    case ConstantValues.EXTRA2:
-                                    case ConstantValues.EXTRA1:
+                                    case ConstantValues.SPREAD_UI_TOP:
+                                    case ConstantValues.SPREAD_UI_ALLCENTER:
+                                    case ConstantValues.SPREAD_UI_EXTRA3:
+                                    case ConstantValues.SPREAD_UI_EXTRA2:
+                                    case ConstantValues.SPREAD_UI_EXTRA1:
                                         child.layout(0, sHeight - screenWidth / 25, screenWidth / 8, sHeight);
                                         break;
                                 }
                             }
                         else {
-                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADADFRAMEID))) {
+                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
                                 child.layout(0, bottom - screenWidth / 25, screenWidth / 8, bottom);
                             }
                         }
                         break;
-                    case ConstantValues.ADLOGOID:
-                        if (null != findViewById(ConstantValues.SPREADLOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREADLOGOIMAGEID).getHeight()) {
+                    case ConstantValues.UI_ADLOGO_ID:
+                        if (null != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID).getHeight()) {
                             if (sHeight == screenHeight)
                                 child.layout(screenWidth - (screenWidth / 8), screenHeight - screenWidth / 25, screenWidth, screenHeight);
                             else if (sHeight > screenHeight - (screenWidth / 4))
@@ -349,61 +355,61 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             else {
 //                                child.layout(screenWidth - (screenWidth / 8), sHeight - screenWidth / 25, screenWidth, sHeight);
                                 switch (layoutType) {
-                                    case ConstantValues.CENTER:
+                                    case ConstantValues.SPREAD_UI_CENTER:
                                         child.layout(screenWidth - (screenWidth / 8), ((screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, screenWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
                                         break;
-                                    case ConstantValues.BOTTOM:
+                                    case ConstantValues.SPREAD_UI_BOTTOM:
                                         child.layout(screenWidth - (screenWidth / 8), (screenHeight - (screenWidth / 4 * hasLogo)) - screenWidth / 25, screenWidth, screenHeight - (screenWidth / 4 * hasLogo));
                                         break;
-                                    case ConstantValues.TOP:
-                                    case ConstantValues.ALL_CENTER:
-                                    case ConstantValues.EXTRA3:
-                                    case ConstantValues.EXTRA2:
-                                    case ConstantValues.EXTRA1:
+                                    case ConstantValues.SPREAD_UI_TOP:
+                                    case ConstantValues.SPREAD_UI_ALLCENTER:
+                                    case ConstantValues.SPREAD_UI_EXTRA3:
+                                    case ConstantValues.SPREAD_UI_EXTRA2:
+                                    case ConstantValues.SPREAD_UI_EXTRA1:
                                         child.layout(screenWidth - (screenWidth / 8), sHeight - screenWidth / 25, screenWidth, sHeight);
                                         break;
                                 }
                             }
                         } else {
-                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADADFRAMEID))) {
+                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
                                 child.layout(screenWidth - (screenWidth / 8), bottom - screenWidth / 25, screenWidth, bottom);
                             }
                         }
                         break;
-                    case ConstantValues.SPREADTEXTID:
-                        if (hasLogo == ConstantValues.HASLOGO) {
-                            if (null != ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADLOGOIMAGEID)) {
+                    case ConstantValues.SPREAD_UI_TEXTID:
+                        if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO) {
+                            if (null != ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)) {
                                 if (sHeight > screenHeight - (screenWidth / 4))
                                     child.layout(0, screenHeight - (screenWidth / 2), screenWidth * 3 / 4, screenHeight - (screenWidth / 4));
                                 else
                                     child.layout(0, sHeight - (screenWidth / 4), screenWidth * 3 / 4, sHeight);
                             }
                         } else {
-                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADADFRAMEID))) {
+                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
                                 child.layout(0, bottom - (screenWidth / 4), screenWidth * 3 / 4, bottom);
                             }
                         }
                         break;
-                    case ConstantValues.BEHAVICONID:
-                        if (hasLogo == ConstantValues.HASLOGO) {
-                            if (null != ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADLOGOIMAGEID)) {
+                    case ConstantValues.MIXED_UI_BEHAVEICON_ID:
+                        if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO) {
+                            if (null != ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)) {
                                 if (sHeight > screenHeight - (screenWidth / 4))
                                     child.layout((screenWidth * 3 / 4), screenHeight - (screenWidth / 2), screenWidth, screenHeight - (screenWidth / 4));
                                 else
                                     child.layout((screenWidth * 3 / 4), sHeight - (screenWidth / 4), screenWidth, sHeight);
                             }
                         } else {
-                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREADADFRAMEID))) {
+                            if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
                                 child.layout((screenWidth * 3 / 4), bottom - (screenWidth / 4), screenWidth, bottom);
                             }
                         }
                         break;
-                    case ConstantValues.SPREADMIXLAYOUTID:
-                        if (null != findViewById(ConstantValues.SPREADLOGOIMAGEID)) {
-                            int logoHeight = findViewById(ConstantValues.SPREADLOGOIMAGEID).getHeight();
+                    case ConstantValues.SPREAD_UI_MIXLAYOUTID:
+                        if (null != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)) {
+                            int logoHeight = findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID).getHeight();
                             if (0 != logoHeight)
                                 child.layout(0, (screenHeight - logoHeight) / 2 - screenWidth * 5 / 12, screenWidth, (screenHeight - logoHeight) / 2 + (screenHeight - logoHeight) / 2);
                             else
@@ -418,15 +424,15 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     }
 
     private void setLogoIcon() {
-        ImageView logoImage = (ImageView)findViewById(ConstantValues.ADLOGOID);
-        ImageView iconImage = (ImageView)findViewById(ConstantValues.ADICONID);
-        if (null != kyViewListener) {
+        ImageView logoImage = (ImageView)findViewById(ConstantValues.UI_ADLOGO_ID);
+        ImageView iconImage = (ImageView)findViewById(ConstantValues.UI_ADICON_ID);
+        if (null != kySpreadListener) {
             if (null != logoImage) {
-                String logoPath = kyViewListener.getAdLogo();
+                String logoPath = kySpreadListener.getAdLogo();
                 logoImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), logoPath));
             }
             if (null != iconImage) {
-                String iconPath = kyViewListener.getAdIcon();
+                String iconPath = kySpreadListener.getAdIcon();
                 iconImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), iconPath));
             }
         }
@@ -437,8 +443,8 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 
         InstlView.CenterTextView adCounter = new InstlView.CenterTextView(getContext());
         //TextView adCounter = new TextView(getContext());
-        notifyLayout.setId(ConstantValues.SPREADNOTIFYLAYOUT);
-        adCounter.setId(ConstantValues.SPREADADCOUNTER);
+        notifyLayout.setId(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID);
+        adCounter.setId(ConstantValues.SPREAD_UI_COUNTERID);
 
         adCounter.textSize = (int) (18 * densityScale);
         adCounter.setTextColor(Color.WHITE);
@@ -447,13 +453,14 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         addView(notifyLayout);
         addView(adCounter);
         adCounter.setOnTouchListener(this);
+
     }
 
     private void addLogoIcon() {
         ImageView adLogo = new ImageView(getContext());
         ImageView adIcon = new ImageView(getContext());
-        adLogo.setId(ConstantValues.ADLOGOID);
-        adIcon.setId(ConstantValues.ADICONID);
+        adLogo.setId(ConstantValues.UI_ADLOGO_ID);
+        adIcon.setId(ConstantValues.UI_ADICON_ID);
         addView(adLogo);
         addView(adIcon);
 
@@ -464,8 +471,8 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     private void addSpreadText() {
         ImageView behavIcon = new ImageView(getContext());
         TextView title = new InstlView.CenterTextView(getContext());
-        title.setId(ConstantValues.SPREADTEXTID);
-        behavIcon.setId(ConstantValues.BEHAVICONID);
+        title.setId(ConstantValues.SPREAD_UI_TEXTID);
+        behavIcon.setId(ConstantValues.MIXED_UI_BEHAVEICON_ID);
         behavIcon.setPadding((int) (screenWidth / 4 * .3), (int) (screenWidth / 4 * .3), (int) (screenWidth / 4 * .3), (int) (screenWidth / 4 * .3));
         behavIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);
         addView(title);
@@ -476,9 +483,9 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (null != findViewById(ConstantValues.SPREADADCOUNTER)) {
-            findViewById(ConstantValues.SPREADADCOUNTER).getGlobalVisibleRect(closeRect);
-            if (closeRect.right != 0 && kyViewListener.getNotifyType() == AdSpreadBIDView.NOTIFY_COUNTER_NUM)
+        if (null != findViewById(ConstantValues.SPREAD_UI_COUNTERID)) {
+            findViewById(ConstantValues.SPREAD_UI_COUNTERID).getGlobalVisibleRect(closeRect);
+            if (closeRect.right != 0 && kySpreadListener.getNotifyType() == AdSpreadBIDView.NOTIFY_COUNTER_NUM)
                 closeRect.left = closeRect.left + (closeRect.right - closeRect.left) / 2;
         }
         try {
@@ -489,15 +496,15 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                     break;
                 case MotionEvent.ACTION_UP:
 //                if (Math.abs(event.getX() - downX) < padding * padding / 2 && Math.abs(event.getY() - downY) < padding * padding / 2 && event.getEventTime() - event.getDownTime() < 1000) {
-                    if (v.getId() == ConstantValues.SPREADADCOUNTER) {
+                    if (v.getId() == ConstantValues.SPREAD_UI_COUNTERID) {
 //                    if (closeRect.contains((int) event.getRawX(), (int) event.getRawY())) {
-                        if (null != kyViewListener)
-                            kyViewListener.onCloseBtnClicked();
-                    } else if (v.getId() == ConstantValues.SPREADTEXTID || v.getId() == ConstantValues.BEHAVICONID) {
-                        if (null != kyViewListener)
-                            kyViewListener.onViewClicked(event, null, null, event.getX(), event.getY());
+                        if (null != kySpreadListener)
+                            kySpreadListener.onCloseBtnClicked();
+                    } else if (v.getId() == ConstantValues.SPREAD_UI_TEXTID || v.getId() == ConstantValues.MIXED_UI_BEHAVEICON_ID) {
+                        if (null != kySpreadListener)
+                            kySpreadListener.onViewClicked(event, null, null, event.getX(), event.getY());
                     } else if (touchRect.contains((int) event.getRawX(), (int) event.getRawY()))
-//                        kyViewListener.onViewCLicked(downX, downY, event.getX(), event.getY());
+//                        kySpreadListener.onViewCLicked(downX, downY, event.getX(), event.getY());
 //                }
                         break;
             }

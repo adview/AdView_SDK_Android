@@ -18,7 +18,7 @@ public class ClientReportRunnable implements Runnable {
     private boolean isExchange = false;
     private int curTryNum = 0;
 
-    // only for kyView
+    // only for AdVG
     private ClientReportRunnable(String content, String url,
                                  boolean isExchange, int curTryNum) {
         this.url = url;
@@ -28,8 +28,7 @@ public class ClientReportRunnable implements Runnable {
 
     }
 
-    public ClientReportRunnable(String content, String url,
-                                boolean isExchange) {
+    public ClientReportRunnable(String content, String url, boolean isExchange) {
         this(content, url, isExchange, 0);
     }
 
@@ -37,8 +36,7 @@ public class ClientReportRunnable implements Runnable {
         this(content, url, method, 0);
     }
 
-    private ClientReportRunnable(String content, String url, String method,
-                                 int curTryNum) {
+    private ClientReportRunnable(String content, String url, String method, int curTryNum) {
         this.url = url;
         this.content = content;
         this.method = method;
@@ -59,7 +57,7 @@ public class ClientReportRunnable implements Runnable {
             }
             if (!isExchange) {
                 if (method.equals(ConstantValues.GET))
-                    result = AdViewUtils.getResponse(url, content, false, ConstantValues.REQUESTTIMEOUT);
+                    result = AdViewUtils.getResponse(url, content, false, ConstantValues.REQUEST_CONNECT_TIMEOUT);
                 else {
 //                         Log.i(AdViewUtils.ADVIEW, url + "?" + content);
                     result = AdViewUtils.postResponse(url, content, false);

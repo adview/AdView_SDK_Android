@@ -42,6 +42,14 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 
+import com.iab.omid.library.adview.adsession.AdEvents;
+import com.iab.omid.library.adview.adsession.AdSession;
+import com.iab.omid.library.adview.adsession.AdSessionConfiguration;
+import com.iab.omid.library.adview.adsession.AdSessionContext;
+import com.iab.omid.library.adview.adsession.ErrorType;
+import com.iab.omid.library.adview.adsession.Owner;
+import static com.iab.omid.library.adview.adsession.ErrorType.GENERIC;
+
 import com.kuaiyou.mraid.interfaces.MRAIDNativeFeatureListener;
 import com.kuaiyou.mraid.interfaces.MRAIDViewListener;
 import com.kuaiyou.mraid.utils.MRAIDNativeFeatureManager;
@@ -61,6 +69,7 @@ import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.security.cert.CertPathValidatorException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
@@ -68,19 +77,16 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 
+
 @SuppressLint("SetJavaScriptEnabled")
 public class MRAIDView extends RelativeLayout {
 
-    private GestureDetector mGestureDetector;
+    //private GestureDetector mGestureDetector;
     private WebViewMotion webViewMotion;
 
     public static final int ACTION_DEFAULT = 0;
     public static final int ACTION_DOWN = 1;
     public static final int ACTION_TAP = 2;
-
-    // private final static String AdViewUtils.ADVIEW = "MRAIDView";
-    // public static final String VERSION = "1.1.1";
-
     public final static int STATE_LOADING = 0;
     public final static int STATE_DEFAULT = 1;
     public final static int STATE_EXPANDED = 2;
@@ -99,9 +105,14 @@ public class MRAIDView extends RelativeLayout {
     private RelativeLayout expandedView;
     private RelativeLayout resizedView;
     private ImageButton closeRegion;
-
     private Context context;
 
+    //OMSDK v1.2.15
+    private boolean isImpressionTrigged = false;
+    private boolean isOMJsInjected = false;
+    private AdSession adSession = null;
+    private Timer mOMSDKTimer = null;
+    private int omsdkTimerCounts = 0;
     // state
     private final boolean isInterstitial;
 
@@ -195,8 +206,7 @@ public class MRAIDView extends RelativeLayout {
         // this.nativeFeatureListener = nativeFeatureListener;
 
         displayMetrics = new DisplayMetrics();
-        ((Activity) context).getWindowManager().getDefaultDisplay()
-                .getMetrics(displayMetrics);
+        ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
 
         currentPosition = new Rect();
         defaultPosition = new Rect();
@@ -217,43 +227,42 @@ public class MRAIDView extends RelativeLayout {
         }
         AdViewUtils.logInfo("originalRequestedOrientation " + getOrientationString(originalRequestedOrientation));
 
-        // ignore scroll gestures
-        //        gestureDetector = new GestureDetector(getContext(),
-        //                new SimpleOnGestureListener() {
-        //                    @Override
-        //                    public boolean onScroll(MotionEvent e1, MotionEvent e2,
-        //                                            float distanceX, float distanceY) {
-        //                        return true;
-        //                    }
-        //                });
-
         // 在主线程中执行
         handler = new Handler(Looper.getMainLooper());
 
         mraidWebChromeClient = new MRAIDWebChromeClient();
         mraidWebViewClient = new MRAIDWebViewClient();
-
+        //创建webview
         webView = createWebView();
-
         currentWebView = webView;
 
-        // webView.setBackgroundColor(Color.TRANSPARENT);
-        if (w <= 0 & h <= 0) {
-            addView(webView);
+        if (isInterstitial) {
+            //webView.setBackgroundColor(Color.RED); //这是webview的背景色
+            //webView.setAlpha(0.5f);
+            //webView.getBackground().setAlpha(50); 这个不能使用，否则变黑
+            //webView.setBackgroundColor(Color.parseColor(ConstantValues.INSTL_POPWINDOW_WEBVIEW_BACKGOUNDCOLOR));
+            //webView.setBackgroundColor(Color.TRANSPARENT);
         }
-        else {
-            addView(webView, new LayoutParams(w, h));
+
+        if (w <= 0 && h <= 0) {
+//            LayoutParams layoutParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+//            layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+            addView(webView);
+        } else {
+            LayoutParams layoutParams = new LayoutParams(w, h);
+            layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+            addView(webView, layoutParams);
         }
 
         //load js from file
+/*  covered by wilder 20190705,instead inject here, js will be loaded in html side
         try {
             js_Mraid = AdViewUtils.loadAssetsFile("MRAID.js");
         }catch (Exception e) {
             e.printStackTrace();
         }
-
         injectMraidJs(webView);
-
+*/
     }
 
     /**
@@ -267,11 +276,11 @@ public class MRAIDView extends RelativeLayout {
         this(context, mraidNativeFeatureListener, listener, isInterstitial, -2, -2);
     }
 
-    public void setLayoutParmas(int w, int h) {
-//        addView(webView,new LayoutParams(w,h));
-//        currentWebView.getLayoutParams().width = w;
-//        currentWebView.getLayoutParams().height = h;
-    }
+//    public void setLayoutParmas(int w, int h) {
+////        addView(webView,new LayoutParams(w,h));
+////        currentWebView.getLayoutParams().width = w;
+////        currentWebView.getLayoutParams().height = h;
+//    }
 
     public void resetTouchStatus() {
         isFirstDown = isFirstUp = false;
@@ -306,7 +315,7 @@ public class MRAIDView extends RelativeLayout {
                             webViewMotion.onWebViewTouchDown(ev);
 
                             return true;
-                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_UP: //点击广告页面的动作，具体发到KyAdBaseView::setClickMotion()中
                             if (isFirstUp) {
                                 isFirstUp = false;
                                 return super.dispatchTouchEvent(ev);
@@ -373,10 +382,13 @@ public class MRAIDView extends RelativeLayout {
 
             }
         };
-
+        //和父窗口匹配，并居中
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        params.addRule(RelativeLayout.CENTER_IN_PARENT);
         wv.setLayoutParams(params);
+
         // wv.clearCache(false);
+        //mView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         // wv.setAppCacheEnabled(true);
         wv.setScrollContainer(false);
@@ -387,8 +399,7 @@ public class MRAIDView extends RelativeLayout {
 
         WebSettings webSetting = wv.getSettings();
 
-        String appCacheDir = context.getApplicationContext()
-                .getDir("cache", Context.MODE_PRIVATE).getPath();
+        String appCacheDir = context.getApplicationContext().getDir("cache", Context.MODE_PRIVATE).getPath();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
             webSetting.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -409,10 +420,14 @@ public class MRAIDView extends RelativeLayout {
 
         //(wilder 2019) added for auto fit height  in view, but if opened, the html may display very small,
         //so no suggested
-//        wv.setInitialScale(1);
+        //wv.setInitialScale(90);
+        // 设置可以支持缩放
+        //webSetting.setSupportZoom(true);
 //        webSetting.setUseWideViewPort(true);
 //        webSetting.setLoadWithOverviewMode(true);
 //        webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+       // webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.SINGLE_COLUMN);
+
         //for cookie
         CookieManager.getInstance().setAcceptFileSchemeCookies(true);
         CookieManager.getInstance().acceptCookie();
@@ -427,28 +442,20 @@ public class MRAIDView extends RelativeLayout {
         return wv;
     }
 
+    /** * 对图片进行重置大小，宽度就是手机屏幕宽度，高度根据宽度比便自动缩放 **/
+    private void imgReset() {
+        webView.loadUrl("javascript:(function(){" +
+                "var objs = document.getElementsByTagName('img'); " +
+                "for(var i=0;i<objs.length;i++)  " +
+                "{"                + "var img = objs[i];   " +
+                "    img.style.maxWidth = '100%'; img.style.height = 'auto';  " +
+                "}" +                "})()");
+    }
+
     public void setClickCheckable(boolean clickCheckable) {
         this.clickCheckable = clickCheckable;
     }
 
-    public void injectWebViewContent(String data) {
-        // data = MRAIDHtmlProcessor.processRawHtml(data);
-        if (null != webView)
-            // webView.loadData(data, "text/html", "UTF-8");
-            // webView.loadData(data, "text/html; charset=UTF-8", null);
-            webView.loadDataWithBaseURL(null, data, "text/html", "UTF-8", null);
-        else
-            Log.i(AdViewUtils.ADVIEW, "webView is null");
-    }
-
-//    @SuppressLint("ClickableViewAccessibility")
-//    @Override
-//    public boolean onTouchEvent(MotionEvent event) {
-//        if (gestureDetector.onTouchEvent(event)) {
-//            event.setAction(MotionEvent.ACTION_CANCEL);
-//        }
-//        return super.onTouchEvent(event);
-//    }
 
     public void clearView() {
         if (webView != null) {
@@ -467,44 +474,36 @@ public class MRAIDView extends RelativeLayout {
         }
     }
 
-//    /**
-//     * 手势识别
-//     *
-//     * @param context
-//     * @param adsBean
-//     */
-//    public void setOnGestureListener(Context context, AdsBean adsBean) {
-//        // setWebViewClient(new AdWebView.mWebViewClient(context, adsBean));
-//        mGestureDetector = new GestureDetector(context, new MyGesTureLIstener(
-//                adsBean));
-//    }
+/*    *//**
+     * 手势识别
+     *
+     * @param context
+     * @param adsBean
+     *//*
+    public void setOnGestureListener(Context context, AdsBean adsBean) {
+        // setWebViewClient(new AdWebView.mWebViewClient(context, adsBean));
+        mGestureDetector = new GestureDetector(context, new MyGesTureLIstener(
+                adsBean));
+    }
 
-//    @Override
-//    public boolean dispatchTouchEvent(MotionEvent ev) {
-//        if (ev.getAction() == MotionEvent.ACTION_MOVE) {
-//            return false;
-//        }
-//        if (null != mGestureDetector)
-//            mGestureDetector.onTouchEvent(ev);
-//        return super.dispatchTouchEvent(ev);
-//    }
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+            return false;
+        }
+        if (null != mGestureDetector)
+            mGestureDetector.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
+    }*/
+
 
     public void setWebViewMotion(WebViewMotion webViewMotion) {
         this.webViewMotion = webViewMotion;
     }
 
     public abstract static class WebViewMotion {
-//        private Context context;
-//        private AdsBean adsBean = null;
-//        private RetAdBean retAdBean = null;
-//        private ScheduledExecutorService scheduler = null;
-//        private ApplyAdBean applyAdBean = null;
 
         public WebViewMotion() {
-//            this.context = context;
-//            this.adsBean = adsBean;
-//            this.retAdBean = retAdBean;
-//            this.applyAdBean = applyAdBean;
         }
 
         public abstract boolean isNeedConfirm();
@@ -514,50 +513,7 @@ public class MRAIDView extends RelativeLayout {
         public abstract void onWebViewClickedConfirm(MotionEvent down, MotionEvent up);
 
         public abstract void onWebViewClickedNormal(MotionEvent down, MotionEvent event);
-//        {
-        // if (AdViewUtils.checkClickPermission(context)
-        // && AdViewUtils.checkClickLimitTime(context,
-        // adsBean.getSdkType(), adsBean.getIdAd())
-        // && AdViewUtils.checkClickLimitNum(adsBean, false)) {
-        // // not set s w
-        // KyAdBaseView.reportClick(event, applyAdBean, adsBean,
-        // retAdBean, scheduler);
-        // }
-//        }
     }
-
-//    public class MyGesTureLIstener extends SimpleOnGestureListener {
-//        private AdsBean adsBean = null;
-//
-//        public MyGesTureLIstener(AdsBean adsBean) {
-//            this.adsBean = adsBean;
-//        }
-//
-//        @Override
-//        public boolean onDown(MotionEvent e) {
-//            if (null != webViewMotion) {
-//                adsBean.setTouchStatus(ACTION_DOWN);
-//                webViewMotion.onWebViewTouchDown(e);
-//            }
-//            return super.onDown(e);
-//        }
-//
-//        @Override
-//        public void onShowPress(MotionEvent e) {
-//            super.onShowPress(e);
-//        }
-//
-//        @Override
-//        public boolean onSingleTapConfirmed(MotionEvent e) {
-////            if (null != webViewMotion) {
-////                adsBean.setTouchStatus(ACTION_TAP);
-////                webViewMotion.onWebViewClickedUp(e);
-////            }
-//            return true;
-////            return super.onSingleTapConfirmed(e);
-//        }
-//    }
-
 
     /**************************************************************************
      * JavaScript --> native support
@@ -604,16 +560,14 @@ public class MRAIDView extends RelativeLayout {
     private void createCalendarEvent(String eventJSON) {
         AdViewUtils.logInfo("###########  (JS callback :)createCalendarEvent :" + eventJSON + "########");
         if (nativeFeatureListener != null) {
-            nativeFeatureListener
-                    .mraidNativeFeatureCreateCalendarEvent(eventJSON);
+            nativeFeatureListener.mraidNativeFeatureCreateCalendarEvent(eventJSON);
         }
     }
 
     // Note: This method is also used to present an interstitial ad.
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void expand(String url) {
-        AdViewUtils.logInfo("##########  (JS callback:) expand "
-                + (url != null ? url : "(1-part)") + " ###########");
+        AdViewUtils.logInfo("##########  (JS callback:) expand " + (url != null ? url : "(1-part)") + " ###########");
         try {
             // The only time it is valid to call expand on a banner ad is
             // when the ad is currently in either default or resized state.
@@ -642,10 +596,8 @@ public class MRAIDView extends RelativeLayout {
             }
 
             // 2-part expansion
-
             // First, try to get the content of the second (expanded) part of the
             // creative.
-
             try {
                 url = URLDecoder.decode(url, "UTF-8");
             } catch (UnsupportedEncodingException e) {
@@ -678,18 +630,18 @@ public class MRAIDView extends RelativeLayout {
                                 webView.setWebChromeClient(null);
                                 webView.setWebViewClient(null);
                                 webViewPart2 = createWebView();
-                                injectMraidJs(webViewPart2);
-                                // null baseUrl may cause error
-                                webViewPart2.loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, content,
-                                        "text/html", "UTF-8", null);
+//                                injectMraidJs(webViewPart2);
+////                                // null baseUrl may cause error
+////                                webViewPart2.loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, content,
+////                                        "text/html", "UTF-8", null);
+                                AdViewUtils.loadWebContentExt(webViewPart2, content); //wilder 2019 changed
                                 currentWebView = webViewPart2;
                                 isExpandingPart2 = true;
                                 expandHelper(currentWebView);
                             }
                         });
                     } else {
-                        AdViewUtils.logInfo("Could not load part 2 expanded content for URL: "
-                                + finalUrl);
+                        AdViewUtils.logInfo("Could not load part 2 expanded content for URL: " + finalUrl);
                         // injectJavaScript("mraid.expand();");
                     }
                 }
@@ -732,7 +684,6 @@ public class MRAIDView extends RelativeLayout {
     @SuppressWarnings("unused")
     private void resize() {
         AdViewUtils.logInfo("################ (JS callback :) resize ################");
-
         // We need the cooperation of the app in order to do a resize.
         if (listener == null) {
             return;
@@ -982,8 +933,7 @@ public class MRAIDView extends RelativeLayout {
                 TypedValue.COMPLEX_UNIT_DIP, offsetYInDip, displayMetrics);
         int x = defaultPosition.left + offsetX;
         int y = defaultPosition.top + offsetY;
-        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) resizedView
-                .getLayoutParams();
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) resizedView.getLayoutParams();
         params.leftMargin = x;
         params.topMargin = y;
         resizedView.setLayoutParams(params);
@@ -1169,52 +1119,6 @@ public class MRAIDView extends RelativeLayout {
         }
     }
 
-//    private void addCloseRegion(View view) {
-//        // The input parameter should be either expandedView or resizedView.
-//
-//        closeRegion = new ImageButton(context);
-//        closeRegion.setBackgroundColor(Color.TRANSPARENT);
-//        closeRegion.setOnClickListener(new OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                close();
-//            }
-//        });
-//
-//        // The default close button is shown only on expanded banners and
-//        // interstitials,
-//        // but not on resized banners.
-//        if (view == expandedView && !useCustomClose) {
-//            showDefaultCloseButton();
-//        }
-//
-//        ((ViewGroup) view).addView(closeRegion);
-//    }
-//
-//    private void showDefaultCloseButton() {
-//        if (closeRegion != null) {
-//            Drawable closeButtonNormalDrawable = Assets.getDrawableFromBase64(
-//                    getResources(), Assets.new_close);
-//            Drawable closeButtonPressedDrawable = Assets.getDrawableFromBase64(
-//                    getResources(), Assets.new_close_pressed);
-//
-//            StateListDrawable states = new StateListDrawable();
-//            states.addState(new int[]{-android.R.attr.state_pressed},
-//                    closeButtonNormalDrawable);
-//            states.addState(new int[]{android.R.attr.state_pressed},
-//                    closeButtonPressedDrawable);
-//
-//            closeRegion.setImageDrawable(states);
-//            closeRegion.setScaleType(ImageView.ScaleType.CENTER_CROP);
-//        }
-//    }
-//
-//    private void removeDefaultCloseButton() {
-//        if (closeRegion != null) {
-//            closeRegion.setImageResource(android.R.color.transparent);
-//        }
-//    }
-
     private void setCloseRegionPosition(View view) {
         // The input parameter should be either expandedView or resizedView.
 
@@ -1276,19 +1180,25 @@ public class MRAIDView extends RelativeLayout {
      * code.
      **************************************************************************/
 
-    @SuppressLint("NewApi")
+/*    @SuppressLint("NewApi")
     private void injectMraidJs(final WebView wv) {
         try {
             //byte[] mraidjsBytes = Base64.decode(ConstantValues.mraidJs3, Base64.DEFAULT);
             //String mraidJs = new String(mraidjsBytes);
-            AdViewUtils.logInfo("<<<<< injectMraidJs ok :length = " + js_Mraid.length() + ">>>>>");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 wv.loadDataWithBaseURL(null, "<html></html>", "text/html", "UTF-8", null);
 
                 wv.evaluateJavascript(js_Mraid, new ValueCallback<String>() {
                     @Override
                     public void onReceiveValue(String value) {
-                        Log.i(AdViewUtils.ADVIEW, value);
+                        AdViewUtils.logInfo("<<<<< injectMraidJs ok :length = " + js_Mraid.length() + ";value = " + value + ">>>>>");
+                        //(wilder 2019) for OMSDK v1.2
+                        isOMJsInjected = true;
+                        adSession = AdViewUtils.createOMAdSessionHTML(wv);
+                        if (listener != null) {
+                            listener.mraidViewOMJSInjected(MRAIDView.this);
+                        }
+
                     }
                 });
             } else {
@@ -1297,7 +1207,7 @@ public class MRAIDView extends RelativeLayout {
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
+    }*/
 
     @SuppressLint("NewApi")
     private void injectJavaScript(String js) {
@@ -1339,10 +1249,8 @@ public class MRAIDView extends RelativeLayout {
     private void fireStateChangeEvent() {
         String[] stateArray = {"loading", "default", "expanded", "resized",
                 "hidden"};
-        AdViewUtils.logInfo("fireStateChangeEvent "
-                + stateArray[state]);
-        injectJavaScript("mraid.fireStateChangeEvent('" + stateArray[state]
-                + "');");
+        AdViewUtils.logInfo("fireStateChangeEvent " + stateArray[state]);
+        injectJavaScript("mraid.fireStateChangeEvent('" + stateArray[state] + "');");
     }
 
     private void fireViewableChangeEvent() {
@@ -1351,8 +1259,7 @@ public class MRAIDView extends RelativeLayout {
     }
 
     private int px2dip(int pixels) {
-        return pixels * DisplayMetrics.DENSITY_DEFAULT
-                / displayMetrics.densityDpi;
+        return pixels * DisplayMetrics.DENSITY_DEFAULT / displayMetrics.densityDpi;
         // return pixels;
     }
 
@@ -1372,8 +1279,7 @@ public class MRAIDView extends RelativeLayout {
         int y = defaultPosition.top;
         int width = defaultPosition.width();
         int height = defaultPosition.height();
-        AdViewUtils.logInfo("setDefaultPosition [" + x + "," + y
-                + "] (" + width + "x" + height + ")");
+        AdViewUtils.logInfo("setDefaultPosition [" + x + "," + y + "] (" + width + "x" + height + ")");
         injectJavaScript("mraid.setDefaultPosition(" + px2dip(x) + ","
                 + px2dip(y) + "," + px2dip(width) + "," + px2dip(height) + ");");
     }
@@ -1383,8 +1289,7 @@ public class MRAIDView extends RelativeLayout {
         int width = maxSize.width;
         int height = maxSize.height;
         AdViewUtils.logInfo("setMaxSize " + width + "x" + height);
-        injectJavaScript("mraid.setMaxSize(" + px2dip(width) + ","
-                + px2dip(height) + ");");
+        injectJavaScript("mraid.setMaxSize(" + px2dip(width) + "," + px2dip(height) + ");");
     }
 
     private void setScreenSize() {
@@ -1392,8 +1297,7 @@ public class MRAIDView extends RelativeLayout {
         int width = screenSize.width;
         int height = screenSize.height;
         AdViewUtils.logInfo("setScreenSize " + width + "x" + height);
-        injectJavaScript("mraid.setScreenSize(" + px2dip(width) + ","
-                + px2dip(height) + ");");
+        injectJavaScript("mraid.setScreenSize(" + px2dip(width) + "," + px2dip(height) + ");");
     }
 
     private void setSupportedServices() {
@@ -1418,8 +1322,7 @@ public class MRAIDView extends RelativeLayout {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
                 // webView.onPause();
-                webView.getClass().getMethod("onPause")
-                        .invoke(webView, (Object[]) null);
+                webView.getClass().getMethod("onPause").invoke(webView, (Object[]) null);
                 // webView.pauseTimers();
             } else {
                 webView.loadUrl("about:blank");
@@ -1491,9 +1394,13 @@ public class MRAIDView extends RelativeLayout {
         @Override
         public void onProgressChanged(final WebView view, final int newProgress) {
             super.onProgressChanged(view, newProgress);
-            if (newProgress == 100 && !isRun) {
+            //AdViewUtils.logInfo("====== progress : " + newProgress + "============");
+            if (newProgress >= 80 && !isRun) {
                 isRun = true;
                 //view.buildDrawingCache();
+                //(wilder 2019) for OMSDK v1.2,仅在100%时生效
+                onOMSDKInjected(view);
+                //end omsdk
                 view.destroyDrawingCache(); //wilder 2019, if redirec, it should clear it first ,and then detect it .
                 if (null != view && view.isShown()) {
                     try {
@@ -1512,10 +1419,14 @@ public class MRAIDView extends RelativeLayout {
                                                 valid = isVaildView(getColorList(bitmap, getPixLocation(bitmap.getWidth(), bitmap.getHeight())));
                                             }
                                             if (!valid && null != listener) {
-                                                listener.loadDataError(ConstantValues.LOADERROR_BLANK);//1==自动跳转,2==白条
+                                                //omsdk v1.2 error
+                                                sendOMSDKErr("++ webview load error: blank page or redirect error ++");
+
+                                                listener.loadDataError(ConstantValues.MRAID_LOADERROR_BLANK);//1==自动跳转,2==白条
                                             }
                                             if (!valid && AdViewUtils.htmlUseBlankErrorPage) {
                                                 //view.destroyDrawingCache();
+                                                //白屏或者错误，无内容显示
                                                 new Handler(Looper.getMainLooper()).post(new Runnable() {
                                                     @Override
                                                     public void run() {
@@ -1581,22 +1492,6 @@ public class MRAIDView extends RelativeLayout {
                         (int) (h * 7/8 - arrSize / 2),
                         (int) (h * 8/8 - 7),
                 };
-                /*6 x 6*/
-//                int[] locationX = new int[]{
-//                        (int) (w * 1/6 - arrSize / 2 - 2),
-//                        (int) (w * 2/6 - arrSize / 2 + 2),
-//                        (int) (w * 3/6 - arrSize / 2 - 2),
-//                        (int) (w * 4/6 - arrSize / 2 + 2),
-//                        (int) (w * 5/6 - arrSize / 2 - 1),
-//                        (int) (w * 6/6 - 2)};
-//                int[] locationY = new int[]{
-//                        (int) (h * 1/6 - arrSize / 2),
-//                        (int) (h * 2/6 - arrSize / 2),
-//                        (int) (h * 3/6 - arrSize / 2),
-//                        (int) (h * 4/6 - arrSize / 2),
-//                        (int) (h * 5/6 - arrSize / 2),
-//                        (int) (h * 6/6 - 2),
-//                };
 
                 int[] pixesLocationX = new int[locationX.length * arrSize * arrSize];
                 int[] pixesLocationY = new int[locationX.length * arrSize * arrSize];
@@ -1684,23 +1579,131 @@ public class MRAIDView extends RelativeLayout {
 
     }
 
-    private class MRAIDWebViewClient extends WebViewClient {
+    /**
+     * *************** OMSDK v1.2.15****************************
+     */
 
+    public void AddOMObstructions(View v) {
+        if (!AdViewUtils.canUseOMSDK())
+            return;
+
+        if (null != adSession) {
+            AdViewUtils.AddOMObstructions(v, adSession);
+        }
+    }
+
+    public void startOMSession() {
+        if (!AdViewUtils.canUseOMSDK())
+            return;
+
+        if (null != adSession) {
+            AdViewUtils.startAdSession(adSession);
+        }
+    }
+
+    public void sendOMImpression() {
+        if (!AdViewUtils.canUseOMSDK())
+            return;
+        //cause inject OMJS may not be completed, so must waiting
+        mOMSDKTimer = new Timer();
+        TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                if (isOMJsInjected && !isImpressionTrigged) {
+                    //only can be triggered once, and omsdk must be called in same thread, now is main thread
+                    omsdkTimerCounts = 0;
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            AdViewUtils.signalImpressionEvent(adSession);
+                            isImpressionTrigged = true;
+                            if (null != mOMSDKTimer) {
+                                mOMSDKTimer.cancel();
+                            }
+                            mOMSDKTimer = null;
+                        }
+                    });
+                }else {
+                    if (omsdkTimerCounts > 30) {
+                        //some time page finished not come back
+                        omsdkTimerCounts = 0;
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                AdViewUtils.signalImpressionEvent(adSession);
+                                isImpressionTrigged = true;
+                                if(null != mOMSDKTimer) {
+                                    mOMSDKTimer.cancel();
+                                }
+                                mOMSDKTimer = null;
+                            }
+                        });
+                    }else {
+                        omsdkTimerCounts++;
+                        AdViewUtils.logInfo("************  MRAIDView::OMImpression(): timer up    **************");
+                    }
+                }
+            }
+        };
+        mOMSDKTimer.schedule(timerTask,  1000, 800);
+//        handler.postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                try {
+//                    if (isOMJsInjected) {
+//                        signalImpressionEvent();
+//                    }
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//        }, 2000);
+    }
+
+    public void stopOMAdSession() {
+        if (!AdViewUtils.canUseOMSDK())
+            return;
+
+        if (null != adSession) {
+            AdViewUtils.stopOMAdSession(adSession);
+        }
+        //stop omtimer
+        if (null != mOMSDKTimer) {
+            mOMSDKTimer.cancel();
+            mOMSDKTimer = null;
+        }
+    }
+
+    private void onOMSDKInjected(WebView v) {
+
+        isOMJsInjected = true;
+        adSession = AdViewUtils.createOMAdSessionHTML(v);
+        if (listener != null) {
+            listener.mraidViewOMJSInjected(MRAIDView.this);
+        }
+    }
+
+    private void sendOMSDKErr(String info) {
+        if (null != adSession) {
+            AdViewUtils.signalErrorEvent(adSession, ErrorType.GENERIC, info);
+        }
+    }
+    ////////////////////////////////// omsdk end  ////////////////////////////////////////
+
+    private class MRAIDWebViewClient extends WebViewClient {
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
             if (state == STATE_LOADING) {
                 isPageFinished = true;
-
-//                injectMraidJs(view);
+                AdViewUtils.logInfo("************  MRAIDView::onPageFinished(): STATE_LOADING  **************");
                 injectJavaScript("mraid.getVersion();");
-
-//                injectJavaScript("mraid.open(\"http://www.nexage.com\");");
-
-                injectJavaScript("mraid.setPlacementType('"
-                        + (isInterstitial ? "interstitial" : "inline") + "');");
+                injectJavaScript("mraid.setPlacementType('" + (isInterstitial ? "interstitial" : "inline") + "');");
                 setSupportedServices();
+                //(wilder 2019) for OMSDK v1.2
+                //onOMSDKInjected(view);
+                //end omsdk
                 if (isLaidOut) {
                     setScreenSize();
                     setMaxSize();
@@ -1743,30 +1746,24 @@ public class MRAIDView extends RelativeLayout {
                 });
             }
 
-            //(wilder 2019)
-            /*
-            int w = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
-            int h = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
-            // 重新测量
-            view.measure(w, h);
-            */
-            //end wilder
+
+            //imgReset();//wilder 20191205
             webView.invalidate();
         }
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            //AdViewUtils.logInfo("==== shouldInterceptRequest: " + url + "=====");
             if (url.startsWith("https://") || url.startsWith("http://")) {
                 if (null != listener)
                     return listener.onShouldIntercept(url);
             }
-
             return super.shouldInterceptRequest(view, url);
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            AdViewUtils.logInfo("shouldOverrideUrlLoading: " + url);
+            AdViewUtils.logInfo("===== shouldOverrideUrlLoading: " + url + "======");
             if (url.startsWith("mraid://")) {
                 parseCommandUrl(url, nativeFeatureListener);
                 return true;
@@ -1783,13 +1780,14 @@ public class MRAIDView extends RelativeLayout {
             //fix https can not access
             //super.onReceivedSslError(view, handler, error); wilder 2019 must remove this line.
             AdViewUtils.logInfo("------------ [MRAIDWebViewClient] onReceivedSslError : " + error.toString() + "------------");
-            if(error.getPrimaryError() == android.net.http.SslError.SSL_INVALID
-                    || error.getPrimaryError() == android.net.http.SslError.SSL_UNTRUSTED ){
-                // 校验过程遇到了bug
-                handler.proceed();
-            }else{
-                handler.cancel();
-            }
+            try {
+                if (error.getPrimaryError() == android.net.http.SslError.SSL_INVALID
+                        || error.getPrimaryError() == android.net.http.SslError.SSL_UNTRUSTED) {
+                    // 校验过程遇到了bug
+                    handler.proceed();
+                } else {
+                    handler.cancel();
+                }
 
 //            final AlertDialog.Builder builder = new AlertDialog.Builder(WechatLoginActivity.this);
 //            builder.setMessage(R.string.notification_error_ssl_cert_invalid);
@@ -1807,14 +1805,13 @@ public class MRAIDView extends RelativeLayout {
 //            });
 //            final AlertDialog dialog = builder.create();
 //            dialog.show();
+            }catch (Exception e) {
+                //handler.proceed();
+                e.printStackTrace();
+            }
 
         }
-
-
-
     }
-
-
     // This is the entry point to all the "actual" MRAID methods below.
     protected void parseCommandUrl(String commandUrl, MRAIDNativeFeatureListener nativeFeatureListener) {
         AdViewUtils.logInfo("parseCommandUrl " + commandUrl);
@@ -1823,7 +1820,6 @@ public class MRAIDView extends RelativeLayout {
         Map<String, String> commandMap = parser.parseCommandUrl(commandUrl);
 
         String command = commandMap.get("command");
-
         final String[] commandsWithNoParam = {"close", "resize",};
 
         final String[] commandsWithString = {"createCalendarEvent", "expand",
@@ -1841,8 +1837,7 @@ public class MRAIDView extends RelativeLayout {
                 Method method = getClass().getDeclaredMethod(command);
                 method.invoke(this);
             } else if (Arrays.asList(commandsWithString).contains(command)) {
-                Method method = getClass().getDeclaredMethod(command,
-                        String.class);
+                Method method = getClass().getDeclaredMethod(command, String.class);
                 String key;
                 if (command.equals("createCalendarEvent")) {
                     key = "eventJSON";
@@ -1852,14 +1847,20 @@ public class MRAIDView extends RelativeLayout {
                     key = "url";
                 }
                 // some fix by mc
-                String val = commandMap.get(key);
-                MRAIDNativeFeatureProvider featureProvider = new MRAIDNativeFeatureProvider(getContext(), new MRAIDNativeFeatureManager(getContext()));
+                final String val = commandMap.get(key);
+                final MRAIDNativeFeatureProvider featureProvider = new MRAIDNativeFeatureProvider(
+                                                    getContext(), new MRAIDNativeFeatureManager(getContext()));
                 if (command.equals("open")) {
                     method.invoke(this, val);
                 } else if (command.equals("expand")) {
                     method.invoke(this, val);
                 } else if (command.equals("playVideo")) {
-                    featureProvider.playVideo(val);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            featureProvider.playVideo(val);
+                        }
+                    });
                 } else if (command.equals("storePicture")) {
                     featureProvider.storePicture(val);
                 } else if (command.equals("useCustomClose")) {
@@ -1868,22 +1869,17 @@ public class MRAIDView extends RelativeLayout {
                     featureProvider.createCalendarEvent(val);
                 }
             } else if (Arrays.asList(commandsWithMap).contains(command)) {
-                Method method = getClass()
-                        .getDeclaredMethod(command, Map.class);
+                Method method = getClass().getDeclaredMethod(command, Map.class);
                 method.invoke(this, commandMap);
             } else if (Arrays.asList(commandsWithCustom).contains(command)) {
                 String val = commandMap.get(command);
-                AudioManager mAudioManager = (AudioManager) getContext()
-                        .getSystemService(Context.AUDIO_SERVICE);
+                AudioManager mAudioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
                 if (command.equals("volumeON")) {
                     // 最大音量一半
-                    int maxVolume = mAudioManager
-                            .getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-                    mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
-                            maxVolume / 2, 0);
+                    int maxVolume = mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                    mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC,maxVolume / 2, 0);
                 } else if (command.equals("volumeOFF")) {
-                    mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0,
-                            0);
+                    mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0,0);
                 } else if (command.equals("action-app")) {
                     if (null != nativeFeatureListener)
                         nativeFeatureListener.mraidNativeFeatureDownload(val);
@@ -1915,15 +1911,13 @@ public class MRAIDView extends RelativeLayout {
     /**************************************************************************
      * Methods for responding to changes of size and position.
      **************************************************************************/
-
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         AdViewUtils.logInfo("onConfigurationChanged "
-                + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "portrait"
-                : "landscape"));
-        ((Activity) context).getWindowManager().getDefaultDisplay()
-                .getMetrics(displayMetrics);
+                + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ?
+                "portrait" : "landscape"));
+        ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
     }
 
     @Override
@@ -1941,8 +1935,7 @@ public class MRAIDView extends RelativeLayout {
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
         super.onVisibilityChanged(changedView, visibility);
-        AdViewUtils.logInfo("onVisibilityChanged "
-                + getVisibilityString(visibility));
+        AdViewUtils.logInfo("onVisibilityChanged " + getVisibilityString(visibility));
         setViewable(visibility);
     }
 
@@ -2099,19 +2092,14 @@ public class MRAIDView extends RelativeLayout {
                 + "," + frame.top + "][" + frame.right + "," + frame.bottom
                 + "] (" + frame.width() + "x" + frame.height() + ")");
         int statusHeight = frame.top;
-        contentViewTop = window.findViewById(Window.ID_ANDROID_CONTENT)
-                .getTop();
+        contentViewTop = window.findViewById(Window.ID_ANDROID_CONTENT).getTop();
         int titleHeight = contentViewTop - statusHeight;
-        AdViewUtils.logInfo("calculateMaxSize statusHeight "
-                + statusHeight);
-        AdViewUtils.logInfo("calculateMaxSize titleHeight "
-                + titleHeight);
-        AdViewUtils.logInfo("calculateMaxSize contentViewTop "
-                + contentViewTop);
+        AdViewUtils.logInfo("calculateMaxSize statusHeight " + statusHeight);
+        AdViewUtils.logInfo("calculateMaxSize titleHeight "  + titleHeight);
+        AdViewUtils.logInfo("calculateMaxSize contentViewTop " + contentViewTop);
         width = frame.width();
         height = screenSize.height - contentViewTop;
-        AdViewUtils.logInfo("calculateMaxSize max size " + width
-                + "x" + height);
+        AdViewUtils.logInfo("calculateMaxSize max size " + width + "x" + height);
         if (width != maxSize.width || height != maxSize.height) {
             maxSize.width = width;
             maxSize.height = height;

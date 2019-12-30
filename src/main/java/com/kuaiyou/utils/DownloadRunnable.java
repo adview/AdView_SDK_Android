@@ -225,7 +225,7 @@ public class DownloadRunnable implements Runnable {
         long updateTotalSize = bean.getUpdateTotalSize();
         try {
             // 以当前时间为value，保存该地址的下载信息
-            SharedPreferencesUtils.commitSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, fileName, System.currentTimeMillis() + "_" + updateTotalSize + "_" + DOWNLOAD_STATUS_PROGRESS);
+            SharedPreferencesUtils.commitSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, fileName, System.currentTimeMillis() + "_" + updateTotalSize + "_" + DOWNLOAD_STATUS_PROGRESS);
             is = conn.getInputStream();
             fos = new FileOutputStream(downloadPath + fileName, false);
             byte[] buffer = new byte[4096];
@@ -242,8 +242,8 @@ public class DownloadRunnable implements Runnable {
             }
             if (null != downloadStatusInterface)
                 downloadStatusInterface.onDownloadFinished(pos, creativePos, downloadPath + fileName);
-            SharedPreferencesUtils.commitSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, fileName, System.currentTimeMillis() + "_" + updateTotalSize + "_" + DOWNLOAD_STATUS_DONE);
-            SharedPreferencesUtils.addSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, "total_size", updateTotalSize);
+            SharedPreferencesUtils.commitSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, fileName, System.currentTimeMillis() + "_" + updateTotalSize + "_" + DOWNLOAD_STATUS_DONE);
+            SharedPreferencesUtils.addSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, "total_size", updateTotalSize);
         } catch (Exception e) {
             e.printStackTrace();
             hasException = true;
@@ -273,8 +273,8 @@ public class DownloadRunnable implements Runnable {
                         File failedFile = new File(downloadPath + fileName);
                         if (null != failedFile && failedFile.exists())
                             if (failedFile.delete()) {
-                                SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, fileName);
-                                SharedPreferencesUtils.minusSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME, "total_size", updateTotalSize);
+                                SharedPreferencesUtils.deleteSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, fileName);
+                                SharedPreferencesUtils.minusSharedPreferencesValue(context, ConstantValues.SP_VIDEO_NAME_FILE, "total_size", updateTotalSize);
                             }
                     } catch (Exception e) {
                         e.printStackTrace();

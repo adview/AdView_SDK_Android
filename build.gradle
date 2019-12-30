@@ -7,7 +7,7 @@ android {
     defaultConfig {
         minSdkVersion 16
         vectorDrawables.useSupportLibrary = true
-        multiDexEnabled = true
+        //multiDexEnabled = true
     }
     buildTypes {
         release {
@@ -28,23 +28,23 @@ android {
         flatDir {
             dirs 'libs'
         }
+
     }
 }
 
 dependencies {
-    compileOnly fileTree(include: ['*.jar','*.aar'], dir: 'libs')
-    //api fileTree(include: ['*.jar','*.aar'], dir: 'libs')
-    //api 'com.android.support:support-v4:28.0.0'
-    //api 'com.android.support:appcompat-v7:28.0.0'
+    compileOnly fileTree(include: ['*.jar','*.aar'], dir: 'libs') //jar 模式用这个就好
+    implementation fileTree(include: ['omsdk-android-1.2.15-Adview.jar'], dir: 'libs') //omsdk要使用这个打包进aar
+
     api 'com.android.support:support-v4:26.0.0'
-    api 'com.android.support:appcompat-v7:26.0.0'
-    //    api 'com.google.android.gms:play-services-ads:15.0.1'
-    //    compile project(':adview-sdk-video')
-    //    compile 'com.android.support:support-v4:23.4.0'
-    //    compile 'com.google.android.gms:play-services:8.4.0'
-    //    api 'com.google.android.gms:play-services-ads:15.0.1'
-    api 'com.google.android.gms:play-services:12.0.1'
-    //api(name: 'open_ad_sdk',ext: 'aar')
+    api 'com.android.support:appcompat-v7:26.1.0'
+
+    api 'com.google.android.gms:play-services-ads:15.+'  //google ads
+    api 'com.huawei.hms:hms-ads-identifier:3.4.26.303'      //huawei hms
+
     api 'pl.droidsonroids.gif:android-gif-drawable:1.2.6'
-    api 'com.tencent.mm.opensdk:wechat-sdk-android-without-mta:5.1.6'
+}
+
+repositories {
+    google()
 }

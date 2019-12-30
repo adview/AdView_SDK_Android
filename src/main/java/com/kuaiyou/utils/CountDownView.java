@@ -25,7 +25,7 @@ public class CountDownView extends View {
         super(context);
         paint = new Paint();
         backgroundPaint = new Paint();
-        backgroundPaint.setColor(Color.parseColor(ConstantValues.VIDEO_ICON_BG_COLOR));
+        backgroundPaint.setColor(Color.parseColor(ConstantValues.UI_VIDEOICON_BG_COLOR));
     }
 
     public void setTextSize(int size) {

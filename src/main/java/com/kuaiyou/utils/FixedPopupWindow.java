@@ -42,6 +42,7 @@ public class FixedPopupWindow {
             mContext = contentView.getContext();
             mWindowManager = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
         }
+
         setContentView(contentView);
         mWidth = width;
         mHeight = height;
@@ -264,7 +265,10 @@ public class FixedPopupWindow {
         decorView.setClipChildren(false);
         decorView.setClipToPadding(false);
         decorView.invalidate();
-        decorView.setBackgroundColor(Color.parseColor("#aa212121"));
+        //记住这个颜色的背景色
+        //decorView.setBackgroundColor(Color.parseColor(ConstantValues.INSTL_POPWINDOW_WEBVIEW_BACKGOUNDCOLOR));
+        decorView.setBackgroundColor(Color.TRANSPARENT);
+
         return decorView;
     }
 

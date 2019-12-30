@@ -3,15 +3,15 @@ package com.kuaiyou.video;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
+import android.media.MediaMetadataRetriever;
 import android.net.http.SslError;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,11 +22,12 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.JsResult;
 import android.webkit.SslErrorHandler;
-import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
@@ -37,19 +38,19 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.iab.omid.library.adview.adsession.AdSession;
+import com.iab.omid.library.adview.adsession.ErrorType;
 import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.adbid.AdAdapterManager;
 import com.kuaiyou.adbid.AdVideoBIDView;
-import com.kuaiyou.adbid.video.adapter.AdBIDVideoAdapter;
+import com.kuaiyou.interfaces.AdViewVideoInterface;
 import com.kuaiyou.interfaces.DownloadStatusInterface;
 import com.kuaiyou.interfaces.KyVideoListener;
 import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.obj.AgDataBean;
 import com.kuaiyou.obj.ExtensionBean;
-import com.kuaiyou.obj.VideoBean;
+import com.kuaiyou.obj.ExtensionOMSDKBean;
 import com.kuaiyou.utils.AdViewUtils;
-import com.kuaiyou.utils.Assets;
-import com.kuaiyou.utils.ClientReportRunnable;
 import com.kuaiyou.utils.ConstantValues;
 import com.kuaiyou.utils.CountDownView;
 import com.kuaiyou.utils.CustomWebview;
@@ -68,13 +69,11 @@ import com.kuaiyou.video.vast.model.VASTIcon;
 import com.kuaiyou.video.vast.model.VASTModel;
 import com.kuaiyou.video.vast.model.VideoClicks;
 import com.kuaiyou.video.vast.vpaid.EventConstants;
-import com.kuaiyou.utils.AdViewLandingPage;
 
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -91,31 +90,43 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     //private int contentViewTop;
     private Rect currentPosition;
     private int originalRequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    //first frame, 是否提前获取第一帧
+    private boolean  useFirstFrameCache = true;
 
     private float density = 0;
+    boolean isGotTTime = false;
 
-    private boolean autoCloseAble = false;
-    private int videoOrientation = -1;
-    private boolean trafficWarnEnable = true;
+    //private boolean autoCloseAble = false;
+    private boolean fullVideoOrientation = false;
+    //private boolean trafficWarnEnable = true;
     private String bgColor = "#000000";//default is black
     // This is the contents of mraid.js. We keep it around in case we need to
     // inject it
     // into webViewPart2 (2nd part of 2-part expanded ad).
-    //private Handler handler;
     //////////////////////////////////////////////
-    private RelativeLayout mRootLayout;
+    private FullscreenHolder mRootLayout;
     private ProgressBar mProgressBar;
     private CustomWebview contentWebView;
-    private WebClientHandler handler;
+    private WebClientHandler handler = null;
     //wilder 2019 for vpaid
     private AdViewControllerVpaid  mACVpaidCtrl;
     private static String mAdParams;
     private boolean mIsWaitingForWebView;
+    //private boolean hasFinalPage = false;
+    private int finalPageCompNum = 0;
+    //omsdk v1.2
+    private AdSession adSession = null;
+    private boolean isImpressionTrigged = false;
+    private boolean isOMLoaded = false;
+    private boolean isOMSDKSupport = false;
+
+    private boolean isReady = false;
+    private boolean isPlaying = false;
+    private boolean isProcessing = false;
 
     private AdsBean adsBean;
-    private Bundle passBundle;
 
-    public final static int STATUS_START_MESSAGE = 1;
+    public final static int STATUS_PLAY_VIDEO_MESSAGE = 1;
     public final static int STATUS_END_MESSAGE = 2;
     public final static int STATUS_ERROR_MESSAGE = 3;
     public final static int STATUS_SKIP_MESSAGE = 4;
@@ -128,7 +139,12 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     public final static int STATUS_UNMUTE_MESSAGE = 11;
     public final static int STATUS_ICON_BANNER_MESSAGE = 12;
     public final static int STATUS_FINAL_PAGE_MESSAGE = 13;
-    public final static int STATUS_PLAY_VIDEO_MESSAGE = 14; //add by wilder
+    public final static int STATUS_PREPARE_LOAD_VIDEO_MESSAGE = 14; //add by wilder
+    public final static int STATUS_OMSDK_INITED = 15;       //wilder 2019 for omsdk
+    public final static int STATUS_OMSDK_LOADED = 16; //   omsdk
+    public final static int STATUS_OMSDK_SEND_IMPRESSION = 17;
+    public final static int STATUS_OMSDK_PLAYBACK_EVENT = 18;
+    public final static int STATUS_GET_FIRST_FRAME = 19; //取得第一帧
     //vpaid events
     public final static int STATUS_VPAID_ADSTART_VIEW = 20;
     public final static int STATUS_VPAID_SKIPBUTTON_SHOW = 21;
@@ -139,9 +155,10 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     private final static int IMPRESSION_WRAPPER_EVENT = 3;
     private final static int TRACKING_WRAPPER_EVENT = 4;
 
-    private Timer mTrackingEventTimer;
-
-    private static final int LT_POSITION = 1, RT_POSITION = 2, LB_POSITION = 3, RB_POSITION = 4, SKIP_POSITION = 5;
+    private Timer mTrackingEventTimer = null;
+    //private Timer mOMSDKTimer = null;
+    //UI used
+    private static final int LT_POSITION = 1, RT_POSITION = 2, LB_POSITION = 3, RB_POSITION = 4, SKIP_POSITION = 5, CENTER_POSITION = 6, FULLSCREEN_POSITION = 7;
 
     private ArrayList<ArrayList<HashMap<TRACKING_EVENTS_TYPE, List<String>>>> mTrackingEventMap = new ArrayList<ArrayList<HashMap<TRACKING_EVENTS_TYPE, List<String>>>>();
     private ArrayList<ArrayList<VASTCompanionAd>> companionAdsList = new ArrayList<ArrayList<VASTCompanionAd>>();
@@ -175,21 +192,33 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     private String currentTotalTime = "0";
     private int currentVideoPlayTime = 0;
-    private float currentVPAIDVolume = 0;     //wilder 2019 for vpaid
+    private float currentVPAIDVolume = 0;     //wilder 2019 for vpaid，vpaid支持音量大小调节，0-1
+    private float currentVastVolume = 1;        //normal vast player ,目前普通video音量只支持开和关
 
     private final static int WAITTIMEOUT = 20 * 1000;
-
     private static final long QUARTILE_TIMER_INTERVAL = 250;
+    ////////////////// action view ////////////////////
+    private static final int ROOT_LAYOUT_ID = 999;
+    private static final int ACTION_VIEW_BASE_ID = 10000; //无实际意义，为相对坐标
     private static final int CLOSE_VIEW_ID = 10001;
     private static final int SKIP_TEXT_ID = 10002;
     private static final int COUNTDOWN_VIEW_ID = 10003;
     private static final int VOLUME_VIEW_ID = 10004;
     private static final int REPLAY_VIEW_ID = 10005;
-
     private static final int ICONBANNER_VIEW_ID = 10006;
-    private static final int FINALPAGE_VIEW_ID = 10007;
+    private static final int FINALPAGE_VIEW_ID = 10007;     //最后的尾帧
+    //private static final int FIRST_FRAME_VIEW_ID = 10008;   //wilder 2019 ,第一帧显示
+    private static final int PLAYER_VIEW_ID   = 10009;      //view上的播放按钮
+    private static final int PAUSE_VIEW_ID = 10010;         //暂停
+    private static final int FULLSCREEN_VIEW_ID = 10011; //expand to fullscreen
 
-    private static final String END_LABEL_TEXT = "跳过视频";
+    private static final int ACTION_VIEW_END_ID = 10012; //无实际意义，为终止坐标
+
+    private final static int FINALPAGE_COMPANIONS_ID = 10100;
+
+    ///////////////////////////end action view ///////////////////////////
+    private static final String END_LABEL_TEXT = "Skip";
+    private Bitmap preVideoImg = null;
 
     private boolean isEmbed = false;
     private int holdOnTime;
@@ -203,6 +232,8 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     private AdAdapterManager adVideoAdapterManager;
     private AdViewVideoInterface adAppInterface;
+
+    private boolean useExpand = true; //1025 test
 
     public AdVASTView(Context ctx, int w, int h, boolean isEmbed, AdAdapterManager adm ) {
         super(ctx);
@@ -225,6 +256,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     protected void onCreate(int w, int h) {
 
+        isOMSDKSupport = false; //omsdk v1.2
         displayMetrics = new DisplayMetrics();
         ((Activity) mContext).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
 
@@ -237,27 +269,101 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
         //AdViewUtils.logInfo("originalRequestedOrientation " + getOrientationString(originalRequestedOrientation));
         handler = new WebClientHandler();
-        createUiView();
+        createContentView(); //生成content的webview
         if (!isEmbed) {
             getScreenSize(false); //for fullscreen size used
+            calcCornerSize();
+        }else {
+            //wilder 20191024,手动播放模式下，action控件布局修正
             calcCornerSize();
         }
         createProgressBar();
         showProgressBar();
-        // 在主线程中执行
-        //handler = new Handler(Looper.getMainLooper());
     }
 
     public void setVideoAppListener(AdViewVideoInterface adInterface) {
         this.adAppInterface = adInterface;
     }
 
-    public void setAdVideoAdapterManager(AdAdapterManager adpt) {
-        this.adVideoAdapterManager = adpt;
+//    public void setAdVideoAdapterManager(AdAdapterManager adpt) {
+//        this.adVideoAdapterManager = adpt;
+//    }
+
+    //真正去加载视频的html, 至于是否立刻播放，后一个动作要参见 afterOMParametersFromJS()
+    private void loadNextVideoContainer() {
+        AdViewUtils.logInfo("============== AdVastView::loadNextVideoContainer () ==== real play  & start playing timer ===========");
+        currentTotalTime = "0"; //replay的时候还会根据totaltime来判断，所以重新加载页面时要重置
+        String mediaType = getCurrentMediaType();
+        //这里正经取的video的url，在这之前都没有办法得到vast的数据
+        String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
+        //video timer start from now
+        if (mVastModel.get(adCount).getCreativeList().get(creativeCount).isFailed() ||
+                !mVastModel.get(adCount).getCreativeList().get(creativeCount).isReady()) {
+
+            AdViewUtils.logInfo("==== media not ready ====");
+            contentWebView.loadUrl("<body bgcolor=" + bgColor + ">");
+            if (mVastModel.get(adCount).getCreativeList().get(creativeCount).isFailed()) {
+                switchPlay(false);
+            }else {
+                //wait for download
+                isWaittingDownload = true;
+            }
+        } else {
+            String html = generalContainerHtml(url, mediaType, bgColor);
+            if (!TextUtils.isEmpty(html)) {
+                if (mediaType.matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)) {
+                    if (url.startsWith("http")||url.startsWith("https"))
+                        contentWebView.loadUrl(url);
+                    else {
+                        //self construction data mode
+                        AdViewUtils.loadWebContentExt(contentWebView, url);
+//                        contentWebView.loadUrl("javascript:changeBackgroundColor(#ff0000)");
+                    }
+                }
+                else if (mediaType.matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX)) {
+                    //wilder 2019 for VPAID
+                    String vpURL = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVPAIDurl();
+                    if (!TextUtils.isEmpty(vpURL)) {
+                        AdViewUtils.logInfo("+++ loadNextVideoContainer(): vpURL = " + vpURL + "++++");
+                        mIsWaitingForWebView = true;
+                        //load creative URL
+                        mACVpaidCtrl.setWebView(contentWebView);
+                        AdViewUtils.loadVPAIDURL(contentWebView, vpURL);
+                    }
+                } //end wilder
+                else {
+                    //video case : include file:// or http: or https 's video file
+                    AdViewUtils.loadWebVideoURL(contentWebView, html);
+                }
+            }
+        }
+        /* (wilder 2019) for more ad or more creatives can be download, will trigger the following */
+        //if (!isFinalMedia())
+        if (isWaittingDownload) {
+            if (null == VASTPlayer.executorService || VASTPlayer.executorService.isTerminated()) {
+                VASTPlayer.executorService = Executors.newFixedThreadPool(1);
+            }
+
+            Boolean isHtmlorJS = mVastModel.get(adCount).getCreativeList().get(creativeCount).
+                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)
+                    || mVastModel.get(adCount).getCreativeList().get(creativeCount).
+                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX);
+
+            VASTPlayer.executorService.execute(new DownloadRunnable(mContext,
+                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl(),
+                    isHtmlorJS,
+                    false,
+                    adCount, creativeCount,
+                    new AdVASTView.DownloadNextMediaInterface()));
+
+        }
+
+        //when start show, screen may be rotated, so it must be recalc corner size
+        calcCornerSize();
     }
 
-    /*(wilder 2019) make vast view in webview */
-    public void startVastShow(VASTPlayer player) {
+    /*(wilder 2019) make vast view in webview ，在启动 startLoadingContent()之前是无法使用mVastModel， mplayer等数据的*/
+    public void startLoadingContent(VASTPlayer player) {
         if(player == null) {
             return;
         }
@@ -265,6 +371,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         this.mVastModel = player.getVastModel();
         this.wrapperModel = player.getWrapperModel();
 
+        //更新各种extension 和companion,click等各种vast所需要的数据结构
         if (null != mVastModel && !mVastModel.isEmpty()) {
             extensionBeanList = new ArrayList<ExtensionBean>();
             for (int i = 0; i < mVastModel.size(); i++) {
@@ -300,11 +407,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             }
 
             initVPAID();  //wilder 2019, VPAID interface should be outside each creative, so it can handle all of events
-
-            setNextMediaFile();
-            //when start show, screen may be rotated, so it must be recalc corner size
-            calcCornerSize();
-            processImpressions();
+//            //wilder 20191101 ,添加第一帧
+            if (useFirstFrameCache && !AdViewUtils.videoAutoPlay) {
+                Message message = new Message();
+                message.what = STATUS_GET_FIRST_FRAME;
+                handler.sendMessage(message);
+            }else {
+                loadNextVideoContainer();
+            }
+            //reportImpressions(); 20190830改为在start事件中发送展示汇报
         } else {
             AdViewUtils.logInfo("数据格式异常");
             finishActivity();
@@ -328,8 +439,14 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     }
 
     private void calcCornerSize() {
-
-        cornerSize = screenWidth > screenHeight ? screenHeight / 14 : screenWidth / 14;
+        if (fullVideoOrientation) {
+            DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
+            int scrWidth = displayMetrics.widthPixels;
+            int scrHeight = displayMetrics.heightPixels;
+            cornerSize = scrWidth > scrHeight ? scrHeight / 14 : scrWidth / 14;
+        }else {
+            cornerSize = screenWidth > screenHeight ? screenHeight / 14 : screenWidth / 14;
+        }
         cornerSize = cornerSize < 50 ? 50 : cornerSize;
         cornerSize = cornerSize > 100 ? 100 : cornerSize;
     }
@@ -355,8 +472,8 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             handler.sendMessage(message);
             //end wilder 2019
         }
-
     }
+
 
     private void getBehavedSize() {
         Rect visibleRect = new Rect();
@@ -380,45 +497,47 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         //end
     }
 
+    //只在播放时会调用这个函数，在JS的onmetadataloaded()或者重新播放时也会调用
     private void fixLayoutSize(int w, int h, boolean hasBehaved) {
-         if (w != -1 && h != -1){
+        //率先考虑全屏扩展
+        if (fullVideoOrientation) {
+            DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
+            desiredWidth = displayMetrics.widthPixels;
+            desiredHeight = displayMetrics.heightPixels;
+            //contentWebView.loadUrl("javascript:fixSize(" + desiredWidth  + "," + desiredHeight  + ")");
+        }else if (w != -1 && h != -1){
             getDesiredSize(w, h);
-            contentWebView.loadUrl("javascript:fixSize(" + desiredWidth / density + "," + desiredHeight / density + ")");
-
-        } else {
+            //contentWebView.loadUrl("javascript:fixSize(" + desiredWidth / density + "," + desiredHeight / density + ")");
+        }else {
             desiredWidth = screenWidth;
             desiredHeight = screenHeight;
         }
-        Log.i("fixLayoutSize", "fixSize(" + desiredWidth / density + "," + desiredHeight / density + ")");
+        //这里需要实际去改变video的大小
+        contentWebView.loadUrl("javascript:fixSize(" + desiredWidth / density + "," + desiredHeight / density + ")");
+
+        Log.i("[fixLayoutSize]", "fixSize(" + desiredWidth / density + " x " + desiredHeight / density + ")");
         RelativeLayout.LayoutParams layoutParams = (LayoutParams) contentWebView.getLayoutParams();
 
         if (hasBehaved) {
             //LayoutParams  layoutParmars2 = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
             layoutParams.width = desiredWidth /4 * 3;
             layoutParams.height = desiredHeight;
-
             layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT, -1);    //remove it first
-
             layoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
             mRootLayout.setGravity(Gravity.CENTER_VERTICAL);
             //layoutParams.setGravity(Gravity.CENTER_HORIZONTAL);
             //layoutParams.addRule(RelativeLayout.CENTER_VERTICAL);
-
         }else {
             layoutParams.width = desiredWidth;
             layoutParams.height = desiredHeight;
             layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT);
         }
-
+        //调整webview的大小
         contentWebView.setLayoutParams(layoutParams);
-
     }
 
-
-
     public void onResume() {
-
-        AdViewUtils.logInfo("entered on onResume --(life cycle event)");
+        AdViewUtils.logInfo("======= AdVastView::onResume() --(life cycle event) ======");
         try {
 //            showProgressBar();
             if (isPaused) {
@@ -426,13 +545,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 if (isFinished) {
                     return;
                 }
-                processEvent(TRACKING_EVENTS_TYPE.resume);
-                //String mediaType = getCurrentMediaType();
-                if (isVideoTypeRelated()) {
-                    contentWebView.loadUrl("javascript:playVideo()");
+                currentVideoPlayTime = lastPauseVideoTime; //wilder 2019 for resume timer
+                reportTrackingEvent(TRACKING_EVENTS_TYPE.resume);
+                if (isVPAID()) {
+                    mACVpaidCtrl.resume();
+                }else if (isVideoTypeRelated()) {
+                    //启动video的js播放，同时启动counter,这2步缺一不可
+                    handler.sendEmptyMessage(STATUS_PLAY_VIDEO_MESSAGE);
+                    startVASTQuartileTimer(isVideoTypeRelated(), isFinalMedia());
                 }
-                //getScreenSize();
-                startQuartileTimer(isVideoTypeRelated(), isFinalMedia());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -445,11 +566,12 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         try {
             isPaused = true;
             lastPauseVideoTime = currentVideoPlayTime;
-            processEvent(TRACKING_EVENTS_TYPE.pause);
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.pause);
             //String mediaType = getCurrentMediaType();
-            if (isVideoTypeRelated()) {
+            if (isVPAID()) {
+                mACVpaidCtrl.pause();
+            }else if (isVideoTypeRelated()) {
                 contentWebView.loadUrl("javascript:pauseVideo()");
-//                startQuartileTimer();
             }
             cleanActivityUp();
         } catch (Exception e) {
@@ -481,31 +603,165 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return "";
     }
 
-    /*
-    private void removeView(View view) {
-        if (null != view) {
-            ((FrameLayout) findViewById(view.getId()).getParent()).removeView(view);
+    //加载视频第一帧
+    public static Bitmap getNetVideoBitmap(String videoUrl) {
+        Bitmap bitmap = null;
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            //根据url获取缩略图
+            retriever.setDataSource(videoUrl, new HashMap());
+            //获得第一帧图片
+            bitmap = retriever.getFrameAtTime();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        } finally {
+            retriever.release();
         }
-    }
-    */
-    private void createActionView(int viewId, int position, boolean needBgColor) {
-        createActionView(viewId, position, needBgColor, false);
+        return bitmap;
     }
 
-    private void createActionView(int viewId, int position, boolean needBgColor, boolean skipPosition) {
-        if (null != findViewById(viewId)) {
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////// UI 部分 ////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    //生成包含video的webview,底是rootLayout
+    private void createContentView() {
+        DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
+        density = displayMetrics.density;
+
+        mRootLayout = new FullscreenHolder(mContext);//new RelativeLayout(mContext);
+        mRootLayout.setBackgroundColor(Color.parseColor(bgColor));
+        mRootLayout.setId(ROOT_LAYOUT_ID);
+        //(wilder 2019) it must be MATCH_PARENT, so view can be fitted  with parent view
+        //mRootLayout.setGravity(Gravity.CENTER_VERTICAL); //vertial can make webview center in parent
+        //this.addView(mRootLayout, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.MATCH_PARENT));
+        this.addView(mRootLayout, new LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.MATCH_PARENT));
+        //webview
+        contentWebView = new CustomWebview(mContext, true);
+        //content webview layout
+        LayoutParams  layoutParmars = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        layoutParmars.addRule(RelativeLayout.CENTER_IN_PARENT); //居中
+        contentWebView.setWebViewClient(new VideoWebClient());
+        contentWebView.setWebChromeClient(new VideoChromeClient());
+        contentWebView.setCustomInterface(this);
+
+        contentWebView.setLayoutParams(layoutParmars);
+
+        mRootLayout.addView(contentWebView, layoutParmars);
+    }
+
+    //开始播放时的UI
+    private void createPlayingUI() {
+        postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if(isVPAID()) {
+                    hideProgressBar();
+                }
+                if (isFinalMedia() && !isVideoTypeRelated()) {
+                    createFinishView(false);
+                } else {
+                    if (isVideoTypeRelated() || isVPAID()) {
+                        //创建Inline 的Companion Icon
+                        getBehavedSize(); //wilder 2019, this will calc all behaved list size for layout behaved view's pos
+                        createBehavedView(mVastModel.get(adCount).getCompanionAdList(), COMPANION_TYPE, 0);
+                        createBehavedView(mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons(), ICON_TYPE, 0);
+                        //创建Wrapper 的Companion Icon
+                        for (int i = 0; i < wrapperModel.size(); i++) {
+                            ArrayList<VASTCompanionAd> companionAdArrayList = wrapperModel.get(i).getCompanionAdList();
+                            if (!companionAdArrayList.isEmpty()) {
+                                createBehavedView(companionAdArrayList, WRAPPER_TYPE + COMPANION_TYPE, i * 10000);
+                            }
+                            for (int j = 0; j < wrapperModel.get(i).getCreativeList().size(); j++) {
+                                ArrayList<VASTIcon> vastIconArrayList = wrapperModel.get(i).getCreativeList().get(j).getVastIcons();
+                                createBehavedView(vastIconArrayList, WRAPPER_TYPE + ICON_TYPE, i * 1000000 + j * 10000);
+                            }
+                        }
+                        createActionView(VOLUME_VIEW_ID, RB_POSITION, true);
+                    }
+
+                    //createActionView(REPLAY_VIEW_ID, LT_POSITION, true);  //播放的时候不能replay
+                    createActionView(PAUSE_VIEW_ID, LT_POSITION, true); //添加pause
+                    //createActionView(CLOSE_VIEW_ID, RT_POSITION, true);    //wilder 20191223 根据需求去掉close
+                    createActionView(COUNTDOWN_VIEW_ID, LB_POSITION, true);
+                    createActionView(SKIP_TEXT_ID, SKIP_POSITION, true);
+                }
+                isScaled = false;
+            }
+        }, 100);
+    }
+
+    //播放结束时的UI
+    private void createFinishView(boolean skip) {
+        mRootLayout.removeView(mRootLayout.findViewById(PAUSE_VIEW_ID));
+        //createActionView(REPLAY_VIEW_ID, LT_POSITION, true, skip);
+        createActionView(CLOSE_VIEW_ID, RT_POSITION, true, skip);
+        //加入播放按钮
+        //if (!isVPAID())
+        if (finalPageCompNum == 0) {
+            //endcard 尾帧显示时不显示replay按钮
+            createActionView(PLAYER_VIEW_ID, CENTER_POSITION, true, skip);
+        }
+    }
+
+    /* 另一种生成视频首帧的view的方式，暂时弃用
+    private void createFirstFrameView() {
+        if (null != mRootLayout.findViewById(FIRST_FRAME_VIEW_ID)) {
             //wilder 2019, when rotated, it will be re-created
-            mRootLayout.removeView(findViewById(viewId));
+            mRootLayout.removeView(mRootLayout.findViewById(FIRST_FRAME_VIEW_ID));
             //return;
+        }
+        if (null != preVideoImg) {
+            Rect visibleRect = new Rect();
+            //contentWebView.getGlobalVisibleRect(visibleRect); //only can be used in fullscreen video view
+            this.getLocalVisibleRect(visibleRect);   //relative to parent's position
+
+            Log.i("createFirstFrameView", "size = " + visibleRect);
+            if (visibleRect.width() == 0 || visibleRect.height() == 0)
+                return;
+            FrameLayout.LayoutParams viewLayoutParams = new FrameLayout.LayoutParams(cornerSize, cornerSize);
+            View view = new ImageView(getContext());;
+            //Bitmap bm = null;
+            viewLayoutParams.width = visibleRect.width();
+            viewLayoutParams.height = visibleRect.height();
+            viewLayoutParams.leftMargin = 0;
+            viewLayoutParams.topMargin = 0;
+
+            view.setId(FIRST_FRAME_VIEW_ID);
+            ((ImageView) view).setImageBitmap(preVideoImg);
+            view.setBackground(AdViewUtils.getColorDrawable(getContext(), ConstantValues.UI_VIDEOICON_BG_COLOR, cornerSize));
+
+            view.setOnClickListener(this);
+            mRootLayout.addView(view, viewLayoutParams);  //wilder 2019 changed
+
+            View v = mRootLayout.findViewById(PLAYER_VIEW_ID);
+            if (null != v) {
+                v.bringToFront();
+            }
+            v = mRootLayout.findViewById(CLOSE_VIEW_ID);
+            if (null != v) {
+                v.bringToFront();
+            }
+            //omsdk v1.2
+            AddOMObstructions(view);
+        }
+
+    }*/
+
+    //建立互动UI层
+    private void createActionView(int viewId, int position, boolean needBgColor, boolean skipPosition) {
+        if (null != mRootLayout.findViewById(viewId)) {
+            //wilder 2019, when rotated, it will be re-created
+            mRootLayout.removeView(mRootLayout.findViewById(viewId));
         }
         Rect visibleRect = new Rect();
         //contentWebView.getGlobalVisibleRect(visibleRect); //only can be used in fullscreen video view
-        this.getLocalVisibleRect(visibleRect);   //relative to parent's position
+        mRootLayout.getLocalVisibleRect(visibleRect);   //relative to parent's position
 
         Log.i("createActionView", "size = " + visibleRect);
         if (visibleRect.width() == 0 || visibleRect.height() == 0)
             return;
-        FrameLayout.LayoutParams viewLayoutParams = new FrameLayout.LayoutParams(cornerSize, cornerSize);
+//        FrameLayout.LayoutParams viewLayoutParams = new FrameLayout.LayoutParams(cornerSize, cornerSize);  wilder 20191209
+        LayoutParams viewLayoutParams = new LayoutParams(cornerSize, cornerSize);
         View view = null;
         Bitmap bm = null;
 
@@ -527,31 +783,61 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 view = new ImageView(getContext());
                 bm = AdViewUtils.getImageFromAssetsFile("close_video.png");
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
-//                ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(),getClass().getResourceAsStream(
-//                                        ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "close_video.png")));
                 break;
             case REPLAY_VIEW_ID:
                 view = new ImageView(getContext());
                 bm = AdViewUtils.getImageFromAssetsFile("replay.png");
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
-//                ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), getClass()
-//                        .getResourceAsStream( ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "replay.png")));
                 break;
             case VOLUME_VIEW_ID:
                 view = new ImageView(getContext());
                 if (null == volumeON) {
                     bm = AdViewUtils.getImageFromAssetsFile("unmute.png");
                     volumeON = new BitmapDrawable(getResources(), bm);
-//                    volumeON = new BitmapDrawable(getResources(), getClass().getResourceAsStream(
-//                                    ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "unmute.png"));
                 }
                 if (null == volumeOFF) {
                     bm = AdViewUtils.getImageFromAssetsFile("mute.png");
                     volumeOFF = new BitmapDrawable(getResources(), bm);
-//                    volumeOFF = new BitmapDrawable(getResources(), getClass().getResourceAsStream(
-//                            ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "mute.png"));
                 }
-                ((ImageView) view).setImageDrawable(AdViewUtils.isMediaMuted(getContext()) ? volumeOFF : volumeON);
+                //((ImageView) view).setImageDrawable(AdViewUtils.isMediaMuted(getContext()) ? volumeOFF : volumeON);
+                ((ImageView) view).setImageDrawable(currentVastVolume == 0 ? volumeOFF : volumeON);
+                break;
+/*            case FIRST_FRAME_VIEW_ID:
+                //view = new ImageView(getContext());
+                //this.mPlayer = player;
+                if (null != mPlayer) {
+                    this.mVastModel = mPlayer.getVastModel();
+                    //this.wrapperModel = player.getWrapperModel();
+                    //String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
+                            preVideoImg = getNetVideoBitmap(url);
+                            //((ImageView) view).setImageBitmap(preVideoImg);
+                            createFirstFrameView();
+                        }
+                    });
+                }
+                return;*/
+            case PLAYER_VIEW_ID:
+                view = new ImageView(getContext());
+                bm = AdViewUtils.getImageFromAssetsFile("icon_video.png");
+                ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
+
+                break;
+            case PAUSE_VIEW_ID:
+                view = new ImageView(getContext());
+                bm = AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png");
+                ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
+
+                break;
+            case FULLSCREEN_VIEW_ID:
+                if (AdViewUtils.useVideoFullScreen) {
+                    view = new ImageView(getContext());
+                    bm = AdViewUtils.getImageFromAssetsFile("replay.png");
+                    ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
+                }
                 break;
         }
         view.setId(viewId);
@@ -587,24 +873,95 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 viewLayoutParams.height = (int) (cornerSize);
                 viewLayoutParams.leftMargin = visibleRect.right - cornerSize * 3 - cornerSize / 8;
                 viewLayoutParams.topMargin = visibleRect.top + cornerSize / 8;
-                view.setBackgroundColor(Color.parseColor(ConstantValues.VIDEO_ICON_BG_COLOR));
+                view.setBackgroundColor(Color.parseColor(ConstantValues.UI_VIDEOICON_BG_COLOR));
                 view.setVisibility(View.GONE);
                 break;
+            case CENTER_POSITION:
+//                if (viewId == FIRST_FRAME_VIEW_ID) {
+//                    viewLayoutParams.width = visibleRect.width();
+//                    viewLayoutParams.height = visibleRect.height();
+//                    viewLayoutParams.leftMargin = 0;
+//                    viewLayoutParams.topMargin = 0;
+//                }else
+                {
+                    viewLayoutParams.width = cornerSize * 4;
+                    viewLayoutParams.height = cornerSize * 4;
+                    viewLayoutParams.leftMargin = (visibleRect.width() - cornerSize * 4) / 2;
+                    viewLayoutParams.topMargin = (visibleRect.height() - cornerSize * 4) / 2;
+                }
+                break;
+            case FULLSCREEN_POSITION:
+                viewLayoutParams.leftMargin = visibleRect.right - cornerSize - cornerSize / 8 - 2 * cornerSize;
+//                viewLayoutParams.topMargin = cornerSize / 8;
+                viewLayoutParams.topMargin = visibleRect.bottom - cornerSize - cornerSize / 8;
+                break;
         }
-        if (needBgColor && viewId != SKIP_TEXT_ID)
-            view.setBackground(AdViewUtils.getColorDrawable(getContext(), ConstantValues.VIDEO_ICON_BG_COLOR, cornerSize));
+        //添加到rootlayout
+        try {
+            if (null == view)  //可能不存在
+                return;
 
-        view.setOnClickListener(this);
-        mRootLayout.addView(view,viewLayoutParams);  //wilder 2019 changed
-
+            if (needBgColor && viewId != SKIP_TEXT_ID) {
+                view.setBackground(AdViewUtils.getColorDrawable(getContext(), ConstantValues.UI_VIDEOICON_BG_COLOR, cornerSize));
+            }
+            view.setOnClickListener(this);
+            //view.bringToFront();
+            mRootLayout.addView(view, viewLayoutParams);  //wilder 2019 changed
+            //omsdk v1.2
+            AddOMObstructions(view);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 
+    private void createActionView(int viewId, int position, boolean needBgColor) {
+        createActionView(viewId, position, needBgColor, false);
+    }
+
+    //更新action view层
+    private void updateAllActionView(int width, int height) {
+
+        fixLayoutSize(-1,-1,false); //wilder 20191030
+        //要重新计算一下corner的尺寸,全屏和embed模式下尺寸不同
+        calcCornerSize();
+        //刷新ui
+        for (int i = 1; i < ACTION_VIEW_END_ID; i++) {
+            int id = ACTION_VIEW_BASE_ID + i;
+            View tempView = mRootLayout.findViewById(id);
+            if (null == tempView)
+                continue;
+
+            int pos = RT_POSITION;
+            if (id == CLOSE_VIEW_ID)
+                pos = RT_POSITION;
+            else if (id == COUNTDOWN_VIEW_ID)
+                pos = LB_POSITION;
+            else if (id == SKIP_TEXT_ID)
+                pos =  SKIP_POSITION;
+            else if (id == VOLUME_VIEW_ID)
+                pos = RB_POSITION;
+            else if (id == REPLAY_VIEW_ID)
+                pos = LT_POSITION;
+            else if (id == PLAYER_VIEW_ID)
+                pos = CENTER_POSITION;
+            else if (id == PAUSE_VIEW_ID)
+                pos = LT_POSITION;
+            else if (id == FULLSCREEN_VIEW_ID)
+                pos = FULLSCREEN_POSITION;
+
+            createActionView(id, pos, true); //添加pause
+        }
+
+    }
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////
     private String lastVideoPlayTime = "";
     private boolean isHoldOn = false;
 
     private void updateCountDown(String content) {
         try {
-            CountDownView countDownView = (CountDownView)findViewById(COUNTDOWN_VIEW_ID);
+            CountDownView countDownView = (CountDownView)mRootLayout.findViewById(COUNTDOWN_VIEW_ID);
+            //AdViewUtils.logInfo("<<<<<<<<<<<< updateCountDown(): content = " + content + ">>>>>>>>>>>>>");
             if (!content.equals("undefined")) {
                 if (lastVideoPlayTime.equals(content))
                     isHoldOn = true;
@@ -614,6 +971,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     return;
 
                 if(isVPAID()) {
+                    //对于VPAID而言，content是剩下的时间
                     Float remain = Float.valueOf(content);
                     Float total = Float.valueOf(currentTotalTime);
                     countDownView.updateProgress((int)((total - remain) / total * 360));
@@ -624,10 +982,17 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 }else {
                     currentVideoPlayTime = (int) (Float.valueOf(content) * 1000);
                     countDownView.updateProgress((int) (Float.valueOf(content) / Float.valueOf(currentTotalTime) * 360));
-                    int tempInt = Float.valueOf(currentTotalTime).intValue() - Float.valueOf(content).intValue();
-                    countDownView.updateContent(tempInt + "");
+                    int tempInt = 0;
+                    //如果totaltime是0,那就用当前时间递增来取代
+                    if (0.0f == Float.valueOf(currentTotalTime).intValue()) {
+                        tempInt = Float.valueOf(content).intValue();
+                    }else {
+                        tempInt = Float.valueOf(currentTotalTime).intValue() - Float.valueOf(content).intValue();
+                    }
 
+                    countDownView.updateContent(tempInt + "");
                     lastVideoPlayTime = content;
+                    //AdViewUtils.logInfo("<<<<<<<<<<<< updateCountDown(): " + currentVideoPlayTime + ">>>>>>>>>>>>>");
                 }
             }
         } catch (Exception e) {
@@ -639,9 +1004,11 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         AdViewUtils.logInfo("cleanActivityUp stopQuartileTimer ");
         this.stopQuartileTimer();
         isSkippShown = false;
-        mRootLayout.removeView(findViewById(COUNTDOWN_VIEW_ID));
+
+        //wilder 2019,暂停时保持原来画面，用于pause
+/*        mRootLayout.removeView(findViewById(COUNTDOWN_VIEW_ID));
         mRootLayout.removeView(findViewById(SKIP_TEXT_ID));
-        mRootLayout.removeView(findViewById(VOLUME_VIEW_ID));
+        mRootLayout.removeView(findViewById(VOLUME_VIEW_ID));*/
     }
 
     private void cleanUpMediaPlayer() {
@@ -710,35 +1077,6 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         contentWebView.addJavascriptInterface(mACVpaidCtrl.getBridge(), "android");
     }
 
-    private void createUiView() {
-        DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
-        density = displayMetrics.density;
-
-        mRootLayout = new RelativeLayout(mContext);
-        mRootLayout.setBackgroundColor(Color.parseColor(bgColor));
-
-        //(wilder 2019) it must be MATCH_PARENT, so view can be fitted  with parent view
-        //mRootLayout.setGravity(Gravity.CENTER_VERTICAL); //vertial can make webview center in parent
-        this.addView(mRootLayout, new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        //content webview layout
-        LayoutParams  layoutParmars = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        layoutParmars.addRule(RelativeLayout.CENTER_IN_PARENT);
-
-        createWebView();
-
-        contentWebView.setLayoutParams(layoutParmars);
-
-        mRootLayout.addView(contentWebView, layoutParmars);
-    }
-
-    private void createWebView() {
-        contentWebView = new CustomWebview(mContext);
-
-        contentWebView.setWebViewClient(new VideoWebClient());
-        contentWebView.setWebChromeClient(new VideoChromeClient());
-        contentWebView.setCustomInterface(this);
-    }
-
     private boolean isFinalMedia() {
         //last ad 's last creative
         if (adCount == (mVastModel.size() - 1)) {
@@ -751,6 +1089,31 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return false;
     }
 
+    private void doReloadPlay() {
+        try {
+            mRootLayout.removeView(mRootLayout.findViewById(CLOSE_VIEW_ID));
+            mRootLayout.removeView(mRootLayout.findViewById(REPLAY_VIEW_ID));
+            VideoLableView v1 = (VideoLableView)mRootLayout.findViewById(ICONBANNER_VIEW_ID);
+            VideoFinalPage v2 = (VideoFinalPage)mRootLayout.findViewById(FINALPAGE_VIEW_ID);
+            mRootLayout.removeView(v1);
+            mRootLayout.removeView(v2);
+            if (v1 != null) {
+                v1.destoryView();
+            }
+            if (v2 != null ) {
+                v2.destoryView();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        isFinished = false;
+        adCount = 0;
+        creativeCount = 0;
+
+        loadNextVideoContainer();
+    }
+
+    //这里处理的是所有非webview的外挂的view的点击事件，webview页面的点击，见onWebviewClicked()
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
@@ -771,14 +1134,22 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     }
                     mACVpaidCtrl.setVolume(currentVPAIDVolume);
                 }else {
-                    if (AdViewUtils.isMediaMuted(mContext)) {
+                    if (/*AdViewUtils.isMediaMuted(mContext)*/currentVastVolume == 0) {
                         ((ImageView) v).setImageDrawable(volumeON);
                         handler.sendEmptyMessage(STATUS_UNMUTE_MESSAGE);
+                        currentVastVolume = 1;
+                        contentWebView.loadUrl("javascript:setVolume(0.5)");  //wilder 2019 change volume
                     } else {
                         ((ImageView) v).setImageDrawable(volumeOFF);
                         handler.sendEmptyMessage(STATUS_MUTE_MESSAGE);
+                        currentVastVolume = 0;
+                        contentWebView.loadUrl("javascript:setVolume(0)"); //wilder 2019 change volume
                     }
-                    AdViewUtils.setCurrentVolume(mContext, !AdViewUtils.isMediaMuted(mContext));
+                    //AdViewUtils.setCurrentVolume(mContext, !AdViewUtils.isMediaMuted(mContext)); //wilder 2019 change volume
+                }
+                //omsdk v1.2 volume change
+                if (isOMSDKSupport) {
+                    contentWebView.loadUrl("javascript:signalVolumeEvent()");
                 }
                 break;
             case SKIP_TEXT_ID:
@@ -792,64 +1163,159 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 switchPlay(false);
                 break;
             case CLOSE_VIEW_ID:
-                finishActivity();
+                //omsdk v1.2
+                if (null != adSession && isOMSDKSupport) {
+                    AdViewUtils.stopOMAdSession(adSession);
+                }
+                //for omsdk , stop session need  time to trigger, so webview should be destroyed for wait for a while
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        finishActivity();
+                    }
+                },100);
+
+                break;
+            case PLAYER_VIEW_ID:
+                if (isPaused) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            //load url must handled in main loop thread
+                            try {
+                                if (contentWebView != null) {
+                                    mRootLayout.removeView(mRootLayout.findViewById(PLAYER_VIEW_ID));
+                                    createActionView(PAUSE_VIEW_ID, LT_POSITION, true);
+                                    onResume();
+                                }
+                            }catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }else {
+                    //开始播放
+                    removePreUI();
+                    isFinished = false; //该变量用于在onreume时如果已经停止了，就不用恢复播放
+                    if (isVPAID()) {
+                        //vpaid直接播放，不需要启动QuartileTimer
+                        Float totalTime = Float.valueOf(currentTotalTime);
+                        if (totalTime > 0) {
+                            //重播，对于vpaid而言因为是js,所以必须重新加载页面开始，否则会认为只是2次start
+                            doReloadPlay();
+                        }else {
+                            //首次播放
+                            if (null != mACVpaidCtrl) {
+                                Message msg = new Message();
+                                msg.what = STATUS_VPAID_ADSTART_VIEW;
+                                msg.obj = "w=-1&h=-1";
+                                handler.sendMessage(msg);
+
+                                mACVpaidCtrl.playAd();
+                            }
+                        }
+                    }else {
+                        handler.sendEmptyMessage(STATUS_PLAY_VIDEO_MESSAGE);
+                        startVASTQuartileTimer(isVideoTypeRelated(), isFinalMedia());
+                    }
+                }
+                break;
+            case PAUSE_VIEW_ID:
+                if (!isPaused) {
+//                    mRootLayout.removeView(findViewById(PAUSE_VIEW_ID));
+//                    createActionView(PLAYER_VIEW_ID, LT_POSITION, true);
+//                    onPause();
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            //load url must handled in main loop thread
+                            try {
+                                if (contentWebView != null) {
+                                    mRootLayout.removeView(mRootLayout.findViewById(PAUSE_VIEW_ID));
+                                    createActionView(PLAYER_VIEW_ID, CENTER_POSITION, true);
+                                    onPause();
+
+                                }
+                            }catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+                break;
+            case FULLSCREEN_VIEW_ID:
+                expandFullScreen();
                 break;
             case REPLAY_VIEW_ID:
-                try {
-                    mRootLayout.removeView(findViewById(CLOSE_VIEW_ID));
-                    mRootLayout.removeView(findViewById(REPLAY_VIEW_ID));
-                    VideoLableView v1 = (VideoLableView)findViewById(ICONBANNER_VIEW_ID);
-                    VideoFinalPage v2 = (VideoFinalPage)findViewById(FINALPAGE_VIEW_ID);
-                    mRootLayout.removeView(v1);
-                    mRootLayout.removeView(v2);
-                    if (v1 != null) {
-                        v1.destoryView();
-                    }
-                    if (v2 != null ) {
-                        v2.destoryView();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                isFinished = false;
-                adCount = 0;
-                creativeCount = 0;
+                doReloadPlay();
+                break;
 
-                setNextMediaFile();
-                break;
             case FINALPAGE_VIEW_ID:
-            case ICONBANNER_VIEW_ID:
-                infoClicked(mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough(),
-                        mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
-                        0, 0);
+            case ICONBANNER_VIEW_ID: {
+                String clickThru = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough();
+                if (!TextUtils.isEmpty(clickThru)) {
+                    reportClickEvents(clickThru,
+                                            mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
+                                            0, 0);
+                }
                 break;
+
+            }
+            default:
+            break;
         }
     }
 
+    //webview内部的点击事件，含behaved view,但是content view的video的点击不走这里，那是从html页面的click 事件来的，
+    //详见shouldOverrideUrlLoading()中的 click事件处理部分
     @Override
     public void onWebviewClicked(int type, int tag) {
-        if (type == ICON_TYPE) {
-            IconClicks iconClicks = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons().get(tag).getIconClicks();
-            infoClicked(iconClicks.getClickThrough(), iconClicks.getClickTracking(), 0, 0);
-        } else if (type == COMPANION_TYPE) {
-            CompanionClicks companionClicks = mVastModel.get(adCount).getCompanionAdList().get(tag).getCompanionClicks();
-            infoClicked(companionClicks.getClickThrough(), companionClicks.getClickTracking(), 0, 0);
-        } else if (type == WRAPPER_TYPE + ICON_TYPE) {
-            int tmpAdCount = tag / 1000000;
-            int tmpCreativeCount = 0;
-            int tmpNum = 0;
-            tmpCreativeCount = (tag - tmpAdCount * 1000000) / 10000;
-            tmpNum = (tag - tmpAdCount * 1000000 - tmpCreativeCount * 10000) % 100;
+        List<String> urlsTrackingList = null;
+        String urlThru = "";
+        try {
+            if (type == ICON_TYPE) {
+                //注意tag的作用，这里定位了在companion list中的位置
+                IconClicks iconClicks = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons().get(tag).getIconClicks();
+                urlsTrackingList = iconClicks.getClickTracking();
+                urlThru = iconClicks.getClickThrough();
 
-            IconClicks iconClicks = mVastModel.get(tmpAdCount).getCreativeList().get(tmpCreativeCount).getVastIcons().get(tmpNum).getIconClicks();
-            infoClicked(iconClicks.getClickThrough(), iconClicks.getClickTracking(), 0, 0);
-        } else if (type == WRAPPER_TYPE + COMPANION_TYPE) {
-            int tmpCreativeCount = 0;
-            int tmpNum = 0;
-            tmpNum = (tag - tmpCreativeCount * 10000) % 100;
+            } else if (type == COMPANION_TYPE) {
+                //注意tag的作用，这里定位了在companion list中的位置
+                CompanionClicks companionClicks = mVastModel.get(adCount).getCompanionAdList().get(tag).getCompanionClicks();
+                urlsTrackingList = companionClicks.getClickTracking();
+                urlThru = companionClicks.getClickThrough();
 
-            CompanionClicks companionClicks = wrapperModel.get(tmpCreativeCount).getCompanionAdList().get(tmpNum).getCompanionClicks();
-            infoClicked(companionClicks.getClickThrough(), companionClicks.getClickTracking(), 0, 0);
+            } else if (type == WRAPPER_TYPE + ICON_TYPE) {
+                int tmpAdCount = tag / 1000000;
+                int tmpCreativeCount = 0;
+                int tmpNum = 0;
+                tmpCreativeCount = (tag - tmpAdCount * 1000000) / 10000;
+                tmpNum = (tag - tmpAdCount * 1000000 - tmpCreativeCount * 10000) % 100;
+
+                IconClicks iconClicks = wrapperModel.get(tmpAdCount).getCreativeList().get(tmpCreativeCount).getVastIcons().get(tmpNum).getIconClicks();
+                urlsTrackingList = iconClicks.getClickTracking();
+                urlThru = iconClicks.getClickThrough();
+            } else if (type == WRAPPER_TYPE + COMPANION_TYPE) {
+                int tmpCreativeCount = 0;
+                int tmpNum = 0;
+                tmpNum = (tag - tmpCreativeCount * 10000) % 100;
+
+                CompanionClicks companionClicks = wrapperModel.get(tmpCreativeCount).getCompanionAdList().get(tmpNum).getCompanionClicks();
+                urlsTrackingList = companionClicks.getClickTracking();
+                urlThru = companionClicks.getClickThrough();
+            } else if (type == FINALPAGE_TYPE + WRAPPER_TYPE) {
+                //用于endcard的companion的wrapper模式
+                //注意tag的作用，这里定位了在companion list中的位置
+                CompanionClicks companionClicks = wrapperModel.get(adCount).getCompanionAdList().get(tag).getCompanionClicks();
+                urlsTrackingList = companionClicks.getClickTracking();
+                urlThru = companionClicks.getClickThrough();
+            }
+        }catch ( Exception e) {
+            e.printStackTrace();
+        }
+        //process events
+        if (!TextUtils.isEmpty(urlThru)) {
+            reportClickEvents(urlThru, urlsTrackingList, 0, 0);
         }
     }
 
@@ -890,7 +1356,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                             if (show) {
                                 createActionView(SKIP_TEXT_ID, SKIP_POSITION, true);
                             }else {
-                                mRootLayout.removeView(findViewById(SKIP_TEXT_ID));
+                                mRootLayout.removeView(mRootLayout.findViewById(SKIP_TEXT_ID));
                             }
                         }
                     }catch (Exception e) {
@@ -902,7 +1368,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         if (null != msg.obj) {
                             float v = Float.valueOf(msg.obj.toString());
                             currentVPAIDVolume = v;
-                            ImageView vw = findViewById(VOLUME_VIEW_ID);
+                            ImageView vw = mRootLayout.findViewById(VOLUME_VIEW_ID);
                             if(v > 0 ) {
                                 //AdViewUtils.setCurrentVolumeValue(this, v);
                                 //send
@@ -926,49 +1392,11 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     try {
                         if (null != msg.obj) {
                             if (!TextUtils.isEmpty(msg.obj.toString())) {
+                                removePreUI(); //此时要移除PreUI，例如播放按钮等
                                 String[] size = msg.obj.toString().split("&");
                                 if (size.length == 2) {
-                                    fixLayoutSize(
-                                            Integer.valueOf(size[0].replace("w=", "")),
-                                            Integer.valueOf(size[1].replace("h=", "")),
-                                            false);
-                                    postDelayed(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            if(isVPAID()) {
-                                                hideProgressBar();
-                                            }
-                                            if (isFinalMedia() && !isVideoTypeRelated()) {
-                                                createActionView(REPLAY_VIEW_ID, LT_POSITION, true);
-                                                createActionView(CLOSE_VIEW_ID, RT_POSITION, true);
-                                            } else {
-                                                if (isVideoTypeRelated() || isVPAID()) {
-                                                    //创建Inline 的Companion Icon
-                                                    getBehavedSize(); //wilder 2019, this will calc all behaved list size for layout behaved view's pos
-                                                    createBehavedView(mVastModel.get(adCount).getCompanionAdList(), COMPANION_TYPE, 0);
-                                                    createBehavedView(mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons(), ICON_TYPE, 0);
-                                                    //创建Wrapper 的Companion Icon
-                                                    for (int i = 0; i < wrapperModel.size(); i++) {
-                                                        ArrayList<VASTCompanionAd> companionAdArrayList = wrapperModel.get(i).getCompanionAdList();
-                                                        if (!companionAdArrayList.isEmpty()) {
-                                                            createBehavedView(companionAdArrayList, WRAPPER_TYPE + COMPANION_TYPE, i * 10000);
-                                                        }
-                                                        for (int j = 0; j < wrapperModel.get(i).getCreativeList().size(); j++) {
-                                                            ArrayList<VASTIcon> vastIconArrayList = wrapperModel.get(i).getCreativeList().get(j).getVastIcons();
-                                                            createBehavedView(vastIconArrayList, WRAPPER_TYPE + ICON_TYPE, i * 1000000 + j * 10000);
-                                                        }
-                                                    }
-                                                    createActionView(VOLUME_VIEW_ID, RB_POSITION, true);
-                                                }
-                                                createActionView(REPLAY_VIEW_ID, LT_POSITION, true);  //wilder 2019 for view
-                                                createActionView(CLOSE_VIEW_ID, RT_POSITION, true);    //wilder 2019 for view
-
-                                                createActionView(COUNTDOWN_VIEW_ID, LB_POSITION, true);
-                                                createActionView(SKIP_TEXT_ID, SKIP_POSITION, true);
-                                            }
-                                            isScaled = false;
-                                        }
-                                    }, 200);
+                                    fixLayoutSize(Integer.valueOf(size[0].replace("w=", "")), Integer.valueOf(size[1].replace("h=", "")), false);
+                                    createPlayingUI();
                                 }
                             }
                         }
@@ -978,72 +1406,52 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     break;
 
                 case STATUS_MUTE_MESSAGE:
-                    processEvent(TRACKING_EVENTS_TYPE.mute);
+                    reportTrackingEvent(TRACKING_EVENTS_TYPE.mute);
                     break;
 
                 case STATUS_UNMUTE_MESSAGE:
-                    processEvent(TRACKING_EVENTS_TYPE.unmute);
+                    reportTrackingEvent(TRACKING_EVENTS_TYPE.unmute);
                     break;
 
                 case STATUS_END_MESSAGE:
-                    processEvent(TRACKING_EVENTS_TYPE.complete);
+                    reportTrackingEvent(TRACKING_EVENTS_TYPE.complete);
                     switchPlay(false);
                     break;
 
-                case STATUS_START_MESSAGE:
+                case STATUS_PLAY_VIDEO_MESSAGE:  //正式调用js:playvideo()
                     hideProgressBar();
                     if (!isSkipped) {
-                        /*  wilder 2019 covered
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                            contentWebView.evaluateJavascript("javascript:getTotalTime()", new ValueCallback<String>() {
-                                @Override
-                                public void onReceiveValue(String value) {
-                                    Message msg = new Message();
-                                    msg.what = STATUS_TOTALTIME_MESSAGE;
-                                    msg.obj = value;
-                                    handler.sendMessage(msg);
-                                }
-                            });
-                        } else {
-                            contentWebView.loadUrl("javascript:alert(getTotalTime())");
-                        }  */
                         try {
                             postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
-                                    try {
-                                        //contentWebView.loadUrl("javascript:pauseVideo()"); wilder 2019 comment
-                                        postDelayed(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                try {
-                                                    contentWebView.loadUrl("javascript:playVideo()");
-                                                } catch (Exception e) {
-                                                }
-                                            }
-                                        }, 200);
-                                    } catch (Exception e) {
-                                    }
+                               try {
+                                     Float totalTime = Float.valueOf(currentTotalTime);
+                                     if (totalTime >= 0.0f) {
+                                       //replay，重播时因为没有 onloadedmetadata()事件，因此需要重刷size
+                                         createPlayingUI();
+                                     }
+                                     contentWebView.loadUrl("javascript:playVideo()");
+                               } catch (Exception e) {
+                                   e.printStackTrace();
+                               }
                                 }
                             }, 200);
                         } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
                     break;
 
                 case STATUS_TIME_MESSAGE:
-                    if (null != findViewById(COUNTDOWN_VIEW_ID)) {
-                        if (!isGotTTime & !isVPAID()) {
-                            isGotTTime = true;
-                            sendEmptyMessage(STATUS_START_MESSAGE);
-                        }
+                    //正常流程是先启动js的playvideo(),js会在 onloadedmetadata() 之后发送totaltime,同时会定时发送timer事件上来
+                    //用于更新counter,但要注意对于android 6.0可能返回的time = 0
+                    if (null != mRootLayout.findViewById(COUNTDOWN_VIEW_ID)) {
                         if (null != msg.obj) {
-
                             updateCountDown((String) msg.obj);
-
                         }
                     }
-                    if (null != findViewById(SKIP_TEXT_ID)) {
+                    if (null != mRootLayout.findViewById(SKIP_TEXT_ID)) {
                         if (!isSkippShown)
                             showSkipText((String) msg.obj);
                     }
@@ -1054,7 +1462,17 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     try {
                         if (!TextUtils.isEmpty(currentTotalTime) && !"null".equals(currentTotalTime)) {
                             Float totalTime = Float.valueOf(currentTotalTime);
-                            mVastModel.get(adCount).getCreativeList().get(creativeCount).setDuration(totalTime.intValue());
+                            int toTime = 0;
+                            if (totalTime == 0.0f) {
+                                //android 6.0 有可能返回0，如果用vast里面的duration代替这个totaltime，会不准确，因此在
+                                //updateCountDown()里面处理一下显示即可
+                                //toTime = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration();
+                                //currentTotalTime = String.valueOf(toTime);
+                                AdViewUtils.logInfo("======= total time is 0,set totaltime to : " + toTime +  "========");
+                            }else {
+                                toTime = totalTime.intValue();
+                            }
+                            mVastModel.get(adCount).getCreativeList().get(creativeCount).setDuration(toTime);
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -1066,10 +1484,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         String result = msg.obj.toString();
                         HashMap<String, String> resultMap = parseJsReact(result);
                         if (resultMap.containsKey("x") && resultMap.containsKey("y")) {
-                            infoClicked(mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough(),
-                                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
-                                    Float.valueOf(resultMap.get("x")).intValue(),
-                                    Float.valueOf(resultMap.get("y")).intValue());
+                            //从<clickthrought>获取点击的落地页landingpage url
+                            String clickUri = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough();
+                            if (!TextUtils.isEmpty(clickUri)) {
+                                reportClickEvents(
+                                        clickUri,
+                                        mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
+                                        Float.valueOf(resultMap.get("x")).intValue(),
+                                        Float.valueOf(resultMap.get("y")).intValue());
+                            }
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -1077,13 +1500,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     break;
 
                 case STATUS_ERROR_MESSAGE:
-                    processErrorEvent();
+                    reportErrorEvent();
                     stopQuartileTimer();
                     switchPlay(false);
                     break;
 
                 case STATUS_VISIBLE_CHANGE_MESSAGE:
-                    findViewById(msg.arg2).setVisibility(msg.arg1);
+                    mRootLayout.findViewById(msg.arg2).setVisibility(msg.arg1);
                     break;
 
                 case STATUS_ICON_BANNER_MESSAGE:
@@ -1091,10 +1514,16 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         VideoLableView videoLableView = new VideoLableView(mContext);
                         videoLableView.setId(ICONBANNER_VIEW_ID);
                         videoLableView.setOnClickListener(AdVASTView.this);
-                        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(desiredWidth - 5 * cornerSize, (int) (desiredHeight / 4.3));
-                        lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+
+                        //FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(desiredWidth - 5 * cornerSize, (int) (desiredHeight / 4.3)); wilder 20191209
+                        //lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+
+                        LayoutParams lp = new LayoutParams(desiredWidth - 5 * cornerSize, (int) (desiredHeight / 4.3));
+                        lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM); //wilder 20191209
                         lp.bottomMargin = (int) (cornerSize / 8);
                         mRootLayout.addView(videoLableView, lp);
+                        //omsdk v1.2
+                        AddOMObstructions(videoLableView);
                         videoLableView.setData(msg.getData());
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -1102,12 +1531,51 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     break;
 
                 case STATUS_FINAL_PAGE_MESSAGE:
-                    if (null != findViewById(FINALPAGE_VIEW_ID))
-                        ((VideoFinalPage) findViewById(FINALPAGE_VIEW_ID)).setData(msg.getData());
+                    if (null != mRootLayout.findViewById(FINALPAGE_VIEW_ID))
+                        ((VideoFinalPage) mRootLayout.findViewById(FINALPAGE_VIEW_ID)).setData(msg.getData());
                     break;
 
-                case STATUS_PLAY_VIDEO_MESSAGE:
-                    playVideo(getContext());
+                case STATUS_PREPARE_LOAD_VIDEO_MESSAGE:
+                    prepareLoadVideo(getContext());
+                    break;
+                case STATUS_GET_FIRST_FRAME:
+                    try {
+                        post(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (!isVPAID())
+                                    {
+                                        String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
+                                        preVideoImg = getNetVideoBitmap(url);
+                                    }
+                                    //play
+                                    loadNextVideoContainer();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    loadNextVideoContainer();
+                                }
+                            }
+                        });
+                    } catch (Exception e) {
+                    }
+                    break;
+                case STATUS_OMSDK_INITED:
+                    //omsdk v1.2isOMLoaded
+                    getOMParametersFromJS();
+                    break;
+                case STATUS_OMSDK_LOADED:
+                    setOmsdkLoaded();
+                    break;
+                case STATUS_OMSDK_SEND_IMPRESSION:
+                    contentWebView.loadUrl("javascript:signalImpressionEvent()");
+                    break;
+                case STATUS_OMSDK_PLAYBACK_EVENT:
+                    if (null != msg.obj) {
+                        //omsdk v1.2
+                        TRACKING_EVENTS_TYPE type = (TRACKING_EVENTS_TYPE)msg.obj;
+                        reportOMSDKEvents(type);
+                    }
                     break;
                 default:
                     break;
@@ -1115,8 +1583,22 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
     }
 
-    boolean isGotTTime = false;
+    /**
+     * *************** OMSDK v1.2.15****************************
+     */
 
+    private void AddOMObstructions(View v) {
+        if (null != adSession && isOMSDKSupport) {
+            AdViewUtils.AddOMObstructions(v, adSession);
+        }
+    }
+
+    private void sendOMSDKErr(String info) {
+        if (null != adSession) {
+            AdViewUtils.signalErrorEvent(adSession, ErrorType.VIDEO, info);
+        }
+    }
+    ////////////////////omsdk end //////////////////////////////////
     private HashMap<String, String> parseJsReact(String jsResult) {
         HashMap<String, String> resultMap = new HashMap<String, String>();
         String[] tempArray;
@@ -1134,7 +1616,76 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return resultMap;
     }
 
+    private void setFullScreen(boolean fullScreen) {
+        WindowManager.LayoutParams attrs = ((Activity) mContext).getWindow().getAttributes();
+        if (fullScreen) {
+            attrs.flags |= WindowManager.LayoutParams.FLAG_FULLSCREEN;
+            ((Activity) mContext).getWindow().setAttributes(attrs);
+            ((Activity) mContext).getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+            fullVideoOrientation = true;
+        } else {
+            attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            ((Activity) mContext).getWindow().setAttributes(attrs);
+            ((Activity) mContext).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+            fullVideoOrientation = false;
+        }
+
+    }
+
+    private void expandFullScreen() {
+        //使用全屏功能，必须在app的manifest.xml中将android:configChanges="keyboardHidden|orientation|screenSize"
+        //contentWebView.loadUrl("javascript:launchFullScreen()");//此种方法通过html执行，调用的是video的controls控件
+        if (!AdViewUtils.useVideoFullScreen)
+            return;
+        AdViewUtils.logInfo("===========expandFullScreen()==============");
+        if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
+            Log.i("[expandFullScreen]", "横屏");
+            ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            showCustomView2(true);
+        }else if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            Log.i("[expandFullScreen]", "竖屏");
+            ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            showCustomView2(false);
+        }
+    }
+
+    private void showCustomView2(final boolean changeFull) {
+            //new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
+                    float density = displayMetrics.density;
+                    int scrWidth = displayMetrics.widthPixels;
+                    int scrHeight = displayMetrics.heightPixels;
+                    FrameLayout.LayoutParams COVER_SCREEN_PARAMS = new FrameLayout.LayoutParams(
+                            scrWidth,
+                            scrHeight
+                            //ViewGroup.LayoutParams.MATCH_PARENT,
+                            //ViewGroup.LayoutParams.MATCH_PARENT
+                    );
+                    FrameLayout decor = (FrameLayout) ((Activity) mContext).getWindow().getDecorView();
+                    if (changeFull) {
+                        //先移除旧的root layout
+                        removeView(mRootLayout);
+                        decor.addView(mRootLayout, COVER_SCREEN_PARAMS);
+                        setFullScreen(true);
+                    } else {
+                        decor.removeView(mRootLayout);
+                        addView(mRootLayout, new FrameLayout.LayoutParams(
+                                            LayoutParams.MATCH_PARENT,
+                                            LayoutParams.MATCH_PARENT ));
+                        setFullScreen(false);
+                    }
+
+                }//end run()
+            });
+           // }, 500);
+    }
+
     class VideoChromeClient extends WebChromeClient {
+        WebChromeClient.CustomViewCallback mCallback;
+        View customView;
         @Override
         public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
             if (!message.equals("undefined")) {
@@ -1152,6 +1703,46 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
             AdViewUtils.logDebug(consoleMessage.message());
             return super.onConsoleMessage(consoleMessage);
+        }
+
+        @Override
+        public View getVideoLoadingProgressView() {
+            Log.i("ToVmp","--------- getVideoLoadingProgressView ------------ ");
+//            if (null != mProgressBar)
+//                return mProgressBar;
+//            else
+                return null;
+        }
+
+        @Override
+        public Bitmap getDefaultVideoPoster() {  //缺省的post screen
+            if (AdViewUtils.videoAutoPlay) {
+                return null;
+            }else {
+                if (!useFirstFrameCache) { //提前取得img视乎效果好些
+                    try {
+                        String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
+                        preVideoImg = getNetVideoBitmap(url);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                //此时将progress销毁
+                hideProgressBar();
+                return preVideoImg;
+            }
+        }
+
+        @Override
+        public void onShowCustomView(View view, CustomViewCallback callback) {
+            Log.i("ToVmp","--------- onShowCustomView ------------ ");
+            super.onShowCustomView(view, callback);
+        }
+
+        @Override
+        public void onHideCustomView() {
+            Log.i("ToVmp","--------- onHideCustomView ---------------");
+            super.onHideCustomView();
         }
     }
 
@@ -1179,11 +1770,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
-            AdViewUtils.logInfo("++++ onPageFinished : url = " + url + "+++++++");
+            AdViewUtils.logInfo("++++++++++++++ (AdVastView) onPageFinished : url = " + url + "++++++++++++++++");
             if (mIsWaitingForWebView) {
                 mACVpaidCtrl.initBridgeWrapper();
                 mIsWaitingForWebView = false;
             }
+//            //omsdk v1.2
+//            adSession = AdViewUtils.startOMAdSessionJS(view);
             view.invalidate();
         }
 
@@ -1202,13 +1795,16 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         //end wilder
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
+
             if (!url.contains("time")) {
-                AdViewUtils.logInfo("shouldOverrideUrlLoading : " + url);
+                AdViewUtils.logInfo("===== AdVastView::shouldOverrideUrlLoading(),url =  " + url + "=======");
             }
             if (url.startsWith("mraid://")) {
                 Message message = new Message();
-                if (url.contains("play"))
-                    message.what = STATUS_START_MESSAGE;
+                if (url.contains("play")) {
+                    //发生在js:playvideo()之后，除非暂停播放，否则无法停止
+                    message.what = STATUS_PLAY_VIDEO_MESSAGE;
+                }
                 else if (url.contains("end"))
                     message.what = STATUS_END_MESSAGE;
                 else if (url.contains("skip"))
@@ -1236,19 +1832,31 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     final ExtensionBean eb = mVastModel.get(adCount).getExtensionBean();
                     if (null != eb) {
                         if (null == AdViewUtils.repScheduler || AdViewUtils.repScheduler.isTerminated()) {
-                            AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOLNUM);
+                            AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOL_NUM);
                         }
                         AdViewUtils.repScheduler.execute(new AdVASTView.ResourceDownloadRunnable(eb, STATUS_ICON_BANNER_MESSAGE));
                     }
+                }else if (url.contains("ominited")) {
+                    //omsdk v1.2
+                    message.what = STATUS_OMSDK_INITED;
+                } else if (url.contains("omLoaded")) {
+                    //omsdk v1.2
+                    message.what = STATUS_OMSDK_LOADED;
                 }
+
                 handler.sendMessage(message);
+
             } else if (url.startsWith("http")||url.startsWith("https")) {
-                infoClicked(url, mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(), 0, 0);
+                reportClickEvents(
+                        url,
+                        mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
+                        0, 0);
             }
             return false;
         }
     }
 
+    //用于下载尾帧的数据
     class ResourceDownloadRunnable implements Runnable {
         private ExtensionBean eb;
         private int status;
@@ -1288,7 +1896,11 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         mProgressBar.setLayoutParams(params);
 
         mRootLayout.addView(mProgressBar);
+        //omsdk v1.2,可用来测试obstructions
+        AddOMObstructions(mProgressBar);
+
         mProgressBar.setVisibility(View.GONE);
+
     }
 
     /*
@@ -1326,79 +1938,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return false;
     }
 
-    private void setNextMediaFile() {
-        AdViewUtils.logInfo("setNextMediaFile");
-        String mediaType = getCurrentMediaType();
-        String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
 
-        startQuartileTimer(isVideoTypeRelated(), isFinalMedia());
-
-        if (mVastModel.get(adCount).getCreativeList().get(creativeCount).isFailed() ||
-                !mVastModel.get(adCount).getCreativeList().get(creativeCount).isReady()) {
-
-            AdViewUtils.logInfo("==== media not ready ====");
-            contentWebView.loadUrl("<body bgcolor=" + bgColor + ">");
-            if (mVastModel.get(adCount).getCreativeList().get(creativeCount).isFailed()) {
-                switchPlay(false);
-            }else {
-                //wait for download
-                isWaittingDownload = true;
-            }
-        } else {
-            String html = generalHtml(url, mediaType, bgColor);
-            if (!TextUtils.isEmpty(html)) {
-                if (mediaType.matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)) {
-                    if (url.startsWith("http")||url.startsWith("https"))
-                        contentWebView.loadUrl(url);
-                    else {
-                        contentWebView.loadDataWithBaseURL("", url, "text/html", "utf-8", null);
-//                        contentWebView.loadUrl("javascript:changeBackgroundColor(#ff0000)");
-                    }
-                }
-                else if (mediaType.matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX)) {
-                    //wilder 2019 for VPAID
-                    String vpURL = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVPAIDurl();
-                    if (!TextUtils.isEmpty(vpURL)) {
-                        AdViewUtils.logInfo("+++ setNextMediaFile(): vpURL = " + vpURL + "++++");
-                        mIsWaitingForWebView = true;
-                        //load creative URL
-                        mACVpaidCtrl.loadVPAIDURL(contentWebView, vpURL);
-                    }
-                } //end wilder
-                else {
-                    //video case : include file:// or http: or https 's video file
-                    contentWebView.loadDataWithBaseURL(
-                            (url.startsWith("http")||url.startsWith("https")) ? "" :"file://" + url.substring(0,url.lastIndexOf("/") + 1),
-                            html,
-                            "text/html",
-                            "utf-8", null);
-                }
-            }
-        }
-        /* (wilder 2019) for more ad or more creatives can be download, will trigger the following */
-        //if (!isFinalMedia())
-        if (isWaittingDownload) {
-            if (null == VASTPlayer.executorService || VASTPlayer.executorService.isTerminated()) {
-                VASTPlayer.executorService = Executors.newFixedThreadPool(1);
-            }
-
-            Boolean isHtmlorJS = mVastModel.get(adCount).getCreativeList().get(creativeCount).
-                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)
-                    || mVastModel.get(adCount).getCreativeList().get(creativeCount).
-                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX);
-
-            VASTPlayer.executorService.execute(new DownloadRunnable(mContext,
-                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl(),
-                    isHtmlorJS,
-                    false,
-                    adCount, creativeCount,
-                    new AdVASTView.DownloadNextMediaInterface()));
-
-        }
-    }
 
     class DownloadNextMediaInterface implements DownloadStatusInterface {
-
         @Override
         public void onDownloadFinished(final int pos, final int creativePos, String path) {
             AdViewUtils.logInfo("++++ DownloadNextMediaInterface() : onDownloadFinished " + path + ";" + "creativePos " + creativePos + "++++++");
@@ -1409,7 +1951,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     @Override
                     public void run() {
                         isWaittingDownload = false;
-                        setNextMediaFile();
+                        loadNextVideoContainer();
                     }
                 });
             }
@@ -1419,13 +1961,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         public void onDownloadFailed(int pos, int creativePos, int error) {
             AdViewUtils.logInfo("onDownloadFailed " + error + "   creativePos " + creativePos);
             mVastModel.get(pos).getCreativeList().get(creativePos).setFailed(true);
-            processErrorEvent();
+            reportErrorEvent();
             if (isWaittingDownload) {
                 ((Activity) mContext).runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         isWaittingDownload = false;
-                        setNextMediaFile();
+                        loadNextVideoContainer();
                     }
                 });
 
@@ -1466,7 +2008,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             int skipDuration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getSkipoffset();
             if (skipDuration == -1)
                 return;
-            TextView skipText = (TextView)findViewById(SKIP_TEXT_ID);
+            TextView skipText = (TextView)mRootLayout.findViewById(SKIP_TEXT_ID);
             if (Float.valueOf(content) >= skipDuration) {
                 isSkippShown = true;
                 skipText.setVisibility(View.VISIBLE);
@@ -1477,15 +2019,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
     }
 
-    private String generalHtml(String url, String type, String color) {
+    private String generalContainerHtml(String url, String type, String color) {
         String asstesName = "";
         if (type.matches(DefaultMediaPicker.SUPPORTED_IMAGE_TYPE_REGEX)) {
-            //asstesName = Assets.IMAGEJS;
-            asstesName = AdViewUtils.loadAssetsFile("VAST_Image_JS.html");
+            asstesName = AdViewUtils.loadAssetsFileByContext("VAST_Image_JS.html", mContext);
         } else if (type.matches(DefaultMediaPicker.SUPPORTED_VIDEO_TYPE_REGEX)) {
-            //"/assets/VAST_Video_JS.html"
-            asstesName = AdViewUtils.loadAssetsFile("VAST_Video_JS.html");
-            //asstesName = Assets.VIDEOJS;
+            //if (AdViewUtils.canUseOMSDK())
+                asstesName = AdViewUtils.loadAssetsFileByContext("VAST_Video_JS.html", mContext);
+//            else
+//                asstesName = AdViewUtils.loadAssetsFileByContext("VAST_Video_JS-non-omsdk.html", mContext); //这是去除omsdk的html模板
         } else if (type.matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)) {
             return url;
         } else if (type.matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX)) {
@@ -1511,105 +2053,95 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return null;
     }
 
-    private void processImpressions() {
-        AdViewUtils.logInfo("entered processImpressions");
-        try {
-            if (!mIsProcessedImpressions) {
-                mIsProcessedImpressions = true;
-                List<String> impressions = mVastModel.get(adCount).getImpressions();
-                fireUrls(impressions, KyAdBaseView.getHK_Values(mContext, -1, -1, false, false, getVideoSnap()));
-                reportWrapperEvents(IMPRESSION_WRAPPER_EVENT);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void reportWrapperEvents(int wrapperEvent) {
-        reportWrapperEvents(wrapperEvent, null, -1, -1);
-    }
-
-    private void reportWrapperEvents(int wrapperEvent, TRACKING_EVENTS_TYPE event) {
-        reportWrapperEvents(wrapperEvent, event, -1, -1);
-    }
-
-    private void reportWrapperEvents(int wrapperEvent, int x, int y) {
-        reportWrapperEvents(wrapperEvent, null, x, y);
-    }
-
-    private void reportWrapperEvents(int wrapperEvent, TRACKING_EVENTS_TYPE event, int x, int y) {
-        if (wrapperModel == null || wrapperModel.size() == 0)
-            return;
-        switch (wrapperEvent) {
-            case CLICKTRACKING_WRAPPER_EVENT:
-                for (int i = 0; i < wrapperModel.size(); i++) {
-                    ArrayList<VASTCreative> creativeList = wrapperModel.get(i).getCreativeList();
-                    for (int j = 0; j < creativeList.size(); j++) {
-                        VideoClicks videoClicks = creativeList.get(j).getVideoClicks();
-                        fireUrls(videoClicks.getClickTracking(),
-                                KyAdBaseView.getHK_Values(mContext, x, y, false, false, getVideoSnap()));
-                    }
-                }
-                break;
-            case ERROR_WRAPPER_EVENT:
-                for (int i = 0; i < wrapperModel.size(); i++) {
-                    fireUrls(wrapperModel.get(i).getErrorUrl(),
-                            KyAdBaseView.getHK_Values(mContext, -1, -1, false, true, getVideoSnap()));
-                }
-                break;
-            case IMPRESSION_WRAPPER_EVENT:
-                for (int i = 0; i < wrapperModel.size(); i++) {
-                    fireUrls(wrapperModel.get(i).getImpressions(),
-                            KyAdBaseView.getHK_Values(mContext, -1, -1, false, false, getVideoSnap()));
-                }
-                break;
-            case TRACKING_WRAPPER_EVENT:
-                for (int i = 0; i < wrapperModel.size(); i++) {
-                    ArrayList<VASTCreative> creativeList = wrapperModel.get(i).getCreativeList();
-                    for (int j = 0; j < creativeList.size(); j++) {
-                        HashMap<TRACKING_EVENTS_TYPE, List<String>> trackings = creativeList.get(j).getTrackings();
-                        if (null != trackings && null != trackings.get(event))
-                            fireUrls(trackings.get(event),
-                                    KyAdBaseView.getHK_Values(mContext, -1, -1,
-                                            event.equals(TRACKING_EVENTS_TYPE.complete), false, getVideoSnap()));
-                    }
-                }
-                break;
-        }
-    }
-
-    private void infoClicked(String jumpUrl, List<String> fireUrls, int x, int y) {
-        AdViewUtils.logInfo("entered infoClicked:");
-        try {
-            if (!TextUtils.isEmpty(jumpUrl))
-                processClickThroughEvent(jumpUrl, fireUrls, x, y);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private void processClickThroughEvent(String jumpUrl, List<String> fireUrls, int x, int y) {
-        AdViewUtils.logInfo("entered processClickThroughEvent:");
-        try {
-            //VASTPlayer.sendLocalBroadcast(mContext, VASTPlayer.ACTION_VASTCLICK, null);
-            mPlayer.sendClick();
-
-            fireUrls(fireUrls, KyAdBaseView.getHK_Values(mContext, x, y, false, false, getVideoSnap()));
-            reportWrapperEvents(CLICKTRACKING_WRAPPER_EVENT, x, y);
-            // Navigate to the click through url
-            Intent i = new Intent();
-            i.putExtra("adview_url", jumpUrl);//"http://ucan.25pp.com/Wandoujia_web_seo_baidu_homepage.apk");//jumpUrl);
-            i.putExtra("isVideo", true);
-            i.setClass(mContext, AdViewLandingPage.class);
-            ((Activity)mContext).startActivity(i);
-
-        } catch (NullPointerException e) {
-            e.printStackTrace();
-        }
-    }
-
     //wilder 2019
+    private void removeFinalPageCompanions() {
+        int count = finalPageCompNum;
+        for (int i = 0; i < count; i++) {
+            View tempView = findViewById(FINALPAGE_VIEW_ID  + i);
+            if (null == tempView)
+                continue;
+            //Log.i("removeCompanions", "removeCompanions");
+            mRootLayout.removeView(tempView);
+        }
+        finalPageCompNum = 0;
+    }
+
+    private void createFinalPageCompanions(int type, ArrayList<VASTCompanionAd> list) {
+        if (!list.isEmpty()) {
+            for (int j = 0; j < list.size(); j++) {
+                VASTCompanionAd vastCompanionAd = (VASTCompanionAd) list.get(j);
+                if (null == vastCompanionAd || vastCompanionAd.getHeight() == null || vastCompanionAd.getWidth() == null) {
+                    //allBehavedCounts -= 1;  //reduce all counts, for layout pos
+                    continue;
+                }else {
+                    int width = vastCompanionAd.getWidth().intValue();
+                    int height = vastCompanionAd.getHeight().intValue();
+                    //if (width >= adsBean.getAdWidth() && height >= adsBean.getAdHeight()) 如果vast的尺寸大于as的尺寸，则可以展示
+                    if (width >= 300 && height >= 200) {
+                        //int tag = Integer.parseInt(vastCompanionAd.getId());
+                        int tag = j; //这个决定了companion在list中的位置，点击时发送clickthrough靠它定位
+                        //扩展的behaved view
+                        CustomWebview finalPageWebview = new CustomWebview(mContext , false);
+                        finalPageWebview.setTouchEventEnable(true);
+                        finalPageWebview.setId(FINALPAGE_COMPANIONS_ID + finalPageCompNum);
+                        finalPageWebview.setCustomClickInterface(this);
+                        finalPageWebview.setTag(tag); //设置id ,用于标识不同的view，这里和companion的id相同
+                        finalPageWebview.setType(type); //这个type决定了webview click的动作见 onWebviewClicked()
+                        finalPageWebview.setBackgroundColor(Color.TRANSPARENT); //wilder 2019
+                        finalPageWebview.setWebViewClient(new VideoWebClient());
+                        //注意布局
+                        LayoutParams layoutParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+                        //LayoutParams layoutParams = new LayoutParams(width, height);
+                        layoutParams.addRule(RelativeLayout.CENTER_IN_PARENT);
+//                            layoutParams.leftMargin = convertBehavedXPostion(beHavedNum, allBehavedCounts); //convertBehavedPostion(xOffset + "", +behaveWidth, 1);
+//                            layoutParams.topMargin = convertBehavedYPostion(beHavedNum);//convertBehavedPostion(yOffest + "", +behaveHeight, 2);
+                        finalPageWebview.setLayoutParams(layoutParams);
+                        //加载companion或icon的内容，一般是一个链接
+                        loadBehavedResource(vastCompanionAd, finalPageWebview);
+                        finalPageCompNum++; //这里进行计数，用于销毁时的动作
+                        mRootLayout.addView(finalPageWebview); //wilder 2019 changed
+                    }
+                }
+
+            }
+        }
+
+    }
+    //点击事件
+    private void clickEventFinalCompanions(String tag, ArrayList<VASTCompanionAd> list) {
+        for (int j = 0; j < list.size(); j++) {
+            VASTCompanionAd vastCompanionAd = (VASTCompanionAd) list.get(j);
+            //String tag = v.getTag().toString();
+            if (vastCompanionAd.getId().equals(tag)) {
+                String clickThru = vastCompanionAd.getCompanionClicks().getClickThrough();
+                if (!TextUtils.isEmpty(clickThru)) {
+                    reportClickEvents(clickThru,
+                            vastCompanionAd.getCompanionClicks().getClickTracking(),
+                            0, 0);
+                    break;
+                }
+            }
+        }
+    }
+    //end card
+    private void showFinalPageCompanion() {
+//        if (isEmbed)  //mrec 格式没有endcard
+//            return;
+        if (AdViewUtils.useVastFinalPage) {
+            for (int i = 0; i < mVastModel.size(); i++) {
+                //tag += i;
+                ArrayList<VASTCompanionAd> companionAdArrayList = mVastModel.get(i).getCompanionAdList();
+                createFinalPageCompanions(COMPANION_TYPE, companionAdArrayList);
+            }
+            //wrapper
+            for (int j = 0; j < wrapperModel.size(); j++) {
+                ArrayList<VASTCompanionAd> companionAdArrayListWrapper = wrapperModel.get(j).getCompanionAdList();
+                createFinalPageCompanions(WRAPPER_TYPE + FINALPAGE_TYPE, companionAdArrayListWrapper);
+            }
+        }
+    }
+
+
     private void showFinalPage() {
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
@@ -1617,26 +2149,35 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 try {
                     boolean skipPosition = false;
                     VideoFinalPage videoFinalPage = null;
-                    FrameLayout.LayoutParams lp = null;
+                    //FrameLayout.LayoutParams layoutParm = null; wilder 20191209
+                    LayoutParams layoutParm = null;
+                    finalPageCompNum = 0; //默认设为false
                     final ExtensionBean eb = mVastModel.get(adCount).getExtensionBean();
                     if (null != eb) {
+                        //普通adview协议的finalpage 是从BID服务器的扩展字段取得相关信息
                         skipPosition = true;
                         videoFinalPage = new VideoFinalPage(mContext);
                         videoFinalPage.setOnClickListener(AdVASTView.this);
                         videoFinalPage.setId(FINALPAGE_VIEW_ID);
-                        lp = new FrameLayout.LayoutParams(-1, -1);
+                        layoutParm = new LayoutParams(-1, -1);
                         //LayoutParams  layoutParmars = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
                         //layoutParmars.addRule(RelativeLayout.CENTER_IN_PARENT);
                         if (null == AdViewUtils.repScheduler || AdViewUtils.repScheduler.isTerminated())
-                            AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOLNUM);
+                            AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOL_NUM);
                         AdViewUtils.repScheduler.execute(new ResourceDownloadRunnable(eb, STATUS_FINAL_PAGE_MESSAGE));
+                    }else {
+                        //采用companion来作为finalpage
+                        showFinalPageCompanion();
                     }
                     if (null != videoFinalPage) {
-                        //addContentView(videoFinalPage, lp);
-                        mRootLayout.addView(videoFinalPage, lp); //wilder 2019 changed to rootlayer
+                        //addContentView(videoFinalPage, layoutParm);
+                        mRootLayout.addView(videoFinalPage, layoutParm); //wilder 2019 changed to rootlayer
+                        //omsdk v1.2
+                        //AddOMObstructions(videoFinalPage);
                     }
-                    createActionView(CLOSE_VIEW_ID, RT_POSITION, true, skipPosition);
-                    createActionView(REPLAY_VIEW_ID, LT_POSITION, true, skipPosition);
+                    //移除播放状态，添加重播等按钮
+                    createFinishView(skipPosition);
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -1655,7 +2196,6 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             removeIcons();
             removeCompanions();
 
-
             if (adCount <= mVastModel.size() - 1) {
                 //(wilder 2019) not last ad
                 if (!isManual && creativeCount < mVastModel.get(adCount).getCreativeList().size() - 1) {
@@ -1669,33 +2209,33 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         creativeCount = 0;  //reset creative
                     }else {
                         //last ad
-                        if (null != findViewById(SKIP_TEXT_ID)) {
+                        if (null != mRootLayout.findViewById(SKIP_TEXT_ID)) {
                             isSkippShown = false;
                         }
-                        mRootLayout.removeView(findViewById(COUNTDOWN_VIEW_ID));
-                        mRootLayout.removeView(findViewById(VOLUME_VIEW_ID));
-                        mRootLayout.removeView(findViewById(SKIP_TEXT_ID));
+                        mRootLayout.removeView(mRootLayout.findViewById(COUNTDOWN_VIEW_ID));
+                        mRootLayout.removeView(mRootLayout.findViewById(VOLUME_VIEW_ID));
+                        mRootLayout.removeView(mRootLayout.findViewById(SKIP_TEXT_ID));
+
                         if (isFinalMedia()) {
                             showFinalPage();
                         }
                         mTrackingEventTimer = null;
                         isFinished = true;
-                        //VASTPlayer.sendLocalBroadcast(mContext, VASTPlayer.ACTION_VASTCOMPLETE, null);
                         mPlayer.sendComplete();
+
                         return;
                     }
-
                 }
 
                 showProgressBar();
                 isSkipped = false;
-                if (null != findViewById(SKIP_TEXT_ID)) {
+                if (null != mRootLayout.findViewById(SKIP_TEXT_ID)) {
                     isSkippShown = false;
                 }
-                mRootLayout.removeView(findViewById(COUNTDOWN_VIEW_ID));
-                mRootLayout.removeView(findViewById(VOLUME_VIEW_ID));
-                mRootLayout.removeView(findViewById(SKIP_TEXT_ID));
-                setNextMediaFile();
+                mRootLayout.removeView(mRootLayout.findViewById(COUNTDOWN_VIEW_ID));
+                mRootLayout.removeView(mRootLayout.findViewById(VOLUME_VIEW_ID));
+                mRootLayout.removeView(mRootLayout.findViewById(SKIP_TEXT_ID));
+                loadNextVideoContainer();
                 mIsProcessedImpressions = false;
             }
         } catch (Exception e) {
@@ -1708,7 +2248,113 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
     }
 
-    public void startQuartileTimer(final boolean isVideo, final boolean noSkip) {
+    //对于非video的内容的定时器的处理逻辑
+    private void processHtmlContent(final boolean noSkip) {
+            int duration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration() * 1000;
+            final CountDownView countDownView = (CountDownView)mRootLayout.findViewById(COUNTDOWN_VIEW_ID);
+            //close view
+            final ImageView closeView = (ImageView)mRootLayout.findViewById(CLOSE_VIEW_ID);
+            if (null == closeView) {
+                ((Activity) mContext).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (noSkip && !isVPAID()) {
+                            hideProgressBar();
+                            reportTrackingEvent(TRACKING_EVENTS_TYPE.complete);
+                            switchPlay(true);
+                        }
+                    }
+                });
+            }
+            //超时处理
+            if (currentVideoPlayTime > duration) {
+                ((Activity) mContext).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if(!isVPAID()) {
+                            currentVideoPlayTime = 0;
+                            holdOnTime = 0;
+                            reportTrackingEvent(TRACKING_EVENTS_TYPE.complete);
+                            switchPlay(false);
+                        }
+                    }
+
+                });
+            }
+
+            if (noSkip)
+                return;
+
+            //如果内容是html格式，则需要调整大小
+            if (mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX) ){
+                if (!isScaled && null == mRootLayout.findViewById(COUNTDOWN_VIEW_ID)) {
+                    int w = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoWidth();
+                    int h = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoHeight();
+                    if (w == 0 || h == 0) {
+                        desiredWidth = screenWidth;
+                        desiredHeight = screenHeight;
+                    }
+                    isScaled = true;
+                    Message msg = new Message();
+                    msg.what = STATUS_SIZE_CHANGE_MESSAGE;
+                    msg.obj = "w=-1&h=-1";
+                    handler.sendMessage(msg);
+                }
+            }
+            //倒计时countdown的处理
+            if (null != countDownView) {
+                ((Activity) mContext).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        int duration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration() * 1000;
+                        hideProgressBar();
+                        if (null != mRootLayout.findViewById(SKIP_TEXT_ID) && !mRootLayout.findViewById(SKIP_TEXT_ID).isShown())
+                            showSkipText(((float) currentVideoPlayTime / 1000) + "");
+                        countDownView.updateContent((duration - currentVideoPlayTime) / 1000 + "");
+                        countDownView.updateProgress((int) (currentVideoPlayTime / (float) duration * 360));
+                    }
+                });
+            }
+    }
+
+    //vast icons的处理
+    private void processVastIcons() {
+        ArrayList<VASTIcon> vastIcons = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons();
+        if (null != vastIcons && vastIcons.size() > 0) {
+            for (int i = 0; i < vastIcons.size(); i++) {
+                VASTIcon vastIcon = vastIcons.get(i);
+
+                if (!TextUtils.isEmpty(vastIcon.getDuration())) {
+                    if (currentVideoPlayTime > ((Integer.valueOf(vastIcon.getDuration()) + Integer.valueOf(vastIcon.getOffset())) * 1000)) {
+                        if (null != mRootLayout.findViewById(ICONS_ID_HEADER + i) && mRootLayout.findViewById(ICONS_ID_HEADER + i).isShown()) {
+                            Message msg = new Message();
+                            msg.what = STATUS_VISIBLE_CHANGE_MESSAGE;
+                            msg.arg2 = ICONS_ID_HEADER + i;
+                            msg.arg1 = View.GONE;
+                            handler.sendMessage(msg);
+                            continue;
+                        }
+                    }
+                    if (!TextUtils.isEmpty(vastIcon.getOffset())) {
+                        if (currentVideoPlayTime > (Integer.valueOf(vastIcon.getOffset()) * 1000) &&
+                                currentVideoPlayTime < ((Integer.valueOf(vastIcon.getDuration()) + Integer.valueOf(vastIcon.getOffset())) * 1000)) {
+                            if (null != mRootLayout.findViewById(ICONS_ID_HEADER + i) && !mRootLayout.findViewById(ICONS_ID_HEADER + i).isShown()) {
+                                Message msg = new Message();
+                                msg.what = STATUS_VISIBLE_CHANGE_MESSAGE;
+                                msg.arg2 = ICONS_ID_HEADER + i;
+                                msg.arg1 = View.VISIBLE;
+                                handler.sendMessage(msg);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    //对于vast video而言，该函数用于更新倒计时图标，更新进度条，同时发送播放百分比的事件，
+    //vpaid的事件通过js回调上来不用在此处理
+    public void startVASTQuartileTimer(final boolean isVideo, final boolean noSkip) {
         try {
             if (null == mTrackingEventTimer) {
                 mTrackingEventTimer = new Timer();
@@ -1719,125 +2365,36 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     if (hasError)
                         return;
                     int duration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration() * 1000;
-                    final CountDownView countDownView = (CountDownView)findViewById(COUNTDOWN_VIEW_ID);
-                    final ImageView closeView = (ImageView)findViewById(CLOSE_VIEW_ID);
+//                    final CountDownView countDownView = (CountDownView)mRootLayout.findViewById(COUNTDOWN_VIEW_ID);
+//                    final ImageView closeView = (ImageView)mRootLayout.findViewById(CLOSE_VIEW_ID);
+
+                    //处理Quartile事件
                     if (!isHoldOn) {
                         if (0 != currentVideoPlayTime && 0 != duration) {
                             int percentage = currentVideoPlayTime * 100 / duration;
                             if (percentage >= 25 * mQuartile) {
                                 if (mQuartile == 0) {
-                                    AdViewUtils.logInfo("Video at start: (" + percentage + "%)");
-                                    processEvent(TRACKING_EVENTS_TYPE.start);
+                                    AdViewUtils.logInfo("====== AdVastView::Video at start: (" + percentage + "%) ======");
+                                    reportTrackingEvent(TRACKING_EVENTS_TYPE.start);
                                 } else if (mQuartile == 1) {
-                                    AdViewUtils.logInfo("Video at first quartile: ("
-                                            + percentage + "%)");
-                                    processEvent(TRACKING_EVENTS_TYPE.firstQuartile);
+                                    AdViewUtils.logInfo("====== AdVastView::Video at first quartile: (" + percentage + "%) ======");
+                                    reportTrackingEvent(TRACKING_EVENTS_TYPE.firstQuartile);
                                 } else if (mQuartile == 2) {
-                                    AdViewUtils.logInfo("Video at midpoint: (" + percentage
-                                            + "%)");
-                                    processEvent(TRACKING_EVENTS_TYPE.midpoint);
+                                    AdViewUtils.logInfo("====== AdVastView::Video at midpoint: (" + percentage + "%) ======");
+                                    reportTrackingEvent(TRACKING_EVENTS_TYPE.midpoint);
                                 } else if (mQuartile == 3) {
-                                    AdViewUtils.logInfo("Video at third quartile: ("
-                                            + percentage + "%)");
-                                    processEvent(TRACKING_EVENTS_TYPE.thirdQuartile);
+                                    AdViewUtils.logInfo("====== AdVastView::Video at third quartile: (" + percentage + "%) ======");
+                                    reportTrackingEvent(TRACKING_EVENTS_TYPE.thirdQuartile);
 //                        stopQuartileTimer();
                                 }
                                 mQuartile++;
                             }
                         }
                     }
-                    ArrayList<VASTIcon> vastIcons = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVastIcons();
-                    if (null != vastIcons && vastIcons.size() > 0) {
-                        for (int i = 0; i < vastIcons.size(); i++) {
-                            VASTIcon vastIcon = vastIcons.get(i);
-
-                            if (!TextUtils.isEmpty(vastIcon.getDuration())) {
-                                if (currentVideoPlayTime > ((Integer.valueOf(vastIcon.getDuration()) + Integer.valueOf(vastIcon.getOffset())) * 1000)) {
-                                    if (null != findViewById(ICONS_ID_HEADER + i) && findViewById(ICONS_ID_HEADER + i).isShown()) {
-                                        Message msg = new Message();
-                                        msg.what = STATUS_VISIBLE_CHANGE_MESSAGE;
-                                        msg.arg2 = ICONS_ID_HEADER + i;
-                                        msg.arg1 = View.GONE;
-                                        handler.sendMessage(msg);
-                                        continue;
-                                    }
-                                }
-                                if (!TextUtils.isEmpty(vastIcon.getOffset())) {
-                                    if (currentVideoPlayTime > (Integer.valueOf(vastIcon.getOffset()) * 1000) &&
-                                        currentVideoPlayTime < ((Integer.valueOf(vastIcon.getDuration()) + Integer.valueOf(vastIcon.getOffset())) * 1000)) {
-                                        if (null != findViewById(ICONS_ID_HEADER + i) && !findViewById(ICONS_ID_HEADER + i).isShown()) {
-                                            Message msg = new Message();
-                                            msg.what = STATUS_VISIBLE_CHANGE_MESSAGE;
-                                            msg.arg2 = ICONS_ID_HEADER + i;
-                                            msg.arg1 = View.VISIBLE;
-                                            handler.sendMessage(msg);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (!isVideo) {
-                        if (null == closeView) {
-                            ((Activity) mContext).runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (noSkip && !isVPAID()) {
-                                        hideProgressBar();
-                                        processEvent(TRACKING_EVENTS_TYPE.complete);
-                                        switchPlay(true);
-                                    }
-                                }
-                            });
-                        }
-                        if (currentVideoPlayTime > duration) {
-                            ((Activity) mContext).runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if(!isVPAID()) {
-                                        currentVideoPlayTime = 0;
-                                        holdOnTime = 0;
-                                        processEvent(TRACKING_EVENTS_TYPE.complete);
-                                        switchPlay(false);
-                                    }
-                                }
-
-                            });
-                        }
-                        if (noSkip)
-                            return;
-
-                        if (mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoType().
-                                matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX) ){
-                            if (!isScaled && null == findViewById(COUNTDOWN_VIEW_ID)) {
-
-                                int w = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoWidth();
-                                int h = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoHeight();
-                                if (w == 0 || h == 0) {
-                                    desiredWidth = screenWidth;
-                                    desiredHeight = screenHeight;
-                                }
-                                isScaled = true;
-                                Message msg = new Message();
-                                msg.what = STATUS_SIZE_CHANGE_MESSAGE;
-                                msg.obj = "w=-1&h=-1";
-                                handler.sendMessage(msg);
-                            }
-                        }
-                        if (null != countDownView) {
-                            ((Activity) mContext).runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    int duration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration() * 1000;
-                                    hideProgressBar();
-                                    if (null != findViewById(SKIP_TEXT_ID) && !findViewById(SKIP_TEXT_ID).isShown())
-                                        showSkipText(((float) currentVideoPlayTime / 1000) + "");
-                                    countDownView.updateContent((duration - currentVideoPlayTime) / 1000 + "");
-                                    countDownView.updateProgress((int) (currentVideoPlayTime / (float) duration * 360));
-                                }
-                            });
-                        }
-                    } else {
+                    //vast icons的处理
+                    processVastIcons();
+                    //处理非video等逻辑
+                    if (isVideo) {
                         if (isHoldOn || TextUtils.isEmpty(lastVideoPlayTime)) {
                             holdOnTime += QUARTILE_TIMER_INTERVAL;
                             if (holdOnTime > WAITTIMEOUT) {
@@ -1850,10 +2407,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         } else {
                             holdOnTime = 0;
                         }
+                    } else {
+                        //又可能返回的不是vast而是html
+                        processHtmlContent(noSkip);
+                        if (noSkip)
+                            return;
                     }
+                    //定时更新
                     currentVideoPlayTime += QUARTILE_TIMER_INTERVAL;
-
-                }
+                }//end run()
             }, 0, QUARTILE_TIMER_INTERVAL);
         } catch (Exception e) {
             e.printStackTrace();
@@ -1867,42 +2429,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             if (mTrackingEventTimer != null) {
                 mTrackingEventTimer.cancel();
                 mTrackingEventTimer = null;
-                mQuartile = 0;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void processErrorEvent() {
-        AdViewUtils.logInfo("entered processErrorEvent");
-        try {
-            List<String> errorUrls = mVastModel.get(adCount).getErrorUrl();
-            fireUrls(errorUrls, KyAdBaseView.getHK_Values(mContext, -1, -1, false, true, getVideoSnap()));
-            reportWrapperEvents(ERROR_WRAPPER_EVENT);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private void processEvent(TRACKING_EVENTS_TYPE eventName) {
-        AdViewUtils.logInfo("entered Processing Event: " + eventName);
-        try {
-            if (null != mTrackingEventMap && null != mTrackingEventMap.get(adCount)) {
-                if (adCount >= mTrackingEventMap.size()
-                        || creativeCount >= mTrackingEventMap.get(adCount).size()
-                        || null == mTrackingEventMap.get(adCount).get(creativeCount)
-                        || null == mTrackingEventMap.get(adCount).get(creativeCount).get(eventName)) {
-                    AdViewUtils.logInfo("entered Processing Event: " + eventName + " has no address,returned[" + adCount + "," + creativeCount + "]");
-                    return;
+                if (!isPaused) {
+                    mQuartile = 0; //wilder 20190829
                 }
-                List<String> urls = mTrackingEventMap.get(adCount).get(creativeCount).get(eventName);
-                //fire vast events
-                fireUrls(urls,
-                        KyAdBaseView.getHK_Values(mContext, -1, -1,eventName.equals(TRACKING_EVENTS_TYPE.complete),false, getVideoSnap()));
-                //report adview events
-                reportWrapperEvents(TRACKING_WRAPPER_EVENT, eventName);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -1919,49 +2448,11 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return bundle;
     }
 
-    private void fireUrls(List<String> urls, HashMap<String, String> map) {
-        AdViewUtils.logInfo("entered fireUrls");
-        if (urls != null) {
-            for (String url : urls) {
-                Log.i("fireUrls", "url:" + url);
-                if (null != url) {
-                    url = KyAdBaseView.replace4GDTKeys(url, map);
-                    if (null == KyAdBaseView.reqScheduler || KyAdBaseView.reqScheduler.isTerminated()) {
-                        KyAdBaseView.reqScheduler = Executors.newScheduledThreadPool(ConstantValues.REQUEST_THREADPOOLNUM);
-                    }
-                    KyAdBaseView.reqScheduler.execute(new ClientReportRunnable("", url, "GET"));
-                }
-            }
-        } else {
-            AdViewUtils.logInfo("url list is null");
-        }
-    }
-
-//    public JSONObject getClickArea(int x, int y, boolean isRelative) {
-//        if (x == -1 || y == -1)
-//            return new JSONObject();
-//        JSONObject jsonObject = new JSONObject();
-//        int width = desiredWidth;
-//        int height = desiredHeight;
-//        try {
-//            jsonObject.put("down_x", "" + (x > width ? -999 : (isRelative ? (x * 1000 / width) : x)));
-//            jsonObject.put("down_y", "" + (y > height ? -999 : (isRelative ? (y * 1000 / height) : y)));
-//            jsonObject.put("up_x", "" + (x > width ? -999 : (isRelative ? (x * 1000 / width) : x)));
-//            jsonObject.put("up_y", "" + (y > height ? -999 : (isRelative ? (y * 1000 / height) : y)));
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//            return new JSONObject();
-//        }
-//        return jsonObject;
-//    }
-
-
     private void  finishActivity() {
         AdViewUtils.logInfo("=========  AdVASTView(): finishActivity()  ======");
         if(mACVpaidCtrl != null) {
             mACVpaidCtrl.dismiss();
         }
-        //VASTPlayer.sendLocalBroadcast(mContext, VASTPlayer.ACTION_VASTDISMISS, null);
         if( mPlayer != null) {
             mPlayer.sendDismiss();
             mIsWaitingForWebView = false;
@@ -1970,61 +2461,20 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         if(!isEmbed) {
             ((Activity)mContext).finish();
         }
-        //else {
-            //view mode
+
         onCloseBtnClicked();
-        //}
     }
-
-    /*(wilder 2019) this means parse xml and build a DOM tree for xml */
-    /*
-    public AdAdapterManager video_handlerAd(Context context, AdsBean adsBean, boolean isBid, int times, AgDataBean agDataBean, Bundle bdle) {
-
-        Bundle bundle = new Bundle();
-        this.adsBean = adsBean;
-        this.passBundle = bdle;
-
-        if( bdle != null) {
-            this.autoCloseAble = bdle.getBoolean("closeable");
-            this.videoOrientation = bdle.getInt("vastOrientation");
-            this.trafficWarnEnable = bdle.getBoolean("trafficWarnEnable");
-            this.bgColor = bdle.getString("bgColor");
-        }
-
-//        if (isBid) {
-//            bundle.putString("aggsrc", "9999");
-//            bundle.putSerializable("adsBean", adsBean);
-//            bundle.putBoolean("isPaster", false);
-//        } else {
-//            bundle.putString("aggsrc", agDataBean.getAggsrc());
-//            bundle.putString("appId", agDataBean.getResAppId());
-//            bundle.putString("posId", agDataBean.getResPosId());
-//        }
-
-        bundle.putBoolean("closeable", autoCloseAble);
-        bundle.putInt("vastOrientation", videoOrientation);
-        bundle.putBoolean("trafficWarnEnable", trafficWarnEnable);
-        bundle.putString("bgColor", bgColor.equals("#undefine") ? "#000000" : bgColor);
-
-        adVideoAdapterManager = AdAdapterManager.initAd(context, ConstantValues.VIDEOTYPE, bundle.getString("aggsrc"));
-        adVideoAdapterManager.setVideoCallback(this);
-        adVideoAdapterManager.handleAd(context, bundle);
-        if (!isBid) {
-            adVideoAdapterManager.setTimeoutListener(times, agDataBean);
-        }
-
-        return adVideoAdapterManager;
-    }
-*/
 
     private void showProgressBar() {
-//        isTouchable = false;
         if (null != mProgressBar && !mProgressBar.isShown())
             mProgressBar.setVisibility(View.VISIBLE);
+
+        //omsdk v1.2,可用来测试obstructions
+        AddOMObstructions(mProgressBar);
+
     }
 
     private void hideProgressBar() {
-//        isTouchable = true;
         if (null != mProgressBar && mProgressBar.isShown())
             mProgressBar.setVisibility(View.GONE);
     }
@@ -2032,13 +2482,17 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     private final static int COMPANION_TYPE = 1;
     private final static int ICON_TYPE = 2;
     private final static int WRAPPER_TYPE = 10;
+    private final static int FINALPAGE_TYPE = 8; //wilder 2019
     private final static int ICONS_ID_HEADER = 610001;
     private final static int COMPANIONS_ID_HEADER = 710001;
     private final static int X = 1;
     private final static int Y = 2;
 
+    /*生成behaved view ,含 companions ,icons 等*/
     private void createBehavedView(ArrayList list, int type, int count) {
-
+        //仅在设定enable时才显示
+        if (!AdViewUtils.useVastBehavedView)
+            return;
         for (int i = 0; i < list.size(); i++) {
             int tag = i;
             String url = "";
@@ -2061,6 +2515,8 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         allBehavedCounts -= 1;  //reduce all counts, for layout pos
                         continue;
                     }
+                    //判断companions的尺寸来决定是否把它作为finalpage
+                    //companionToFinalPage(vastCompanionAd);
                     object = vastCompanionAd;
                     break;
                 case WRAPPER_TYPE + ICON_TYPE:
@@ -2087,13 +2543,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                     break;
             }
 
-            if (null != findViewById(viewId)) {
+            if (null != mRootLayout.findViewById(viewId)) {
                 //mRootLayout.removeView(findViewById(viewId));
                 //(wilder 2019) already created
                 break;
             }
 
-            CustomWebview behavedWebview = new CustomWebview(mContext);
+
+            //扩展的behaved view
+            CustomWebview behavedWebview = new CustomWebview(mContext , false);
             behavedWebview.setTouchEventEnable(true);
             behavedWebview.setId(viewId);
             behavedWebview.setCustomClickInterface(this);
@@ -2101,23 +2559,27 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             behavedWebview.setType(type);
             behavedWebview.setBackgroundColor(Color.TRANSPARENT); //wilder 2019
             behavedWebview.setWebViewClient(new VideoWebClient());
-
-            FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(behavedWidth, behavedHeight);
+            //注意布局
+            LayoutParams layoutParams = new LayoutParams(behavedWidth, behavedHeight);
             layoutParams.leftMargin = convertBehavedXPostion(beHavedNum, allBehavedCounts); //convertBehavedPostion(xOffset + "", +behaveWidth, 1);
             layoutParams.topMargin = convertBehavedYPostion(beHavedNum);//convertBehavedPostion(yOffest + "", +behaveHeight, 2);
-
-            getResourceValue(object, behavedWebview);
+            behavedWebview.setLayoutParams(layoutParams);
+            //加载companion或icon的内容，一般是一个链接
+            loadBehavedResource(object, behavedWebview);
 
             if (!isVisible) {
                 behavedWebview.setVisibility(View.INVISIBLE);
             }
 
-            mRootLayout.addView(behavedWebview, layoutParams); //wilder 2019 changed
+            mRootLayout.addView(behavedWebview); //wilder 2019 changed
             beHavedNum++;
+            //omsdk v1.2
+            AddOMObstructions(behavedWebview);
         }
     }
 
-    private void getResourceValue(Object object, WebView webView) {
+    /*加载behaved view的内容，含companions , icons等*/
+    private void loadBehavedResource(Object object, WebView webView) {
         if (null == webView || null == object)
             return;
         if (object instanceof VASTIcon) {
@@ -2125,13 +2587,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 if (!TextUtils.isEmpty(((VASTIcon) object).getValueType())) {
                     if (((VASTIcon) object).getValueType().contains("javascript")) {
                         //webView.loadData("<script>" + ((VASTIcon) object).getStaticValue() + "</script>", "text/html", "utf-8");
-                        KyAdBaseView.loadWebScript(webView, "<script>" + ((VASTIcon) object).getStaticValue() + "</script>");
+                        AdViewUtils.loadWebContentExt(webView, "<script>" + ((VASTIcon) object).getStaticValue() + "</script>");
                     }
                     else {
-                        KyAdBaseView.loadWebContentURL(webView, ((VASTIcon) object).getStaticValue(), "");
+                        AdViewUtils.loadWebImageURL(webView, ((VASTIcon) object).getStaticValue(), "");
                     }
                 } else {
-                    KyAdBaseView.loadWebContentURL(webView, ((VASTIcon) object).getStaticValue(), "");
+                    AdViewUtils.loadWebImageURL(webView, ((VASTIcon) object).getStaticValue(), "");
                 }
 
             } else if (!TextUtils.isEmpty(((VASTIcon) object).getHtmlValue())) {
@@ -2155,13 +2617,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 //static resource
                 if (!TextUtils.isEmpty(((VASTCompanionAd) object).getValueType())) {
                     if (((VASTCompanionAd) object).getValueType().contains("javascript")) {
-                        KyAdBaseView.loadWebScript(webView, "<script>" + ((VASTCompanionAd) object).getStaticValue()  + "</script>");
+                        AdViewUtils.loadWebContentExt(webView, "<script>" + ((VASTCompanionAd) object).getStaticValue()  + "</script>");
                     }
                     else {
-                        KyAdBaseView.loadWebContentURL(webView, ((VASTCompanionAd) object).getStaticValue(), "");
+                        AdViewUtils.loadWebImageURL(webView, ((VASTCompanionAd) object).getStaticValue(), "");
                     }
                 } else {
-                    KyAdBaseView.loadWebContentURL(webView, ((VASTCompanionAd) object).getStaticValue(), "");
+                    AdViewUtils.loadWebImageURL(webView, ((VASTCompanionAd) object).getStaticValue(), "");
                 }
 
             } else if (!TextUtils.isEmpty(((VASTCompanionAd) object).getHtmlValue())) {
@@ -2192,11 +2654,25 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             View tempView = findViewById(ICONS_ID_HEADER + i);
             if (null == tempView)
                 continue;
-            Log.i("removeIcons", "removeIcons");
+            //Log.i("removeIcons", "removeIcons");
             mRootLayout.removeView(tempView);
         }
         beHavedNum = 0;
         allBehavedCounts = 0;
+    }
+
+    private void createPreUI() {
+        createActionView(PLAYER_VIEW_ID, CENTER_POSITION, true);
+        createActionView(CLOSE_VIEW_ID, RT_POSITION, true);
+        if (isEmbed) {
+            createActionView(FULLSCREEN_VIEW_ID, FULLSCREEN_POSITION, true);
+        }
+    }
+    private void removePreUI() {
+        //正式播放视频时候，移除action UI
+        mRootLayout.removeView(mRootLayout.findViewById(PLAYER_VIEW_ID));
+        mRootLayout.removeView(mRootLayout.findViewById(CLOSE_VIEW_ID));
+        //mRootLayout.removeView(mRootLayout.findViewById(FIRST_FRAME_VIEW_ID));
     }
 
     private void removeCompanions() {
@@ -2205,12 +2681,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             View tempView = findViewById(COMPANIONS_ID_HEADER + i);
             if (null == tempView)
                 continue;
-            Log.i("removeCompanions", "removeCompanions");
+            //Log.i("removeCompanions", "removeCompanions");
             mRootLayout.removeView(tempView);
         }
         beHavedNum = 0;
         allBehavedCounts = 0;
     }
+
 
     private int convertBehavedXPostion(int num, int allNum) {
         int x_offset = 5; //every item view's caps
@@ -2259,11 +2736,8 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         return super.onKeyDown(keyCode, event);
     }
 
-    private boolean isReady = false;
-    private boolean isPlaying, isProcessing;
-
-    public void playVideo(Context context) {
-        AdViewUtils.logInfo("isReady=" + isReady + ";isProcessing=" + isProcessing);
+    public void prepareLoadVideo(Context context) {
+        AdViewUtils.logInfo("============= AdVastView::PlayVideo() : isReady=" + isReady + ";isProcessing=" + isProcessing + "===============");
         if (isPlaying) {
             AdViewUtils.logInfo("video is playing");
             return;
@@ -2278,80 +2752,52 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 //        isPlaying = true;
     }
 
-    //real start play video or contents
-    public void startVastShow() {
-        if (adVideoAdapterManager != null) {
-            //VASTPlayer mPlayer = ((AdBIDVideoAdapter) adVideoAdapterManager).getVastPlayer();
-            this.startVastShow(mPlayer);
-        }
-    }
-
     ///////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////VPAID  by wilder 2019/////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    private void getVPAIDad(){
-        //String vpaidjs = test_loadVPAIDXML("assets/vpaid-js.js");
-        //injectJavaScript("mraid.fireReadyEvent();");
-        //String getvpaidJS = "getVPAIDAd()";
-        //callJS({'AdParameters':'{"videos":[{"url":"http://techslides.com/demos/sample-videos/small.mp4","mimetype":"video/mp4"}],"overlay":"http://ryanthompson591.github.io/vpaidExamples/img/ClickMe.jpg"}'});
-        String getvpaidJS = "callJS(" + "{'AdParameters':'" + mAdParams + "'}" + ")";
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            //String url = "javascript:" + methodName + "(" + jsonParams + ");
-            //contentWebView.loadDataWithBaseURL(null, "<html></html>", "text/html", "UTF-8", null);
-            contentWebView.evaluateJavascript(getvpaidJS, new ValueCallback<String>() {
-                @Override
-                public void onReceiveValue(String value) {
-
-                    Object o = value;
-                    //Class c = value.getClass();
-                    //String na = c.getName();
-
-                    Log.i(AdViewUtils.ADVIEW, value.getClass().getName());
-                }
-            });
-        } else {
-            contentWebView.loadUrl("javascript:" + getvpaidJS);
-        }
-    }
-
     @Override
     public void vpaid_onPrepared(){
         //got vpaidAdLoaded
         AdViewUtils.logInfo("++++AdVASTView: onPrepare() ++++++");
         if(mACVpaidCtrl != null) {
             //(wilder 2019) remember :
-            //UI action
-            // can not
-            // be in callback with JS
+            //ui动作不在js里面处理
             int w = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoWidth();
             int h = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoHeight();
             if (w == 0 || h == 0) {
                 desiredWidth = screenWidth;
                 desiredHeight = screenHeight;
             }
-
-            Message msg = new Message();
-            msg.what = STATUS_VPAID_ADSTART_VIEW;
-            msg.obj = "w=-1&h=-1";
-            handler.sendMessage(msg);
-
-            //hideProgressBar();
             //mACVpaidCtrl.setVolume(50);  //set volume normal
-            mACVpaidCtrl.playAd();
+            if (AdViewUtils.videoAutoPlay) {
+                Message msg = new Message();
+                msg.what = STATUS_VPAID_ADSTART_VIEW;
+                msg.obj = "w=-1&h=-1";
+                handler.sendMessage(msg);
+
+                mACVpaidCtrl.playAd();
+            }
         }
     }
 
     @Override
     public void vpaid_openUrl(@Nullable String url){
+
         if(!TextUtils.isEmpty(url)) {
             //if has url ,it should be opened in landing page
-            infoClicked(url,
-                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(), 0, 0);
+            reportClickEvents(
+                    url,
+                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
+                    0, 0);
         }else {
             //fire clickthrough Event or clickTracking events
-            infoClicked(mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough(),
-                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(), 0, 0);
+            String urlThr = mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickThrough();
+            if (!TextUtils.isEmpty(urlThr)) {
+                reportClickEvents(
+                        urlThr,
+                        mVastModel.get(adCount).getCreativeList().get(creativeCount).getVideoClicks().getClickTracking(),
+                        0, 0);
+            }
         }
     }
 
@@ -2388,42 +2834,44 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     @Override
     public void vpaid_fireEvent(String type, String value){
-        AdViewUtils.logInfo( "+++++ AdVASTView:fireEvent():type = " + type + ",value = " + value + "+++++");
-
+        if (!isPaused) {
+            AdViewUtils.logInfo("+++++++++++[VPAID]+ AdVASTView:Vpaid_fireEvent():type = " + type + ",value = " + value + "+++++++++++");
+        }
         if (type.equalsIgnoreCase(EventConstants.START)) {
-            processEvent(TRACKING_EVENTS_TYPE.start);
-
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.start);
+            //omsdk v1.2 send impression
+            //sendOMImpression();
         }else if (type.equalsIgnoreCase(EventConstants.PROGRESS)){
-            AdViewUtils.logInfo("=== play progress : " + value + " ==== ");
-            Message msg = new Message();
-            msg.obj = value;
-            msg.what = STATUS_TIME_MESSAGE;
-            handler.sendMessage(msg);
+            //该事件定时产生，用于更新进度条等
+            if (!isPaused) {
+                AdViewUtils.logInfo("=== play progress : " + value + " ==== ");
+                Message msg = new Message();
+                msg.obj = value;
+                msg.what = STATUS_TIME_MESSAGE;
+                handler.sendMessage(msg);
+            }
 
         }else if ((type.equalsIgnoreCase(EventConstants.COMPLETE))) {
             Message msg = new Message();
             msg.obj = value;
             msg.what = STATUS_END_MESSAGE;
             handler.sendMessage(msg);
-
         }else if ((type.equalsIgnoreCase(EventConstants.CLOSE))) {
-            processEvent(TRACKING_EVENTS_TYPE.close);
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.close);
         }else if ((type.equalsIgnoreCase(EventConstants.FIRST_QUARTILE))) {
-            processEvent(TRACKING_EVENTS_TYPE.firstQuartile);
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.firstQuartile);
         }else if ((type.equalsIgnoreCase(EventConstants.MIDPOINT))){
-            processEvent(TRACKING_EVENTS_TYPE.midpoint);
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.midpoint);
         }else if ((type.equalsIgnoreCase(EventConstants.THIRD_QUARTILE))){
-            processEvent(TRACKING_EVENTS_TYPE.thirdQuartile);
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.thirdQuartile);
         }else if ((type.equalsIgnoreCase(EventConstants.MUTE))) {
-            //processEvent(TRACKING_EVENTS_TYPE.mute);
+            //processTrackingEvent(TRACKING_EVENTS_TYPE.mute);
             handler.sendEmptyMessage(STATUS_MUTE_MESSAGE);
         }else if ((type.equalsIgnoreCase(EventConstants.UNMUTE))){
-            //processEvent(TRACKING_EVENTS_TYPE.unmute);
+            //processTrackingEvent(TRACKING_EVENTS_TYPE.unmute);
             handler.sendEmptyMessage(STATUS_UNMUTE_MESSAGE);
         }else if ((type.equalsIgnoreCase((EventConstants.SKIP)))) {
-
-            processEvent(TRACKING_EVENTS_TYPE.skip);
-
+            reportTrackingEvent(TRACKING_EVENTS_TYPE.skip);
         }else if ((type.equalsIgnoreCase((EventConstants.VOLUME)))) {
             //js set volume callback
             AdViewUtils.logInfo("===== onGetVolume() : " + value + " ===== ");
@@ -2431,28 +2879,275 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             msg.obj = value;
             msg.what = STATUS_VPAID_VOLUME_STATUS;
             handler.sendMessage(msg);
-
         }else if ((type.equalsIgnoreCase((EventConstants.ERROR)))) {
             if (handler != null) {
                 handler.sendEmptyMessage(STATUS_ERROR_MESSAGE);
             }
         }else if ((type.equalsIgnoreCase((EventConstants.SELF_CLOSE)))) {
             finishActivity();
-        }else {
+        }else if ((type.equalsIgnoreCase((EventConstants.CLICK_THR))))  {
+            //callNative("click?x="+x+"&y="+y);
+            Message msg = new Message();
+            msg.what = STATUS_CLICK_MESSAGE;
+            msg.obj = "x=1&y=1";
+            ((CustomWebview) contentWebView).setClicked(false);
+            handler.sendMessage(msg);
+        } else if ((type.equalsIgnoreCase(EventConstants.PAUSE))) {
+            AdViewUtils.logInfo("===== [VPAID] got Paused()  ===== ");
 
+        }else if ((type.equalsIgnoreCase(EventConstants.RESUME))) {
+            AdViewUtils.logInfo("===== [VPAID] got Resumed()  ===== ");
+        }else if ((type.equalsIgnoreCase(EventConstants.MINIMIZE))) {
+            AdViewUtils.logInfo("===== [VPAID] got Minimize event  ===== ");
 
+            sendOMPlaybackMessage(TRACKING_EVENTS_TYPE.minimize);
+        }else if ((type.equalsIgnoreCase(EventConstants.EXPANDED_CHANGE))) {
+            AdViewUtils.logInfo("===== [VPAID] got Expanded changed event  ===== ");
+
+            sendOMPlaybackMessage(TRACKING_EVENTS_TYPE.expand);
+        }
+        else{
+            AdViewUtils.logInfo("===== vpaid_fireEvent(): other events, type: " + type + " ===== ");
         }
 
     }
     ///end wilder for VPAID ///////////////////////////////////////////////
 
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////end wilder 2019 for MREC ////////////////////////////////////////////////
+
+    public void processVastVideo(Context context, Bundle bundle) {
+        adsBean = (AdsBean) bundle.getSerializable("adsBean");
+        try {
+            String vast = null;
+            try {
+                //kvVideoListener = (AdAdapterManager) bundle.getSerializable("interface"); //wilder 2019
+                if (adsBean.getXmlType() == 2) {
+//                    1=> VAST XML
+//                    2=>元素组合
+                    if (bundle.getString("bgColor").equals("#undefine") && !TextUtils.isEmpty(adsBean.getAdBgColor()))
+                        bundle.putString("bgColor", adsBean.getAdBgColor());
+                    if (adsBean.getVideoBean().isValidBean()) {
+                        vast = AdViewUtils.generalMixedVast(adsBean);
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            if (TextUtils.isEmpty(vast)) {
+                vast = adsBean.getVastXml();
+            }
+
+            if (!TextUtils.isEmpty(vast)) {
+                parseVastXml(context, bundle, vast);
+            } else {
+                onAdFailed(null, "EMPTY BODY", true);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void parseVastXml(Context context, Bundle bundle, String vastStr) {
+        Bundle extra = new Bundle();
+        extra.putInt("cacheTime", 30);//fix
+        extra.putInt("vastOrientation", bundle.getInt("vastOrientation"));
+        extra.putString("bgColor", bundle.getString("bgColor"));
+        extra.putBoolean("closeable", bundle.getBoolean(""));
+        //create vastplayer
+        mPlayer = new VASTPlayer(context, extra , (VASTPlayerListener)adVideoAdapterManager);
+        mPlayer.loadVideoWithData(vastStr);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////// 各种上报事件 /////////////////////////////////////////////////////////
+    //所有汇报在此汇集 ====》
+    private void reportWrapperEvents(int wrapperEvent, TRACKING_EVENTS_TYPE event, int x, int y) {
+        if (wrapperModel == null || wrapperModel.size() == 0)
+            return;
+        switch (wrapperEvent) {
+            case CLICKTRACKING_WRAPPER_EVENT:
+                for (int i = 0; i < wrapperModel.size(); i++) {
+                    ArrayList<VASTCreative> creativeList = wrapperModel.get(i).getCreativeList();
+                    for (int j = 0; j < creativeList.size(); j++) {
+                        VideoClicks videoClicks = creativeList.get(j).getVideoClicks();
+                        KyAdBaseView.vast_reportUrls(videoClicks.getClickTracking(),
+                                KyAdBaseView.getHK_Values(mContext, x, y, false, false, getVideoSnap()));
+                    }
+                }
+                break;
+            case ERROR_WRAPPER_EVENT:
+                for (int i = 0; i < wrapperModel.size(); i++) {
+                    KyAdBaseView.vast_reportUrls(wrapperModel.get(i).getErrorUrl(),
+                            KyAdBaseView.getHK_Values(mContext, -1, -1, false, true, getVideoSnap()));
+                }
+                break;
+            case IMPRESSION_WRAPPER_EVENT:
+                for (int i = 0; i < wrapperModel.size(); i++) {
+                    KyAdBaseView.vast_reportUrls(wrapperModel.get(i).getImpressions(),
+                            KyAdBaseView.getHK_Values(mContext, -1, -1, false, false, getVideoSnap()));
+                }
+                break;
+            case TRACKING_WRAPPER_EVENT:
+                for (int i = 0; i < wrapperModel.size(); i++) {
+                    ArrayList<VASTCreative> creativeList = wrapperModel.get(i).getCreativeList();
+                    for (int j = 0; j < creativeList.size(); j++) {
+                        HashMap<TRACKING_EVENTS_TYPE, List<String>> trackings = creativeList.get(j).getTrackings();
+                        if (null != trackings && null != trackings.get(event))
+                            KyAdBaseView.vast_reportUrls(trackings.get(event),
+                                    KyAdBaseView.getHK_Values(mContext, -1, -1,
+                                            event.equals(TRACKING_EVENTS_TYPE.complete), false, getVideoSnap()));
+                    }
+                }
+                break;
+        }
+    }
+
+    private void reportImpressions() {
+        AdViewUtils.logInfo("========= AdVastView::reportImpressions() =======");
+        try {
+            if (!mIsProcessedImpressions) {
+                mIsProcessedImpressions = true;
+                List<String> impressions = mVastModel.get(adCount).getImpressions();
+                KyAdBaseView.vast_reportUrls(impressions, KyAdBaseView.getHK_Values(mContext, -1, -1, false, false, getVideoSnap()));
+                reportWrapperEvents(IMPRESSION_WRAPPER_EVENT, null, -1, -1);
+                //omsdk v1.2, (1)for vast: impression will be sent by js side, see onloadedmetadata() in js sendOMImpression();
+                // (2)for vpaid: impression will be send in start event, cause onloadedmeta will not be used
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    //汇报点击click事件
+    private void reportClickEvents(String jumpUrl, List<String> urls, int x, int y) {
+        AdViewUtils.logInfo("======== AdVastView::reportClickEvents() =========" );
+        try {
+            //(1)先给adive及app发送点击事件
+            mPlayer.sendClick();
+            //(2)发送点击事件给vast内容中的相关dsp,这些url来自vast内容
+            KyAdBaseView.vast_reportUrls(urls, KyAdBaseView.getHK_Values(mContext, x, y, false, false, getVideoSnap()));
+            reportWrapperEvents(CLICKTRACKING_WRAPPER_EVENT, null, x, y);
+            // Navigate to the click through url, 打开落地页
+//            Intent i = new Intent();
+//            i.putExtra("adview_url", jumpUrl);
+//            i.putExtra("isVideo", true);
+//            i.setClass(mContext, AdViewLandingPage.class);
+//            ((Activity)mContext).startActivity(i);
+            //(3)这里打开落地页
+            AdViewUtils.openLandingPage(mContext, jumpUrl, true);
+            //(4)omsdk v1.2 must send click event
+            if (jumpUrl.contains("http://")||jumpUrl.contains("https://")) {
+                reportOMSDKEvents(TRACKING_EVENTS_TYPE.click);
+            }else {
+                reportOMSDKEvents(TRACKING_EVENTS_TYPE.invitationAccept);
+            }
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void reportErrorEvent() {
+        AdViewUtils.logInfo(" ======= AdVastView::reportErrorEvent ()  ======");
+        try {
+            List<String> errorUrls = mVastModel.get(adCount).getErrorUrl();
+            KyAdBaseView.vast_reportUrls(errorUrls, KyAdBaseView.getHK_Values(mContext, -1, -1, false, true, getVideoSnap()));
+            reportWrapperEvents(ERROR_WRAPPER_EVENT, null, -1, -1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void reportTrackingEvent(TRACKING_EVENTS_TYPE eventName) {
+        AdViewUtils.logInfo("========AdVastView::reportTrackingEvent(): " + eventName + "==========");
+        if (eventName == TRACKING_EVENTS_TYPE.start) {
+            reportImpressions(); //这里发送展示汇报
+            //omsdk v1.2 send impression
+            sendOMImpression();
+        }
+        try {
+            if (null != mTrackingEventMap && null != mTrackingEventMap.get(adCount)) {
+                if (adCount >= mTrackingEventMap.size()
+                        || creativeCount >= mTrackingEventMap.get(adCount).size()
+                        || null == mTrackingEventMap.get(adCount).get(creativeCount)
+                        || null == mTrackingEventMap.get(adCount).get(creativeCount).get(eventName)) {
+                    AdViewUtils.logInfo(" reportTrackingEvent(): " + eventName + " has no address,returned[" + adCount + "," + creativeCount + "]");
+                    //omsdk v1.2
+                    sendOMPlaybackMessage(eventName);
+                    return;
+                }
+                List<String> urls = mTrackingEventMap.get(adCount).get(creativeCount).get(eventName);
+                //fire vast events
+                KyAdBaseView.vast_reportUrls(urls,
+                        KyAdBaseView.getHK_Values(mContext, -1, -1,eventName.equals(TRACKING_EVENTS_TYPE.complete),false, getVideoSnap()));
+                //report adview events
+                reportWrapperEvents(TRACKING_WRAPPER_EVENT, eventName, -1, -1);
+                sendOMPlaybackMessage(eventName);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    //omsdk v1.2 report
+    private void reportOMSDKEvents(TRACKING_EVENTS_TYPE eventName) {
+        AdViewUtils.logInfo("= ******* ====AdVastView::reportOMSDKEvents():" + eventName + "======******");
+        if (!isOMSDKSupport)
+            return;
+        if (eventName == TRACKING_EVENTS_TYPE.start) {
+            AdViewUtils.logInfo("========AdVastView::reportOMSDKEvents(): start ,isOMloaded : " + isOMLoaded + "==============");
+            if (isOMLoaded) {
+                contentWebView.loadUrl("javascript:signalPlaybackEvent('start')");
+                if (isEmbed) {
+                    contentWebView.loadUrl("javascript:signalStateChange('normal')");
+                } else {
+                    contentWebView.loadUrl("javascript:signalStateChange('fullscreen')");
+                }
+            }else {
+                AdViewUtils.logInfo("========AdVastView::reportOMSDKEvents(): " + eventName + " failed, wait omloaded ==========");
+            }
+        }else if (eventName == TRACKING_EVENTS_TYPE.click) {
+            //omsdk click report
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('click')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.invitationAccept) {
+            //omsdk click report
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('invitationAccept')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.firstQuartile) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('firstQuartile')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.midpoint) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('midpoint')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.thirdQuartile) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('thirdQuartile')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.complete) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('complete')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.pause) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('pause')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.resume) {
+            contentWebView.loadUrl("javascript:signalPlaybackEvent('resume')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.skip) {
+            contentWebView.loadUrl("javascript:signalSkipVideo()");
+        }else if (eventName == TRACKING_EVENTS_TYPE.fullscreen) {
+            /*
+            VideoPlayerState:{MINIMIZED:"minimized", COLLAPSED:"collapsed", NORMAL:"normal", EXPANDED:"expanded", FULLSCREEN:"fullscreen"}
+             */
+            contentWebView.loadUrl("javascript:signalStateChange('fullscreen')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.minimize) {
+            contentWebView.loadUrl("javascript:signalStateChange('minimize')");
+        }else if (eventName == TRACKING_EVENTS_TYPE.expand) {
+            contentWebView.loadUrl("javascript:signalStateChange('expanded')");
+        }
+    }
+    //////////////////////////////////////上报事件处理 end ///////////////////////////////////////////
+
     ///////////////////////////////////////////////////////////////////////////////////////////////
-    //--------------------------------------------------------------------------------------------
-    //-------------------------------------- KyVideoListener --callbed by video adapter-----------
-    //--------------------------------------------------------------------------------------------
+    //        (create)     AdVastView --> new VastPlayer
+    //        AdvastView ( KyVideoListener) <--  video adapter <-- VastPlayer (event)
     //////////////////////////////////////////////////////////////////////////////////////////////
     @Override
     public void onVideoClicked(AgDataBean agDataBean) {
+        AdViewUtils.logInfo("==== AdVastView::onVideoClicked()  ==== ");
         try {
             if (null != agDataBean && null != agDataBean.getCliUrls())
                 KyAdBaseView.reportOtherUrls(agDataBean.getCliUrls());
@@ -2460,13 +3155,12 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             e.printStackTrace();
         }
     }
-
     @Override
     public void onVideoPlayFinished(AgDataBean agDataBean) {
         isPlaying = false;
         isProcessing = false;
-
         hideProgressBar();
+        AdViewUtils.logInfo("===AdVASTView== onVideoPlayFinished()  ===== ");
         try {
             if (null != adAppInterface) {
                 adAppInterface.onVideoFinished();
@@ -2475,10 +3169,10 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             e.printStackTrace();
         }
     }
-
     @Override
     public void onVideoPlayStarted(AgDataBean agDataBean) {
         isPlaying = true;
+        AdViewUtils.logInfo("===AdVASTView== onVideoPlayStarted()  ===== ");
         try {
             if (null != agDataBean && null != agDataBean.getImpUrls())
                 KyAdBaseView.reportOtherUrls(agDataBean.getImpUrls());
@@ -2489,7 +3183,6 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             e.printStackTrace();
         }
     }
-
     @Override
     public void onVideoReceived(String vast) {
         AdViewUtils.logInfo("===AdVASTView== onVideoReceived()  ===== ");
@@ -2507,30 +3200,88 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     @Override
     public void onVideoPlayReady (Bundle bundle) {
         //wilder 2019 , start vast ad play
-        startVastShow();
-    }
+        if (adVideoAdapterManager == null)
+            return;
 
-    //------------------------- end for KyVideoListener -----------------------
-    /////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////////////
-    //------------------ KyBaseListener  -----------------------------------------
-    //
+        if(mPlayer == null) {
+            return;
+        }
+        //this.mPlayer = player;
+        this.mVastModel = mPlayer.getVastModel();
+        this.wrapperModel = mPlayer.getWrapperModel();
+
+        //更新各种extension 和companion,click等各种vast所需要的数据结构
+        if (null != mVastModel && !mVastModel.isEmpty()) {
+            extensionBeanList = new ArrayList<ExtensionBean>();
+            for (int i = 0; i < mVastModel.size(); i++) {
+                ArrayList<VideoClicks> tempVideoClicks = new ArrayList<VideoClicks>();
+                ArrayList<ArrayList<VASTIcon>> tempIconAdsList = new ArrayList<ArrayList<VASTIcon>>();
+                ArrayList<HashMap<TRACKING_EVENTS_TYPE, List<String>>> tempmTrackingEventMap = new ArrayList<HashMap<TRACKING_EVENTS_TYPE, List<String>>>();
+
+                for (int j = 0; j < mVastModel.get(i).getCreativeList().size(); j++) {
+                    tempIconAdsList.add(mVastModel.get(i).getCreativeList().get(j).getVastIcons());
+                    tempmTrackingEventMap.add(mVastModel.get(i).getCreativeList().get(j).getTrackings());
+                    tempVideoClicks.add(mVastModel.get(i).getCreativeList().get(j).getVideoClicks());
+                }
+                //extensions & companions
+                extensionBeanList.add(mVastModel.get(i).getExtensionBean());
+                companionAdsList.add(mVastModel.get(i).getCompanionAdList());//adcount
+                //widler 2019 for companion
+                /*
+                for (int j = 0; j < mVastModel.get(i).getCreativeList().size(); j++) {
+                    //extensionBeanList.add(mVastModel.get(i).getCreativeList().get(j).get);
+                    companionAdsList.add(mVastModel.get(i).getCreativeList().get(j).getVastCompanionAds());
+                }
+                */
+                //end wilder
+                if (null != tempIconAdsList) {
+                    iconAdsList.add(tempIconAdsList);
+                }
+                if (null != tempmTrackingEventMap) {
+                    mTrackingEventMap.add(tempmTrackingEventMap);
+                }
+                if (null != tempVideoClicks) {
+                    videoClicks.add(tempVideoClicks);
+                }
+            }
+
+            initVPAID();  //wilder 2019, VPAID interface should be outside each creative, so it can handle all of events
+//            //wilder 20191101 ,添加第一帧
+            if (useFirstFrameCache && !AdViewUtils.videoAutoPlay) {
+                Message message = new Message();
+                message.what = STATUS_GET_FIRST_FRAME;
+                handler.sendMessage(message);
+            }else {
+                //加载video的container
+                loadNextVideoContainer();
+            }
+            //reportImpressions(); 20190830改为在start事件中发送展示汇报
+        } else {
+            AdViewUtils.logInfo("数据格式异常");
+            finishActivity();
+        }
+    }
     ////////////////////////////////////////////////////////////////////////////
+    //------------------ KyBaseListener  ------------------------------------
+    ////////////////////////////////////////////////////////////////////////////
+    /*this will be called*/
     @Override
     public void onReady(AgDataBean agDataBean, boolean force) {
         isProcessing = false;
         isReady = true;
-        AdViewUtils.logInfo("isReady=" + isReady + ";isProcessing=" + isProcessing);
-
         //notify caller view , banner or video activity
         if (null != adAppInterface) {
             adAppInterface.onVideoReady();
         }
-
         //wilder 2019 play it directly, maybe should play by user?
-        if (AdViewUtils.VideoAutoPlay) {
+        if (AdViewUtils.videoAutoPlay) {
             Message message = new Message();
-            message.what = STATUS_PLAY_VIDEO_MESSAGE;
+            message.what = STATUS_PREPARE_LOAD_VIDEO_MESSAGE;
+            handler.sendMessage(message);
+        }else {
+            //if not auto play, should hide progress and support click play
+            Message message = new Message();
+            message.what = STATUS_PREPARE_LOAD_VIDEO_MESSAGE;
             handler.sendMessage(message);
         }
     }
@@ -2538,14 +3289,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     @Override
     public void onReceived(AgDataBean agDataBean, boolean force) {
         //使用onVideoReceived（String vast）
-        AdViewUtils.logInfo("AdVastView::onReceived()");
+        AdViewUtils.logInfo("======= AdVastView::onReceived() =========");
     }
 
     @Override
     public void onAdFailed(AgDataBean agDataBean, String error, boolean force) {
         try {
-            if (null != agDataBean && null != agDataBean.getFailUrls())
+            if (null != agDataBean && null != agDataBean.getFailUrls()) {
                 KyAdBaseView.reportOtherUrls(agDataBean.getFailUrls());
+            }
             int times = KyAdBaseView.getAgDataBeanPosition(adsBean, agDataBean);
             if (times != -1) {
                 //adVideoAdapterManager = handlerAd(getContext(), adsBean, false, times, agDataBean, this.passBundle);
@@ -2555,7 +3307,10 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 isReady = false;
 
                 if (null != adAppInterface) {
-                    adAppInterface.onFailedReceivedVideo( "____video load ad error____");
+                    String info = "____video load ad error____";
+                    adAppInterface.onFailedReceivedVideo( info);
+                    //omsdk v1.2 report error
+                    sendOMSDKErr(info);
                 }
             }
         } catch (Exception e) {
@@ -2565,17 +3320,20 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
         //if still no float UI, should show it ,then user can close it
         hideProgressBar();
-        createActionView(REPLAY_VIEW_ID, LT_POSITION, true);  //wilder 2019 for view
-        createActionView(CLOSE_VIEW_ID, RT_POSITION, true);    //wilder 2019 for view
+
+        createFinishView(false);
+        //omsdk v1.2 report error
+        sendOMSDKErr(error);
     }
 
     @Override
     public void onDisplay(AgDataBean agDataBean, boolean force) {
+        AdViewUtils.logInfo("======= AdVastView::onDisplay() =========");
         if (null != adAppInterface) {
             adAppInterface.onVideoStartPlayed();
         }
     }
-
+    /*this will be called */
     @Override
     public void onCloseBtnClicked() {
         isPlaying = false;
@@ -2611,187 +3369,168 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
     }
     //------------------------end -- KyBaseListener  ---------------
-    ////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////end wilder 2019 for MREC ////////////////////////////////////////////////
-
-    ////////////////////////////vast video part //////////////////////////////////////////////
-    private final int START_EVENT_TYPE = 1;
-    private final int MIDDLE_EVENT_TYPE = 2;
-    private final int END_EVENT_TYPE = 3;
-    private final int DURATION_TYPE = 4;
-    private final int MEDIA_FILE_TYPE = 5;
-    private final int IMPRESSION_TYPE = 6;
-    private final int CLICK_THROUGHT_TYPE = 7;
-    private final int CLICK_TRACKING_TYPE = 8;
-    private final int EXTENSION_TYPE = 9;
-
-
-    private String START_EVENT_STR = "__START_EVENT__";
-    private String MIDDLE_EVENT_STR = "__MIDDLE_EVENT__";
-    private String END_EVENT_STR = "__END_EVENT__";
-    private String DURATION_STR = "__DURATION__";
-    private String MEDIA_FILE_STR = "__MEDIAFILE__";
-    private String IMPRESSION_STR = "__IMPRESSION__";
-    private String CLICK_THROUGHT_STR = "__CLICKTHROUGHT__";
-    private String CLICK_TRACKING_STR = "__CLICKTRACKING__";
-    private String EXTENSION_STR = "__EXTENSION__";
-
-
-    public void processVastVideo(Context context, Bundle bundle) {
-        AdsBean adsBean = (AdsBean) bundle.getSerializable("adsBean");
-        try {
-            String vast = null;
-            try {
-                //kvVideoListener = (AdAdapterManager) bundle.getSerializable("interface"); //wilder 2019
-                if (adsBean.getXmlType() == 2) {
-                    if (bundle.getString("bgColor").equals("#undefine") && !TextUtils.isEmpty(adsBean.getAdBgColor()))
-                        bundle.putString("bgColor", adsBean.getAdBgColor());
-                    if (adsBean.getVideoBean().isValidBean()) {
-                        vast = generalVast(adsBean);
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////    omsdk v1.2   //////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //引入omsdk后,vast流程如下:
+    //(1)xxx_video_js.html页面加载是触发initOMSDK()(js函数）,
+    //(2)initOMSDK()中调用native: ominited ->STATUS_OMSDK_INITED 事件
+    //(3) STATUS_OMSDK_INITED -> getOMParametersFromJS()从vast的extension中取得omsdk的3个参数，
+    //(4)调用js函数setOMParameters()将参数传入js,同时传入是否自动播放参数
+    //(5)在js中启动startOMSession()，如果自动播放参数是true则立刻在js播放，否则回头由player按键触发
+    private void getOMParametersFromJS() {
+        String vendor = ""; // = "iabtechlab.com-omid";
+        String para = ""; // = "iabtechlab-Cjnet";
+        String url = ""; // = "https://s3-us-west-2.amazonaws.com/omsdk-files/compliance-js/omid-validation-verification-script-v1.js";
+        String skip = "";
+        String auto = "true";
+        final ExtensionOMSDKBean omeb = mVastModel.get(adCount).getExtOMSDKBean();
+        //get skipable
+        int skipDuration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getSkipoffset();
+        if (skipDuration != -1) {
+            skip = String.valueOf(skipDuration);
+        }
+        if (null != omeb) {
+            vendor = omeb.getOmsdkVendor();
+            para = omeb.getOmsdkParameters();
+            url = omeb.getOmsdkUrl();
+            //auto = AdViewUtils.videoAutoPlay ? "true" : "false";
+            if (vendor.length() > 0 && url.length() > 0) {
+                isOMSDKSupport = true;
+                contentWebView.loadUrl("javascript:setOMParameters(\""
+                                                    + vendor    + "\",\""
+                                                    + para      + "\",\""
+                                                    + url       + "\",\""
+                                                    + skip      + "\","
+                                                    + AdViewUtils.videoAutoPlay
+                                                    + ")");
+                //start session
+                adSession = AdViewUtils.startOMAdSessionJS(contentWebView);
+                afterOMParametersFromJS();
+                return;
             }
+        }
+        //normal vast , just play
+        AdViewUtils.logInfo("===!!!! AdVastView::getOMSessionParameters() !!! not omsdk  !!!!!========");
+        //anyway nomal vast also can be play directly
+        contentWebView.loadUrl("javascript:setOMParameters(\""
+                                            + vendor    + "\",\""
+                                            + para      + "\",\""
+                                            + url       + "\",\""
+                                            + skip      + "\","
+                                            + AdViewUtils.videoAutoPlay
+                                            + ")");
+        afterOMParametersFromJS();
+    }
 
-            if (TextUtils.isEmpty(vast)) {
-                vast = adsBean.getVastXml();
-            }
-
-            if (!TextUtils.isEmpty(vast)) {
-                parseVastXml(context, bundle, vast);
+    //前一个动作：loadNextVideoContainer(), 该事件由js加载html产生，发生在加载完video和omsdk之后，正式播放视频之前,详见js
+    private void afterOMParametersFromJS() {
+        if (!isVPAID()) {
+            if (AdViewUtils.videoAutoPlay) {
+                startVASTQuartileTimer(isVideoTypeRelated(), isFinalMedia());  //wilder 20190815 move here
             } else {
-                //adVideoAdapterManager.onAdFailed("EMPTY BODY");
-                onAdFailed(null, "EMPTY BODY", true);
+                //对于自动播放模式，
+                createPreUI();
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-//    public VASTPlayer getVastPlayer() {
-//        return newPlayer;
-//    }
-
-    private void parseVastXml(Context context, Bundle bundle, String vastStr) {
-        Bundle extra = new Bundle();
-        extra.putInt("cacheTime", 30);//fix
-        extra.putInt("vastOrientation", bundle.getInt("vastOrientation"));
-        extra.putString("bgColor", bundle.getString("bgColor"));
-        extra.putBoolean("closeable", bundle.getBoolean(""));
-
-        mPlayer = new VASTPlayer(context, extra , (VASTPlayerListener)adVideoAdapterManager);
-        mPlayer.loadVideoWithData(vastStr);
-    }
-
-    private String generalVast(AdsBean adsBean) {
-        VideoBean videoBean = adsBean.getVideoBean();
-        String videoVast = Assets.getJsFromBase64(Assets.NATIVEVIDEOVAST);
-
-        videoVast = videoVast.replace(DURATION_STR, vastLinkPart(DURATION_TYPE, videoBean.getDuration() + ""));
-
-        videoVast = videoVast.replace(IMPRESSION_STR, vastEsEc(IMPRESSION_TYPE, adsBean.getExtSRpt()));
-
-        videoVast = videoVast.replace(START_EVENT_STR, vastLinkPart(START_EVENT_TYPE, adsBean.getSpTrackers()));
-        videoVast = videoVast.replace(MIDDLE_EVENT_STR, vastLinkPart(MIDDLE_EVENT_TYPE, adsBean.getMpTrackers()));
-        videoVast = videoVast.replace(END_EVENT_STR, vastLinkPart(END_EVENT_TYPE, adsBean.getCpTrackers()));
-
-        videoVast = videoVast.replace(CLICK_THROUGHT_STR, vastLinkPart(CLICK_THROUGHT_TYPE, adsBean.getAdLink()));
-        videoVast = videoVast.replace(CLICK_TRACKING_STR, vastEsEc(CLICK_TRACKING_TYPE, adsBean.getExtCRpt()));
-
-        videoVast = videoVast.replace(MEDIA_FILE_STR, vastLinkPart(MEDIA_FILE_TYPE, videoBean.getVideoUrl(), videoBean.getHeight() + "", videoBean.getWidth() + ""));
-
-
-        String[] extensionLinks = new String[7];
-        extensionLinks[0] = videoBean.getEndHtml();
-        extensionLinks[1] = videoBean.getEndImgUrl();
-        extensionLinks[2] = videoBean.getEndIconUrl();
-        extensionLinks[3] = videoBean.getEndDesc();
-        extensionLinks[4] = videoBean.getEndTitle();
-        extensionLinks[5] = videoBean.getEndButtonText();
-        extensionLinks[6] = videoBean.getEndButtonUrl();
-
-        videoVast = videoVast.replace(EXTENSION_STR, vastLinkPart(EXTENSION_TYPE, extensionLinks));
-
-        return videoVast;
-    }
-
-
-    private String vastEsEc(int type, HashMap<String, String[]> maps) {
-        String temp = "";
-        Iterator iterator = maps.keySet().iterator();
-        while (iterator.hasNext()) {
-            String[] links = maps.get(iterator.next());
-            temp = temp + vastLinkPart(type, links);
-        }
-        return temp;
-    }
-
-
-    private String vastLinkPart(int type, String... links) {
-        String temp = "";
-        for (String link : links) {
-            switch (type) {
-                case START_EVENT_TYPE:
-                    temp = temp + "<Tracking event=\"start\">\n" +
-                            "   <![CDATA[" + link + "]]>" +
-                            "</Tracking>";
-                    break;
-                case MIDDLE_EVENT_TYPE:
-                    temp = temp + "<Tracking event=\"midpoint\">\n" +
-                            "   <![CDATA[" + link + "]]>" +
-                            "</Tracking>";
-                    break;
-                case END_EVENT_TYPE:
-                    temp = temp + "<Tracking event=\"complete\">\n" +
-                            "   <![CDATA[" + link + "]]>" +
-                            "</Tracking>";
-                    break;
-                case IMPRESSION_TYPE:
-                    temp = temp + "<Impression>\n" +
-                            "   <![CDATA[" + link + "]]>\n" +
-                            "</Impression>";
-                    break;
-                case CLICK_THROUGHT_TYPE:
-                    temp = temp + "<ClickThrough>\n" +
-                            "   <![CDATA[" + link + "]]>\n" +
-                            " </ClickThrough>";
-                    break;
-                case CLICK_TRACKING_TYPE:
-                    temp = temp + "<ClickTracking>\n" +
-                            "   <![CDATA[" + link + "]]>\n" +
-                            "</ClickTracking>";
-                    break;
+        }else {
+            //对于vpaid模式，自动播放， vpaid 不需要startVASTQuartileTimer
+            if (AdViewUtils.videoAutoPlay) {
+                //startVASTQuartileTimer(isVideoTypeRelated(), isFinalMedia());  //wilder 20190815 move here
+            } else {
+                createPreUI();
             }
         }
-
-        switch (type) {
-            case DURATION_TYPE:
-                int duration = Integer.valueOf(links[0]);
-                int seconds = duration % 60;
-                int minutes = duration / 60;
-                int hours = minutes / 24;
-                minutes = minutes % 60;
-                temp = "<Duration>" + hours + ":" + minutes + ":" + seconds + "</Duration>";
-                break;
-            case MEDIA_FILE_TYPE:
-                temp = "<MediaFile type=\"video/mp4\" width=\"" + links[2] + "\" height=\"" + links[1] + "\">\n" +
-                        "        <![CDATA[" + links[0] + "]]>\n" +
-                        " </MediaFile>";
-                break;
-            case EXTENSION_TYPE:
-                temp = (TextUtils.isEmpty(links[0]) ? "" : ("<Ky_EndHtml><![CDATA[" + links[0] + "]]></Ky_EndHtml>\n")) +
-                        (TextUtils.isEmpty(links[1]) ? "" : "<Ky_EndImage><![CDATA[" + links[1] + "]]></Ky_EndImage>\n") +
-                        (TextUtils.isEmpty(links[2]) ? "" : "<Ky_EndIconUrl><![CDATA[" + links[2] + "]]></Ky_EndIconUrl>\n") +
-                        (TextUtils.isEmpty(links[3]) ? "" : "<Ky_EndDesc><![CDATA[" + links[3] + "]]></Ky_EndDesc>\n") +
-                        (TextUtils.isEmpty(links[4]) ? "" : "<Ky_EndTitle><![CDATA[" + links[4] + "]]></Ky_EndTitle>\n") +
-                        (TextUtils.isEmpty(links[5]) ? "" : "<Ky_EndText><![CDATA[" + links[5] + "]]></Ky_EndText>\n") +
-                        (TextUtils.isEmpty(links[6]) ? "" : "<Ky_EndLink><![CDATA[" + links[6] + "]]></Ky_EndLink>");
-                break;
-        }
-        return temp;
     }
 
-    ///////////////////////////end vast video ////////////////////////////////////////////////
+    //when omsdk loaded
+    private void setOmsdkLoaded() {
+        isOMLoaded = true;
+        if (isEmbed) {
+            contentWebView.loadUrl("javascript:setFullScreen(false)");
+        } else {
+            contentWebView.loadUrl("javascript:setFullScreen(true)");
+        }
+    }
+
+    public void sendOMImpression() {
+        //cause inject OMJS may not be completed, so must waiting
+        if (!isOMSDKSupport || !AdViewUtils.canUseOMSDK())
+            return;
+
+        Message message = new Message();
+        message.what = STATUS_OMSDK_SEND_IMPRESSION;
+        handler.sendMessage(message);
+
+//        mOMSDKTimer = new Timer();
+//        TimerTask timerTask = new TimerTask() {
+//            @Override
+//            public void run() {
+//                if (isOMLoaded && !isImpressionTrigged) {
+//                    //only can be triggered once, and webview must be called in main loop
+//                    //AdViewUtils.signalImpressionEvent(adSession);
+//                    //contentWebView.loadUrl("javascript:signalImpressionEvent()");
+//                    Message message = new Message();
+//                    message.what = STATUS_OMSDK_SEND_IMPRESSION;
+//                    handler.sendMessage(message);
+//
+//                    isImpressionTrigged = true;
+//                    mOMSDKTimer.cancel();
+//                    mOMSDKTimer = null;
+//                }else {
+//                    AdViewUtils.logInfo("************  timer up    **************");
+//                }
+//            }
+//        };
+//        mOMSDKTimer.schedule(timerTask,  1000, 800);
+    }
+
+
+    private void sendOMPlaybackMessage(TRACKING_EVENTS_TYPE eventName) {
+        //omsdk v1.2, 有关start事件，发送时有可能omsdk还未加载成功，因此建议在js端等待视频加载完毕播放时发送video.start消息
+        if (!isOMSDKSupport || !AdViewUtils.canUseOMSDK())
+            return;
+        //reportOMSDKEvents(eventName);
+        //AdViewUtils.logInfo("------------- sendOMPlaybackMessage: " + eventName + "------------");
+        Message message = new Message();
+        message.what = STATUS_OMSDK_PLAYBACK_EVENT;
+        message.obj = eventName;
+        handler.sendMessage(message);
+    }
+    ///////////////////////////end omsdk v.1.2.15 ////////////////////////////////////////////////
+
+    /** 全屏容器界面 */
+    class FullscreenHolder extends RelativeLayout {
+
+        public FullscreenHolder(Context ctx) {
+            super(ctx);
+            setBackgroundColor(ctx.getResources().getColor(android.R.color.black));
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent evt) {
+            return true;
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            super.onLayout(changed, l, t, r, b);
+            if (!changed)
+                return;
+            //RelativeLayout root = (RelativeLayout)getChildAt(0);
+            FullscreenHolder root = (FullscreenHolder)findViewById(ROOT_LAYOUT_ID);
+            if (null != root) {
+                int cnt = root.getChildCount();
+                if (cnt > 0) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateAllActionView(getWidth(), getHeight());
+                        }
+                    });
+
+                }
+            }
+        }
+    }
+
 }

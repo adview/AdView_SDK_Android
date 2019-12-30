@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.Surface;
@@ -28,10 +29,6 @@ import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.adbid.AdAdapterManager;
 import com.kuaiyou.adbid.AdInstlBIDView;
 import com.kuaiyou.interfaces.KyInstalListener;
-import com.kuaiyou.interfaces.KyViewListener;
-import com.kuaiyou.mraid.MRAIDView;
-import com.kuaiyou.mraid.interfaces.MRAIDNativeFeatureListener;
-import com.kuaiyou.mraid.interfaces.MRAIDViewListener;
 import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.obj.AgDataBean;
 import com.kuaiyou.utils.AdViewUtils;
@@ -43,7 +40,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.HashMap;
 
-public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewListener, MRAIDNativeFeatureListener, KyInstalListener {
+public class AdBIDInstlAdapter extends AdAdapterManager {
     private FixedPopupWindow fixedPopupWindow = null;
     private AlertDialog instlDialog = null;
     private int instlWidth;
@@ -51,7 +48,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
     private int currentRotation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private InstlView instlView;
 
-    private KyInstalListener kyViewListener = null;
+    private KyInstalListener kyInstlViewListener = null;
 
     private AdsBean adsBean;
     private Context context;
@@ -72,26 +69,35 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
     public void handleAd(Context context, Bundle bundle) {
 
         bitmapPath = bundle.getString("bitmapPath");
-        kyViewListener = (KyInstalListener) bundle.getSerializable("interface");
-        adsBean = kyViewListener.getAdsBean();
-        createInstlDialog(context, adsBean);
+        kyInstlViewListener = (KyInstalListener) bundle.getSerializable("interface");
+        adsBean = kyInstlViewListener.getAdsBean();
+        this.context = context;
+        createInstlView(context, adsBean);
+
     }
 
-    private void createInstlDialog(Context context, final AdsBean adsBean) {
+
+    private void createInstlView(Context context, final AdsBean adsBean) {
         try {
-            int width_tmp = 600, height_tmp = 500;
+            int width_tmp = 500, height_tmp = 600;
             if (null != instlDialog && instlDialog.isShowing())
                 return;
-            if (adsBean.getAdType() == ConstantValues.HTML) {
+            if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
                 if (null != adsBean.getXhtml()
                         && adsBean.getXhtml().length() > 0) {
-                    height_tmp = adsBean.getAdHeight();
-                    width_tmp = adsBean.getAdWidth();
+                    //double density = AdViewUtils.getDensity(context); //wilder 20191205
+                    //+20能容纳不太规范的页面
+                    height_tmp = adsBean.getAdHeight() + 20;
+                    width_tmp = adsBean.getAdWidth() + 20;
+                    //DisplayMetrics displayMetrics = context.getApplicationContext().getResources().getDisplayMetrics();
+                    //int screenSize[] = AdViewUtils.getWidthAndHeight(context, false, true);
+//                    width_tmp = displayMetrics.widthPixels;
+//                    height_tmp = displayMetrics.heightPixels;
                 }
             } else {
                 // 只获得图片尺寸
                 if ( !AdViewUtils.bitmapOnLine ) { //wilder 2019
-                    if (adsBean.getAdType() == ConstantValues.MIXED) {
+                    if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_MIXED) {
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.inJustDecodeBounds = true;
                         BitmapFactory.decodeFile(bitmapPath, opts);
@@ -103,29 +109,30 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                     width_tmp = adsBean.getAdWidth();
                 }
             }
-            HashMap<String, Integer> sizeMap = KyAdBaseView.getLayoutSize(context, adsBean,
-                    width_tmp, height_tmp);
-            instlView = new InstlView(context, sizeMap, adsBean.getAdType(), this, this);
-            instlView.setInstlViewListener(this);
+            //计算instl的宽高
+            HashMap<String, Integer> sizeMap = getLayoutSize(context, adsBean,width_tmp, height_tmp);
+            //(wilder 2019)
+            instlView = new InstlView(context, sizeMap, adsBean.getAdType());
+            instlView.setInstlViewListener(kyInstlViewListener);
             instlView.setContent(adsBean, bitmapPath);
 
-            instlWidth = sizeMap.get(ConstantValues.INSTLWIDTH);
-            instlHeight = sizeMap.get(ConstantValues.INSTLHEIGHT);
-            adsBean.setRealAdHeight(sizeMap.get(ConstantValues.INSTLHEIGHT));
-            adsBean.setRealAdWidth(sizeMap.get(ConstantValues.INSTLWIDTH));
+            instlWidth = sizeMap.get(ConstantValues.INSTL_WIDTH_KEY);
+            instlHeight = sizeMap.get(ConstantValues.INSTL_HEIGHT_KEY);
+
+            adsBean.setRealAdWidth(instlWidth);
+            adsBean.setRealAdHeight(instlHeight);
 
             final WebView webView = instlView.getWebView();
             if (null != webView) {
-                if (null != kyViewListener)
-                    kyViewListener.setClickMotion(instlView.getMraidView(), null);
+                if (null != kyInstlViewListener)
+                    kyInstlViewListener.setClickMotion(instlView.getMraidView(), null);
 //                setClickMotion(instlView.getMraidView(), adsBean, null);
             }
             switch (adsBean.getAdType()) {
-                case ConstantValues.MIXED:
+                case ConstantValues.RESP_ADTYPE_MIXED:
                     break;
-                case ConstantValues.HTML:
-                    if (null != adsBean.getXhtml()
-                            && adsBean.getXhtml().length() > 0) {
+                case ConstantValues.RESP_ADTYPE_HTML:
+                    if (null != adsBean.getXhtml() && adsBean.getXhtml().length() > 0) {
                     }
                     break;
                 default:
@@ -144,30 +151,28 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
         try {
             final Activity activity = null == ctx ? (Activity) context : ctx;
             if (null == fixedPopupWindow || !fixedPopupWindow.isShowing()) {
+                //用 popupwindow加载instlView
                 fixedPopupWindow = new FixedPopupWindow(instlView, adsBean.getRealAdWidth(), adsBean.getRealAdHeight());
+
                 fixedPopupWindow.showAtLocation((activity).getWindow().getDecorView(), Gravity.CENTER);
                 if (fixedPopupWindow.isShowing()) {
-                    if (null != kyViewListener)
-                        kyViewListener.onDisplay(null,false);
-                    currentRotation = activity
-                            .getRequestedOrientation();
+                    if (null != kyInstlViewListener)
+                        kyInstlViewListener.onDisplay(null,false);
+
+                    currentRotation = activity.getRequestedOrientation();
                     switch (activity.getWindow().getWindowManager()
                             .getDefaultDisplay().getRotation()) {
                         case Surface.ROTATION_0:
-                            activity
-                                    .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
                             break;
                         case Surface.ROTATION_90:
-                            activity
-                                    .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
                             break;
                         case Surface.ROTATION_180:
-                            activity
-                                    .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
+                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
                             break;
                         case Surface.ROTATION_270:
-                            activity
-                                    .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
                             break;
                     }
                 }
@@ -175,8 +180,8 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                     @Override
                     public void onDismiss() {
                         (activity).setRequestedOrientation(currentRotation);
-                        if (null != kyViewListener)
-                            kyViewListener.onCloseBtnClicked();
+//                        if (null != kyInstlViewListener)              wilder 20190612
+//                            kyInstlViewListener.onCloseBtnClicked();
                         try {
                             if (null != instlView) {
                                 if (null != instlView.getWebView()) {
@@ -198,25 +203,24 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if (adsBean.getAdType() == ConstantValues.HTML) {
+                        if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
                             WebView webView = instlView.getWebView();
                             if (null != webView) {
                                 if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
-                                    instlView.getWebView().loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL,
-                                                        adsBean.getXhtml(),
-                                            "text/html", "UTF-8", null);
-                                } else
+                                    AdViewUtils.loadWebContentExt(instlView.getWebView(),adsBean.getXhtml());
+                                } else {
                                     instlView.getWebView().loadUrl(adsBean.getXhtml());
+                                }
                             } else {
-                                AdViewUtils.logInfo("#######  webview is null error ########");
+                                AdViewUtils.logInfo("#######  webview is null error !!! ########");
                             }
 
-                        }else if (adsBean.getAdType() != ConstantValues.MIXED){
+                        }else if (adsBean.getAdType() != ConstantValues.RESP_ADTYPE_MIXED){
                             //wilder 2019
                             if (AdViewUtils.bitmapOnLine) {
-                                KyAdBaseView.loadWebContentURL(instlView.getWebView(),bitmapPath, adsBean.getAdLink());
+                                AdViewUtils.loadWebImageURL(instlView.getWebView(),bitmapPath, adsBean.getAdLink());
                             }else {
-                                KyAdBaseView.loadWebContentLocal(instlView.getWebView(), bitmapPath, adsBean.getAdLink(), instlWidth, instlHeight);
+                                AdViewUtils.loadWebImageLocal(instlView.getWebView(), bitmapPath, adsBean.getAdLink(), instlWidth, instlHeight);
                             }
                         }
                     }
@@ -241,23 +245,14 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                 instlDialog.setCancelable(false);
                 instlDialog.setCanceledOnTouchOutside(false);
                 // 关闭插屏之后解除横竖屏限制
-                instlDialog
-                        .setOnCancelListener(new DialogInterface.OnCancelListener() {
+                instlDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
                             @Override
                             public void onCancel(DialogInterface dialog) {
                                 // TODO Auto-generated method stub
-                                ((Activity) ctx)
-                                        .setRequestedOrientation(currentRotation);
-                                if (null != kyViewListener)
-                                    kyViewListener.onCloseBtnClicked();
-//                                if (null != instlAdListener)
-//                                    instlAdListener
-//                                            .onAdClose(AdInstlBIDView2.this);
-//                                if (null != onAdInstlListener) {
-//                                    onAdInstlListener
-//                                            .onAdClosedAd(AdInstlBIDView2.this);
-//                                    onAdInstlListener = null;
-//                                }
+                                ((Activity) ctx).setRequestedOrientation(currentRotation);
+//                                if (null != kyInstlViewListener)          wilder 20190612
+//                                    kyInstlViewListener.onCloseBtnClicked();
+
                                 try {
                                     if (null != instlView) {
                                         if (null != instlView.getWebView()) {
@@ -278,12 +273,9 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
 
                     @Override
                     public void onShow(DialogInterface dialog) {
-                        if (null != kyViewListener)
-                            kyViewListener.onDisplay(null, false);
-//                        reportImpression(cacheAdsBean, retAdBean, applyAdBean, true);
-//                        if (null != onAdInstlListener)
-//                            onAdInstlListener
-//                                    .onAdDisplayed(AdInstlBIDView2.this);
+                        if (null != kyInstlViewListener)
+                            kyInstlViewListener.onDisplay(null, false);
+
                         currentRotation = ((Activity) ctx)
                                 .getRequestedOrientation();
                         switch (((Activity) ctx).getWindow().getWindowManager()
@@ -316,10 +308,10 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if (adsBean.getAdType() == ConstantValues.HTML) {
+                        if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
                             final WebView webView = instlView.getWebView();
                             if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
-                                webView.loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, adsBean.getXhtml(), "text/html", "UTF-8", null);
+                                AdViewUtils.loadWebContentExt(webView, adsBean.getXhtml());
                             } else
                                 webView.loadUrl(adsBean.getXhtml());
                         }
@@ -354,12 +346,13 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
             } else {
                 return false;
             }
-            if (null != kyViewListener)
-                notifyType = kyViewListener.getDisplayMode();
+            if (null != kyInstlViewListener)
+                notifyType = kyInstlViewListener.getDisplayMode();
             switch (notifyType) {
                 case AdInstlBIDView.DISPLAYMODE_DEFAULT:
                 case AdInstlBIDView.DISPLAYMODE_POPUPWINDOWS:
 //                return showDialog(activity);
+                    //缺省用的popup的window
                     return showPopupWindows(activity);
                 case AdInstlBIDView.DISPLAYMODE_DIALOG:
                     return showDialog(activity);
@@ -388,7 +381,8 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
                 if (null != instlView && null != instlView.getWebView()) {
 //                    AdWebView.injectMraidJs(instlView.getWebView());
                     if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
-                        instlView.getWebView().loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, adsBean.getXhtml(), "text/html", "UTF-8", null);
+                        //instlView.getWebView().loadDataWithBaseURL(ConstantValues.WEBVIEW_BASEURL, adsBean.getXhtml(), "text/html", "UTF-8", null);
+                        AdViewUtils.loadWebContentExt(instlView.getWebView(), adsBean.getXhtml());
                     } else
                         instlView.getWebView().loadUrl(adsBean.getXhtml());
 //                    instlView.getWebView().loadData(adsBean.getXhtml(),
@@ -410,211 +404,99 @@ public class AdBIDInstlAdapter extends AdAdapterManager implements MRAIDViewList
     @Override
     public void closeInstl() {
         try {
-            if (null != instlDialog && instlDialog.isShowing())
+
+            if (null != instlDialog && instlDialog.isShowing()) {
                 instlDialog.cancel();
-            if (null != fixedPopupWindow && fixedPopupWindow.isShowing())
+            }
+            if (null != fixedPopupWindow && fixedPopupWindow.isShowing()) {
                 fixedPopupWindow.dismiss();
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    @Override
-    public void mraidNativeFeatureDownload(String url) {
-        if (null != kyViewListener)
-            kyViewListener.checkClick(url);
-    }
+    private HashMap<String, Integer>
+    getLayoutSize(Context context, AdsBean adsBean, int width_tmp, int height_tmp) {
+        int screenWidth = 0;
+        int screenHeight = 0;
+        int instl_Width = 0;
+        int instl_Height = 0;
+        int bitmapWidth = 0;
+        int bitmapHeight = 0;
+        int frameWidth = 0;
+        int frameHeight = 0;
+        float zoomPercent = 0F;
+        int dScale;
+        float density;
 
-    @Override
-    public void mraidNativeFeatureCallTel(String url) {
-        Intent intent = new Intent();
-        intent.setAction(Intent.ACTION_DIAL); // android.intent.action.DIAL
-        intent.setData(Uri.parse(url));
-        context.startActivity(intent);
-    }
+        HashMap<String, Integer> sizeMap = new HashMap<String, Integer>();
+        DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        density = dm.density;
+        screenHeight = dm.heightPixels;
+        screenWidth = dm.widthPixels;
 
-    @Override
-    public void mraidNativeFeatureOpenDeeplink(String url) {
-        if (url.startsWith("mraid")) {
-            try {
-                url = URLDecoder.decode(url.replace("mraid://openDeeplink?url=", ""), "UTF-8");
-                adsBean.setDeeplink(url);
-                if (null != kyViewListener)
-                    kyViewListener.checkClick(url);
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
+        bitmapWidth = width_tmp;
+        bitmapHeight = height_tmp;
+
+        frameWidth = screenWidth / 8 * 7;
+        frameHeight = screenHeight - screenWidth / 8
+                - AdViewUtils.getStatusBarHeight(context);
+
+        if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_MIXED) {
+            if (screenWidth > screenHeight) {
+                instl_Width = screenHeight * 7 / 8;
+                instl_Height = instlWidth * 5 / 6;
+            } else {
+                instl_Width = frameWidth;
+                instl_Height = instlWidth * 5 / 6;
+            }
+        } else {
+            if (null != adsBean.getXhtml() && adsBean.getXhtml().length() > 0) {
+                if ((int) (width_tmp * AdViewUtils.getDensity(context)) > screenWidth
+                        || (int) (height_tmp * AdViewUtils.getDensity(context)) > screenHeight) {
+                    // 超出屏幕范围
+                    if (((float) bitmapWidth / (float) frameWidth) > ((float) bitmapHeight / (float) frameHeight)) {
+                        zoomPercent = ((float) bitmapWidth / (float) frameWidth);
+                        instl_Width = (int) (bitmapWidth / zoomPercent);
+                        instl_Height = (int) (bitmapHeight / zoomPercent);
+                    } else {
+                        zoomPercent = ((float) bitmapHeight / (float) frameHeight);
+                        instl_Width = (int) (bitmapWidth / zoomPercent);
+                        instl_Height = (int) (bitmapHeight / zoomPercent);
+                    }
+                    dScale = instl_Height * 100 / bitmapHeight;
+                } else {
+                    //合理范围
+                    dScale = 0;
+                    instl_Width = frameWidth = (int) (width_tmp * AdViewUtils.getDensity(context));
+                    instl_Height = /*bitmapHeight*/frameHeight = (int) (height_tmp * AdViewUtils.getDensity(context));
+                }
+            } else {
+                if (((float) bitmapWidth / (float) frameWidth) > ((float) bitmapHeight / (float) frameHeight)) {
+                    zoomPercent = ((float) bitmapWidth / (float) frameWidth);
+                    instl_Width = (int) (bitmapWidth / zoomPercent);
+                    instl_Height = (int) (bitmapHeight / zoomPercent);
+                } else {
+                    zoomPercent = ((float) bitmapHeight / (float) frameHeight);
+                    instl_Width = (int) (bitmapWidth / zoomPercent);
+                    instl_Height = (int) (bitmapHeight / zoomPercent);
+                }
             }
         }
-    }
-
-    @Override
-    public void mraidNativeFeatureOpenBrowser(String url) {
-        if (null != kyViewListener)
-            kyViewListener.checkClick(url);
-    }
-
-    @Override
-    public void mraidNativeFeatureSendSms(String url) {
-        AdViewUtils.sendSms(context, url);
-    }
-
-    @Override
-    public void mraidNativeFeatureCreateCalendarEvent(String eventJSON) {
-    }
-
-    @Override
-    public void mraidNativeFeatureStorePicture(String url) {
-    }
-
-    /*
-    ----------------------------------------------------------------
-     */
-    @Override
-    public void mraidViewLoaded(MRAIDView mraidView) {
-    }
-
-    @Override
-    public void mraidViewExpand(MRAIDView mraidView) {
-    }
-
-    @Override
-    public void mraidViewClose(MRAIDView mraidView) {
-    }
-
-    @Override
-    public boolean mraidViewResize(MRAIDView mraidView, int width, int height, int offsetX, int offsetY) {
-        return false;
-    }
-
-    @Override
-    public void onShouldOverride(String url) {
-        // 至少触摸过才可以点击跳转
-        if (adsBean.getTouchStatus() > MRAIDView.ACTION_DEFAULT) {
-            if (null != kyViewListener)
-                kyViewListener.checkClick(url);
-//            clickCheck(url, adsBean, applyAdBean, retAdBean);
-//                }
-//            }
-        }
-    }
-
-    @Override
-    public WebResourceResponse onShouldIntercept(String url) {
-        return kyViewListener.shouldInterceptRequest(url);
-//        return KyAdBaseView.shouldInterceptRequest(url, adsBean, applyAdBean);
-    }
-
-    @Override
-    public void loadDataError(int errorType) {
-        if (null != kyViewListener)
-            kyViewListener.onAdFailed(null,"Custom://" + errorType, false);
-    }
-
-    @Override
-    public void onCloseBtnClicked() {
-        if (null != instlDialog && instlDialog.isShowing()) {
-            instlDialog.cancel();
-//            isClosed = true;
-        }
-        if (null != fixedPopupWindow && fixedPopupWindow.isShowing()) {
-            fixedPopupWindow.dismiss();
-//            isClosed = true;
-        }
-        if (null != kyViewListener)
-            kyViewListener.onCloseBtnClicked();
-    }
-
-    @Override
-    public void onViewClicked(MotionEvent e, AgDataBean agDataBean,String url, float downX, float downY) {
-        if (null != kyViewListener)
-            kyViewListener.onViewClicked(e, agDataBean,url, downX, downY);
-    }
-
-    @Override
-    public boolean isClickableConfirm() {
-        return false;
-    }
-
-    @Override
-    public void setClickMotion(MRAIDView view, Rect touchRect) {
-
-    }
-
-    @Override
-    public WebResourceResponse shouldInterceptRequest(String url) {
-        return null;
-    }
-
-    @Override
-    public boolean needConfirmDialog() {
-        return false;
-    }
-
-    @Override
-    public void checkClick(String url) {
-
-    }
-
-    @Override
-    public void onReady(AgDataBean agDataBean,boolean force) {
-
-    }
-
-    @Override
-    public void onReceived(AgDataBean agDataBean,boolean force) {
-
-    }
-
-    @Override
-    public void onAdFailed(AgDataBean agDataBean,String error, boolean force) {
-
-    }
-
-    @Override
-    public void onDisplay(AgDataBean agDataBean,boolean force) {
-
-    }
-
-    @Override
-    public boolean getCloseble() {
-        if (null != kyViewListener)
-            return kyViewListener.getCloseble();
-        return false;
-    }
+        //instlWidth = (int) (instlWidth - density);
+        //instlHeight = (int) (instlHeight - density);
 
 
-    @Override
-    public String getAdLogo() {
-        if (null != kyViewListener)
-            return kyViewListener.getAdLogo();
-        return null;
-    }
+        sizeMap.put("screenWidth", screenWidth);// 480
+        sizeMap.put("screenHeight", screenHeight);// 854
+        sizeMap.put("frameWidth", frameWidth);// 480/16*15
+        sizeMap.put("frameHeight", frameHeight);// 854-480/16
 
-    @Override
-    public String getAdIcon() {
-        if (null != kyViewListener)
-            return kyViewListener.getAdIcon();
-        return null;
-    }
+        sizeMap.put(ConstantValues.INSTL_WIDTH_KEY, instl_Width);
+        sizeMap.put(ConstantValues.INSTL_HEIGHT_KEY, instl_Height);
 
-
-    @Override
-    public AdsBean getAdsBean() {
-        return null;
-    }
-
-    @Override
-    public void rotatedAd(Message msg) {
-
-    }
-
-    @Override
-    public int getDisplayMode() {
-        return 0;
-    }
-
-    @Override
-    public void onVisiblityChange(int visible) {
-
+        return sizeMap;
     }
 }

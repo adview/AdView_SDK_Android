@@ -17,7 +17,7 @@ public class CustomWebview extends WebView {
     private CustomInterface customInterface;
     private CustomClickInterface customClickInterface;
 
-    public CustomWebview(Context context) {
+    public CustomWebview(Context context, boolean isVideo) {
         super(context);
 
         WebSettings webSetting = getSettings();
@@ -43,16 +43,33 @@ public class CustomWebview extends WebView {
         webSetting.setDomStorageEnabled(true);
         webSetting.setDatabaseEnabled(true);
         webSetting.setDatabasePath(appCacheDir);
-        webSetting.setAppCachePath(appCacheDir);
+
         webSetting.setAllowFileAccess(true);
         //webSetting.setAppCacheMaxSize( 10 * 1024 * 1024 ); // 10MB
-        webSetting.setAppCacheEnabled(true);
-        webSetting.setCacheMode(WebSettings.LOAD_DEFAULT);
+        //wilder for test 20191206 ,covered
+//        webSetting.setAppCachePath(appCacheDir);
+//        webSetting.setAppCacheEnabled(true);
+//        webSetting.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+
+
         // webSetting.setCacheMode(WebSettings.LOAD_CACHE_ONLY);
         webSetting.setJavaScriptEnabled(true);
-        //end settings
-        this.setLayerType(View.LAYER_TYPE_HARDWARE, null); //(wiler 2019) if show blank, pls use LAYER_TYPE_SOFTWARE
 
+        //end settings
+        if (isVideo) {
+            //以下参数不是很好控制
+            //webSetting.setBuiltInZoomControls(true);// 隐藏缩放按钮
+            //webSetting.setUseWideViewPort(true);// 可任意比例缩放
+            //webSetting.setSupportZoom(true);
+            webSetting.setLoadWithOverviewMode(true);// setUseWideViewPort方法设置webview推荐使用的窗口。setLoadWithOverviewMode方法是设置webview加载的页面的模式。
+            this.setLayerType(View.LAYER_TYPE_HARDWARE, null); //(wiler 2019) if show blank, pls use LAYER_TYPE_SOFTWARE
+        }
+        else {
+            this.setLayerType(View.LAYER_TYPE_SOFTWARE, null); //如果不是video,最好使用software,便于网页缩放显示
+            //webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+            webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.SINGLE_COLUMN);
+        }
         this.setScrollbarFadingEnabled(false);
         this.setHorizontalScrollBarEnabled(false);
         this.setVerticalScrollBarEnabled(false);
@@ -80,13 +97,14 @@ public class CustomWebview extends WebView {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        //AdViewUtils.logInfo("customWebView:dispatchTouchEvent()");
         if (enable) {
             switch (ev.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     return true;
                 case MotionEvent.ACTION_UP:
 
-                    if (null != customInterface)
+                    if (null != customClickInterface)
                         customClickInterface.onWebviewClicked(type, tag);
                     break;
             }

@@ -37,7 +37,6 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
-import android.widget.Toast;
 
 import com.kuaiyou.interfaces.DownloadConfirmInterface;
 
@@ -47,9 +46,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * WebView 网页类广告
+ * WebView 网页类广告，落地页
  */
 public class AdViewLandingPage extends Activity {
+    // webview 控件id
+    public static final int BTN_TO_PREV = 1;
+    public static final int BTN_TO_NEXT = 2;
+    public static final int BTN_DO_REFRESH = 3;
+    public static final int BTN_DO_SHARE = 4;
+    public static final int BTN_DO_CLOSE = 5;
+    public static final int BTN_DO_STOP = 6;
+    public static final int TOOLBAR_ID = 88;
+
     WebView adWebView;
     WebViewProgressBar adWebViewProgressBar;
 
@@ -92,7 +100,7 @@ public class AdViewLandingPage extends Activity {
 
         RelativeLayout.LayoutParams webViweLayoutParams = new RelativeLayout.LayoutParams(
                 -1, -1);
-        webViweLayoutParams.addRule(2, ConstantValues.TOOLBAR_ID);
+        webViweLayoutParams.addRule(2, TOOLBAR_ID);
         RelativeLayout.LayoutParams barLayoutParams = new RelativeLayout.LayoutParams(
                 -1, toolbar_height);
         barLayoutParams.addRule(12);
@@ -112,7 +120,7 @@ public class AdViewLandingPage extends Activity {
             }
         };
 
-        barLayout.setId(ConstantValues.TOOLBAR_ID);
+        barLayout.setId(TOOLBAR_ID);
         barLayout.setOrientation(LinearLayout.HORIZONTAL);
 
         LinearLayout.LayoutParams btnImgLayoutParams = new LinearLayout.LayoutParams(
@@ -177,9 +185,6 @@ public class AdViewLandingPage extends Activity {
     private BitmapDrawable getBarBackground(int height) {
         try {
             Bitmap bm = AdViewUtils.getImageFromAssetsFile("webview_bar_bg.png");
-            //view.setImageDrawable(new BitmapDrawable(this.getResources(), bm));
-//            InputStream barBgStream = getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-//                            + "webview_bar_bg.png");
             BitmapDrawable barbgBitmapDrawable = new BitmapDrawable(getResources(), bm);
             Bitmap barBg = barbgBitmapDrawable.getBitmap();
             Matrix barBgMatrix = new Matrix();
@@ -225,52 +230,23 @@ public class AdViewLandingPage extends Activity {
             BitmapDrawable btnDoCloseHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_close_hover.png"));
       /*  BitmapDrawable btnToPrevImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
                                 + "webview_bar_back.png"));
-        BitmapDrawable btnToPrevHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_back_hover.png"));
-        BitmapDrawable btnToPrevGreyImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_back_grey.png"));
-
-        BitmapDrawable btnToNextImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_next.png"));
-        BitmapDrawable btnToNextHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_next_hover.png"));
-        BitmapDrawable btnToNextGreyImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_next_grey.png"));
-
-        BitmapDrawable btnDoRefreshImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_refresh.png"));
-        BitmapDrawable btnDoRefreshHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_refresh_hover.png"));
-
-        BitmapDrawable btnDoStopImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_pause.png"));
-        BitmapDrawable btnDoStopHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_pause_hover.png"));
-
-        BitmapDrawable btnDoShareImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_share.png"));
-        BitmapDrawable btnDoShareHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_share_hover.png"));
-
-        BitmapDrawable btnDoCloseImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-                                + "webview_bar_close.png"));
         BitmapDrawable btnDoCloseHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
                                 + "webview_bar_close_hover.png"));*/
 
             btnToPrev = new ImageView(this);
-            btnToPrev.setId(ConstantValues.BTN_TO_PREV);
+            btnToPrev.setId(BTN_TO_PREV);
             btnToPrev.setImageDrawable(btnToPrevGreyImg);
             btnToPrev
                     .setTag(new BtnOnTouchListener(btnToPrevHoverImg, btnToPrevImg));
 
             btnToNext = new ImageView(this);
-            btnToNext.setId(ConstantValues.BTN_TO_NEXT);
+            btnToNext.setId(BTN_TO_NEXT);
             btnToNext.setImageDrawable(btnToNextGreyImg);
             btnToNext
                     .setTag(new BtnOnTouchListener(btnToNextHoverImg, btnToNextImg));
 
             this.btnDoRefresh = new ImageView(this);
-            this.btnDoRefresh.setId(ConstantValues.BTN_DO_REFRESH);
+            this.btnDoRefresh.setId(BTN_DO_REFRESH);
             this.btnDoRefresh.setImageDrawable(btnDoStopImg);
             touchList = new ArrayList<BtnOnTouchListener>();
             touchList.add(new BtnOnTouchListener(btnDoRefreshHoverImg,
@@ -279,15 +255,13 @@ public class AdViewLandingPage extends Activity {
             btnDoRefresh.setTag(touchList);
 
             ImageView btnDoShare = new ImageView(this);
-            btnDoShare.setId(ConstantValues.BTN_DO_SHARE);
+            btnDoShare.setId(BTN_DO_SHARE);
             btnDoShare.setImageDrawable(btnDoShareImg);
-            btnDoShare.setOnTouchListener(new BtnOnTouchListener(
-                    btnDoShareHoverImg, btnDoShareImg));
+            btnDoShare.setOnTouchListener(new BtnOnTouchListener(btnDoShareHoverImg, btnDoShareImg));
             ImageView btnDoClose = new ImageView(this);
-            btnDoClose.setId(ConstantValues.BTN_DO_CLOSE);
+            btnDoClose.setId(BTN_DO_CLOSE);
             btnDoClose.setImageDrawable(btnDoCloseImg);
-            btnDoClose.setOnTouchListener(new BtnOnTouchListener(
-                    btnDoCloseHoverImg, btnDoCloseImg));
+            btnDoClose.setOnTouchListener(new BtnOnTouchListener(btnDoCloseHoverImg, btnDoCloseImg));
 
             linearLayout.addView(btnToPrev, btnImgLayoutParams);
             linearLayout.addView(btnToNext, btnImgLayoutParams);
@@ -299,8 +273,10 @@ public class AdViewLandingPage extends Activity {
         }
     }
 
+    //用于判断从服务器下发的act的url是否是特殊schem
     private int checkFilter(String url) {
         try {
+            AdViewUtils.logInfo("[AdViewLandingPage] checkFilter(): url = " + url);
             if (url.contains("wtai://wp/mc;"))
                 url = url.replace("wtai://wp/ap;", "tel:");
             if (url.contains("wtai://wp/mc;"))
@@ -316,16 +292,17 @@ public class AdViewLandingPage extends Activity {
 
                 return 0;
             }
-            if (url.contains("market://")) {
+            if (url.contains("market://")) { //这里如果是market，交由系统自动打开store
+
                 Uri uri = Uri.parse(url);
                 Intent marketIntent = new Intent(Intent.ACTION_VIEW, uri);
 
-                List<ResolveInfo> packList = getPackageManager()
-                        .queryIntentActivities(marketIntent, 0);
+                List<ResolveInfo> packList = getPackageManager().queryIntentActivities(marketIntent, 0);
                 if (packList.size() > 0)
                     startActivity(marketIntent);
                 else {
-                    Toast.makeText(this, "error", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(this, "error", Toast.LENGTH_SHORT).show();
+                    AdViewUtils.logInfo("!!!![AdViewLandingPage]checkFilter(): can't start " + url + ", no market app !!!!");
                 }
                 return 0;
             }
@@ -338,9 +315,10 @@ public class AdViewLandingPage extends Activity {
     private void onWebViewLoad() {
         isLoading = true;
         btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png")));
-//        btnDoRefresh.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(
-//                        ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "webview_bar_pause.png")));
-        btnDoRefresh.setId(ConstantValues.BTN_DO_STOP);
+        //不要使用getResourceAsStream()，会很影响效能
+//        btnDoRefresh.setImageDrawable(new BitmapDrawable(
+//        getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "webview_bar_pause.png")));
+        btnDoRefresh.setId(BTN_DO_STOP);
         btnDoRefresh.setOnTouchListener((View.OnTouchListener) ((ArrayList<?>) btnDoRefresh.getTag()).get(1));
     }
 
@@ -348,30 +326,21 @@ public class AdViewLandingPage extends Activity {
         isLoading = false;
         if (adWebView.canGoBack()) {
             btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back.png")));
-//            btnToPrev.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "webview_bar_back.png")));
             btnToPrev.setOnTouchListener((View.OnTouchListener) this.btnToPrev.getTag());
         } else {
             btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back_grey.png")));
-//            btnToPrev.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-//                                    + "webview_bar_back_grey.png")));
             btnToPrev.setOnTouchListener(null);
         }
         if (adWebView.canGoForward()) {
             btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next.png")));
-//            btnToNext.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-//                                    + "webview_bar_next.png")));
             btnToNext.setOnTouchListener((View.OnTouchListener) this.btnToNext.getTag());
         } else {
             btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next_grey.png")));
-//            btnToNext.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-//                                    + "webview_bar_next_grey.png")));
             btnToNext.setOnTouchListener(null);
         }
 
         btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_refresh.png")));
-//        btnDoRefresh.setImageDrawable(new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
-//                                + "webview_bar_refresh.png")));
-        btnDoRefresh.setId(ConstantValues.BTN_DO_REFRESH);
+        btnDoRefresh.setId(BTN_DO_REFRESH);
         btnDoRefresh.setOnTouchListener((View.OnTouchListener) ((ArrayList<?>) this.btnDoRefresh.getTag()).get(0));
     }
 
@@ -398,7 +367,7 @@ public class AdViewLandingPage extends Activity {
         super.onDestroy();
         try {
             LocalBroadcastManager lb = LocalBroadcastManager.getInstance(this);
-            Intent intent = new Intent(ConstantValues.ADWEBVIEW_CLOSED_STATUS);
+            Intent intent = new Intent(ConstantValues.ADWEBVIEW_BROADCAST_CLOSED_STATUS);
             lb.sendBroadcast(intent);
             if (null != adWebView) {
                 adWebView.stopLoading();
@@ -496,18 +465,18 @@ public class AdViewLandingPage extends Activity {
                     ((ImageView) view).setImageDrawable(this.upImg);
                     if (adWebView != null) {
                         int viewId = view.getId();
-                        if (viewId == ConstantValues.BTN_TO_PREV) {
+                        if (viewId == BTN_TO_PREV) {
                             AdViewLandingPage.this.adWebView.goBack();
-                        } else if (viewId == ConstantValues.BTN_TO_NEXT) {
+                        } else if (viewId == BTN_TO_NEXT) {
                             AdViewLandingPage.this.adWebView.goForward();
-                        } else if (viewId == ConstantValues.BTN_DO_SHARE) {
+                        } else if (viewId == BTN_DO_SHARE) {
                             AdViewLandingPage.this.shareConent();
-                        } else if (viewId == ConstantValues.BTN_DO_REFRESH) {
+                        } else if (viewId == BTN_DO_REFRESH) {
                             AdViewLandingPage.this.adWebView.reload();
-                        } else if (viewId == ConstantValues.BTN_DO_STOP) {
+                        } else if (viewId == BTN_DO_STOP) {
                             AdViewLandingPage.this.adWebView.stopLoading();
                             AdViewLandingPage.this.loadComplete();
-                        } else if (viewId == ConstantValues.BTN_DO_CLOSE) {
+                        } else if (viewId == BTN_DO_CLOSE) {
                             setResult(RESULT_OK, null);
                             AdViewLandingPage.this.finish();
                         }

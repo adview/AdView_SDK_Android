@@ -36,8 +36,15 @@ public class NativeAdBean implements Serializable {
     private String sponsored = null;
     private String adId = null;
     private String adLogoFlag = null;
-
     private String adIconFlag = null;
+
+    //wilder 2019 privacy information
+    private String privacyImageUrl = "";
+    private String privacyClickUrl = "";
+    //omsdk native para
+    private String omsdk_url = "";
+    private String omsdk_vendor = "";
+    private String omsdk_para = "";
 
     public NativeAdBean() {
     }
@@ -273,4 +280,19 @@ public class NativeAdBean implements Serializable {
     public String getIconUrl() {
         return iconUrl;
     }
+
+    //privacy information
+    public void setPrivacyImageUrl(String pimage) {this.privacyImageUrl = pimage; }
+    public String getPrivacyImageUrl() { return this.privacyImageUrl; }
+    public void setPrivacyClickUrl(String pclick) {this.privacyClickUrl = pclick; }
+    public String getPrivacyClickUrl() { return this.privacyClickUrl; }
+
+    //omsdk parameters
+    public void setOMUrl(String url) { this.omsdk_url = url;}
+    public String getOMUrl() {return this.omsdk_url;}
+    public void setOmVendor(String vendor) { this.omsdk_vendor = vendor;}
+    public String getOmVendor() {return this.omsdk_vendor;}
+    public void setOMPara(String para) { this.omsdk_para = para;}
+    public String getOMPara() {return this.omsdk_para;}
+
 }

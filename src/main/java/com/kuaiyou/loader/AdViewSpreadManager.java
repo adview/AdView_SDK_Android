@@ -40,21 +40,25 @@ public class  AdViewSpreadManager extends InitSDKManager {
 
     private final static String SETONADVIEWLISTENER_METHOD_NAME = "setOnAdSpreadListener";
 
-    public AdViewSpreadManager(Context context, String key, ViewGroup view, String gdpr) {
+    public AdViewSpreadManager(Context context, String key, ViewGroup view) {
         getInstance().init(context, key);
-        Class[] params = new Class[4];
+        Class[] params = new Class[3];
         params[0] = Context.class;
         params[1] = String.class;
         params[2] = ViewGroup.class;
-        params[3] = String.class;
 
-        Object[] objects = new Object[4];
+        Object[] objects = new Object[3];
         objects[0] = context;
         objects[1] = key;
         objects[2] = view;
-        objects[3] = gdpr;
 
         object = requestAd(SPREAD_CLASS_NAME, params, objects);
+    }
+
+    //widler 2019 for IAB's GDPR
+    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
+        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
+                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
     }
 
     public void setHtmlSupport(int htmlSupport) {

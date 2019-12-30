@@ -125,6 +125,7 @@ public class AdsBean implements Serializable {
     private int xmlType;
     private VideoBean videoBean;
     private String vastXml;
+    private int playMethod; //playback method, 播放视频的模式
     //    private String videoUrl;
 //    private String iconUrl;
 //    private String title;
@@ -314,7 +315,11 @@ public class AdsBean implements Serializable {
     public void setVastXml(String vastXml) {
         this.vastXml = vastXml;
     }
-
+    //添加video playback method
+    public int getPlayMethod() { return this.playMethod; }
+    public void setPlayMethod(int pbm) {
+        this.playMethod = pbm;
+    }
 //    public String getVideoUrl() {
 //        return videoUrl;
 //    }
@@ -742,14 +747,14 @@ public class AdsBean implements Serializable {
         this.spreadType = spreadType;
     }
 
+    //汇报展示用地址
     public HashMap<String, String[]> getExtSRpt() {
         return extSRpt;
     }
-
     public void setExtSRpt(HashMap<String, String[]> extSRpt) {
         this.extSRpt = extSRpt;
     }
-
+    //汇报点击用地址
     public HashMap<String, String[]> getExtCRpt() {
         return extCRpt;
     }

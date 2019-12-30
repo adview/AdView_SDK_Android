@@ -16,12 +16,19 @@ public class VideoBean {
 
     private String endIconUrl, endDesc, endTitle, endButtonText, endButtonUrl;
     private Integer endComments, endRating;
-
+    private String adLogoFlag = null;
+    private String adIconFlag = null;
     //    private String[] spTrackers;
 //    private String[] mpTrackers;
 //    private String[] cpTrackers;
     private String preImgUrl, endHtml, endImgUrl;
-
+    //wilder 2019 privacy information
+    private String privacyImageUrl = null;
+    private String privacyClickUrl = null;
+    //omsdk native para
+    private String omsdk_url = null;
+    private String omsdk_vendor = null;
+    private String omsdk_para = null;
 
     public boolean isValidBean() {
         return true;
@@ -202,6 +209,33 @@ public class VideoBean {
     public void setHeight(Integer height) {
         this.height = height;
     }
+
+    public String getAdLogoFlag() {
+        return adLogoFlag;
+    }
+    public void setAdLogoFlag(String adLogoFlag) {
+        this.adLogoFlag = adLogoFlag;
+    }
+    public String getAdIconFlag() {
+        return adIconFlag;
+    }
+    public void setAdIconFlag(String adIconFlag) {
+        this.adIconFlag = adIconFlag;
+    }
+
+    //privacy information
+    public void setPrivacyImageUrl(String pimage) {this.privacyImageUrl = pimage; }
+    public String getPrivacyImageUrl() { return this.privacyImageUrl; }
+    public void setPrivacyClickUrl(String pclick) {this.privacyClickUrl = pclick; }
+    public String getPrivacyClickUrl() { return this.privacyClickUrl; }
+
+    //omsdk parameters
+    public void setOMUrl(String url) { this.omsdk_url = url;}
+    public String getOMUrl() {return this.omsdk_url;}
+    public void setOmVendor(String vendor) { this.omsdk_vendor = vendor;}
+    public String getOmVendor() {return this.omsdk_vendor;}
+    public void setOMPara(String para) { this.omsdk_para = para;}
+    public String getOMPara() {return this.omsdk_para;}
 
 //    public String[] getSpTrackers() {
 //        return spTrackers;

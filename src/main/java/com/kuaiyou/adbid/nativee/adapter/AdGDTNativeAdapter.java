@@ -6,7 +6,6 @@ import android.view.View;
 
 import com.kuaiyou.KyAdBaseView;
 import com.kuaiyou.adbid.AdAdapterManager;
-import com.kuaiyou.adbid.instl.adapter.AdGDTInstlAdapter;
 import com.kuaiyou.interfaces.KyNativeListener;
 import com.kuaiyou.utils.AdViewUtils;
 import com.qq.e.ads.nativ.NativeAD;
@@ -19,7 +18,7 @@ import java.util.List;
 
 public class AdGDTNativeAdapter extends AdAdapterManager implements NativeAD.NativeAdListener {
     private ArrayList<NativeADDataRef> adData = new ArrayList<NativeADDataRef>();
-    private KyNativeListener kyViewListener;
+    private KyNativeListener kyNativeListener;
 
     @Override
     public View getAdView() {
@@ -39,13 +38,13 @@ public class AdGDTNativeAdapter extends AdAdapterManager implements NativeAD.Nat
             String key1, key2;
             key1 = bundle.getString("appId");
             key2 = bundle.getString("posId");
-            kyViewListener = (KyNativeListener) bundle.getSerializable("interface");
+            kyNativeListener = (KyNativeListener) bundle.getSerializable("interface");
 
         //wilder 2019 for test keys ,must use GDTdemo package
         key1 = "1101152570";
         key2 = "5010320697302671";
             NativeAD nativeAD = new NativeAD(context, key1, key2, this);
-            nativeAD.loadAD(kyViewListener.getAdCount());
+            nativeAD.loadAD(kyNativeListener.getAdCount());
         } catch (Exception e) {
             e.printStackTrace();
             AdGDTNativeAdapter.this.onAdFailed("com.qq.e.ads.nativ.NativeAD not found");
