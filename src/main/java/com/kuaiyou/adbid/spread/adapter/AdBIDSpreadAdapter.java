@@ -437,8 +437,9 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                             }
                             if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
                                 AdViewUtils.loadWebContentExt(adWebView, adsBean.getXhtml());
-                            } else
+                            } else {
                                 adWebView.loadUrl(adsBean.getXhtml());
+                            }
                         }
 
                         notifyRecievedInterface(msg, true);
@@ -688,10 +689,11 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
     private int isHasSpreadLogo() {
         //AdsBean adsBean = kySpreadViewListener.getAdsBean();
         if (adsBean.getSpreadType() == ConstantValues.SPREAD_RESP_HAS_LOGO) {
-//            if (null == getSpreadLogo())
-//                return 0;
-//            else
-            return 1;
+            //wilder 2020 for logo,该判断能够正确调整spread的坐标和大小
+            if (null == kySpreadViewListener.getSpreadLogo())
+                return 0;
+            else
+                return 1;
         } else
             return 0;
     }

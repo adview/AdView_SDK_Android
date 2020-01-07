@@ -354,8 +354,7 @@ public class MRAIDView extends RelativeLayout {
                                 + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "portrait"
                                 : "landscape"));
                 if (isInterstitial) {
-                    ((Activity) context).getWindowManager().getDefaultDisplay()
-                            .getMetrics(displayMetrics);
+                    ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
                 }
             }
 
@@ -388,7 +387,7 @@ public class MRAIDView extends RelativeLayout {
         wv.setLayoutParams(params);
 
         // wv.clearCache(false);
-        //mView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        //wv.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         // wv.setAppCacheEnabled(true);
         wv.setScrollContainer(false);
@@ -417,7 +416,8 @@ public class MRAIDView extends RelativeLayout {
         webSetting.setCacheMode(WebSettings.LOAD_DEFAULT);
         //webSetting.setCacheMode(WebSettings.LOAD_CACHE_ONLY); //wilder 2019
         webSetting.setJavaScriptEnabled(true);
-
+//        webSetting.setAllowFileAccessFromFileURLs(true);
+//        webSetting.setAllowUniversalAccessFromFileURLs(true);
         //(wilder 2019) added for auto fit height  in view, but if opened, the html may display very small,
         //so no suggested
         //wv.setInitialScale(90);
@@ -2013,6 +2013,7 @@ public class MRAIDView extends RelativeLayout {
                     "onLayoutWebView ignored, not current");
             return;
         }
+
         if (isForcingFullScreen) {
             AdViewUtils.logInfo(
                     "onLayoutWebView ignored, isForcingFullScreen");

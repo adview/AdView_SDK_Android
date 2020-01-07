@@ -34,6 +34,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     private double density;
     private double densityScale;
     private int hasLogo = 1;//1表示有logo，0表示没logo
+    private int logoHeight = 0;
     private boolean isHtml = false;
     private Rect closeRect = new Rect();
 
@@ -46,7 +47,8 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         screenWidth = screenSize[0];
         //这个高度减去导航条和状态条的高度
         screenHeight = screenSize[1] - AdViewUtils.getNaviBarHeight(context) - AdViewUtils.getStatusBarHeight(context);
-//        this.setBackgroundColor(Color.WHITE);
+        logoHeight = screenWidth /3;
+        //this.setBackgroundColor(Color.BLUE); //wilder 2020
         this.densityScale = AdViewUtils.getScaledDensity(context);
         this.density = AdViewUtils.getDensity(context);
         padding = (int) (padding * density);
@@ -54,6 +56,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
     }
 
     public int getAdHeight(int hasLogo) {
+
         return screenHeight - (hasLogo * (screenWidth / 4));
     }
 
@@ -63,19 +66,20 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 
     public void init() {
         ImageView logo = new ImageView(getContext());
-        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER); //FIT_CENTER wilder 2020
         logo.setId(ConstantValues.SPREAD_UI_LOGOIMAGEID);
-        addView(logo);
+
         try {
             if (null != kySpreadListener) {
                 Drawable drawable = kySpreadListener.getSpreadLogo();
                 if (null != drawable)
                     ((ImageView) findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID)).setImageDrawable(drawable);
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+        addView(logo);
     }
 
 
@@ -113,10 +117,10 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         this.kySpreadListener = kySpreadListener;
     }
 
-    public void initWidgetLayout(int width, int height, int adType, int layoutType, int deformation, int hasLogo/*, MRAIDNativeFeatureListener nativeFeatureListener, MRAIDViewListener mraidViewListener*/) {
+    public void initWidgetLayout(int width, int height, int adType, int layoutType, int deformation, int hasLogo) {
         this.layoutType = layoutType;
         this.sWidth = screenWidth;
-        this.sHeight = sWidth * height / width;
+        this.sHeight = screenHeight; //sWidth * height / width;//wilder 2020
         this.hasLogo = hasLogo;
         this.isHtml = ( adType == ConstantValues.RESP_ADTYPE_HTML );
         this.deformation = deformation;
@@ -146,7 +150,8 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                 }
                 break;
         }
-        instlView = new InstlView(getContext(),sizeMap, adType /*, nativeFeatureListener, mraidViewListener*/);
+
+        instlView = new InstlView(getContext(),sizeMap, adType );
         instlView.setId(adType != ConstantValues.RESP_ADTYPE_MIXED ? ConstantValues.SPREAD_UI_FRAMEID : ConstantValues.SPREAD_UI_MIXLAYOUTID);
         if (null != instlView && null != instlView.getMraidView())
             instlView.getMraidView().setClickCheckable(false);
@@ -154,6 +159,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         instlView.setInstlViewListener(kySpreadListener);
 
         addView(instlView);
+
         if (adType != ConstantValues.RESP_ADTYPE_MIXED)
             addSpreadText();
 
@@ -258,10 +264,15 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             case ConstantValues.SPREAD_UI_ALLCENTER:
                             case ConstantValues.SPREAD_UI_EXTRA2:
                             case ConstantValues.SPREAD_UI_EXTRA1:
-                                if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO)
-                                    child.layout(0, screenHeight - (screenWidth / 4), screenWidth, screenHeight);
-                                else
+                                if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO) {
+                                    //child.layout(0, screenHeight - (screenWidth / 4), screenWidth, screenHeight); //wilder 2020
+                                    //Drawable drawable = kySpreadListener.getSpreadLogo();
+                                    //int h = drawable.getIntrinsicHeight();
+                                    child.layout(0, screenHeight - (logoHeight), screenWidth, screenHeight);
+                                }
+                                else {
                                     child.setVisibility(View.GONE);
+                                }
                                 break;
                             case ConstantValues.SPREAD_UI_EXTRA3:
                                 child.setVisibility(View.GONE);
@@ -275,15 +286,15 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
                                         if (!isHtml)
-                                            child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
+                                            child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
                                         else
-                                            child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 - sHeight / 2, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
+                                            child.layout(0, (screenHeight - (logoHeight * hasLogo)) / 2 - sHeight / 2, sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
                                         if (!isHtml)
-                                            child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
+                                            child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
                                         else
-                                            child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - sHeight, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
+                                            child.layout(0, (screenHeight - (logoHeight * hasLogo)) - sHeight, sWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
@@ -291,7 +302,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                                     case ConstantValues.SPREAD_UI_EXTRA2:
                                     case ConstantValues.SPREAD_UI_EXTRA1:
                                         if (!isHtml)
-                                            child.layout(0, 0, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)));
+                                            child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
                                         else
                                             child.layout(0, 0, sWidth, sHeight);
                                         break;
@@ -300,10 +311,12 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             default:
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 - sHeight / 2, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
+                                        //wilder 2020 更改坐标
+                                        child.layout(0, 0 /*(screenHeight - (logoHeight * hasLogo)) / 2 - sHeight / 2*/,
+                                                        sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - sHeight, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
+                                        child.layout(0, (screenHeight - (logoHeight * hasLogo)) - sHeight, sWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
@@ -325,10 +338,10 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             else {
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        child.layout(0, ((screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, sWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
+                                        child.layout(0, ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        child.layout(0, (screenHeight - (screenWidth / 4 * hasLogo)) - screenWidth / 25, sWidth, screenHeight - (screenWidth / 4 * hasLogo));
+                                        child.layout(0, (screenHeight - (logoHeight * hasLogo)) - screenWidth / 25, sWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
@@ -356,10 +369,10 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 //                                child.layout(screenWidth - (screenWidth / 8), sHeight - screenWidth / 25, screenWidth, sHeight);
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        child.layout(screenWidth - (screenWidth / 8), ((screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, screenWidth, (screenHeight - (screenWidth / 4 * hasLogo)) / 2 + sHeight / 2);
+                                        child.layout(screenWidth - (screenWidth / 8), ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - screenWidth / 25, screenWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        child.layout(screenWidth - (screenWidth / 8), (screenHeight - (screenWidth / 4 * hasLogo)) - screenWidth / 25, screenWidth, screenHeight - (screenWidth / 4 * hasLogo));
+                                        child.layout(screenWidth - (screenWidth / 8), (screenHeight - (logoHeight * hasLogo)) - screenWidth / 25, screenWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:

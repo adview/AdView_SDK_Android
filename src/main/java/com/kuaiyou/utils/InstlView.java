@@ -70,7 +70,7 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
     public InstlView(Context context, HashMap<String, Integer> sizeMap, int adType ) {
         super(context);
         setWillNotDraw(false);
-        this.setBackgroundColor(Color.BLACK);
+        this.setBackgroundColor(Color.WHITE); //wilder 2020 BLACK->RED
         this.adType = adType;
         this.context = context;
         try {
@@ -238,13 +238,16 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
             mraidView.setId(ConstantValues.UI_MRAIDVIEW_ID);
             webView.setId(ConstantValues.UI_WEBVIEW_ID);
             //wilder 1205
-            //LayoutParams layoutParmars = new LayoutParams(-1, -1);
-            LayoutParams  layoutParmars = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+            RelativeLayout.LayoutParams  layoutParmars = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+            //wilder 2020,这里调整为需求宽高,正常情况不需要
+//            RelativeLayout.LayoutParams  layoutParmars = new RelativeLayout.LayoutParams( sizeMap.get(ConstantValues.INSTL_WIDTH_KEY),
+//                                                            sizeMap.get(ConstantValues.INSTL_HEIGHT_KEY));
             layoutParmars.addRule(RelativeLayout.CENTER_IN_PARENT);
             mraidView.setLayoutParams(layoutParmars);
 
             addView( mraidView );
             //end 1205
+
         }
         adLogo.setId(ConstantValues.UI_ADLOGO_ID);
         adIcon.setId(ConstantValues.UI_ADICON_ID);
