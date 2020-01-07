@@ -9,9 +9,9 @@ Sign up for an account at [https://www.adview.com/](https://www.adview.com/).
 You can find [integration documentation](https://github.com/adview/AdView_SDK_Android/blob/master/AdView%20Android%20SDK%20Specification%20v1.01.pdf) or email [partner@adview.com](mailto:partner@adview.com) to file an issue with our team.
 
 ## News in this Version
-  - Added VPAID support for vast video mode.
-  - GDPR parameters can be used.
-  - Use Google Advertising ID instead of IMEI.
-  - New framework for all ads uplink process.
+  - OMSDK integrated.
+  - CCPA is supported.
+  - Endcard is supported for rewarded video.
+  - The acquisition of unnecessary permissions is deleted to ensure security.
 
 Please view the [changelog](https://github.com/adview/AdView_SDK_Android/blob/master/CHANGELOG.md) for details.
