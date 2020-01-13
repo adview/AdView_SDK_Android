@@ -366,9 +366,11 @@ public class AdViewLandingPage extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         try {
+            //发送关闭事件，对于spread有意义，因为spread要发送可关闭事件
             LocalBroadcastManager lb = LocalBroadcastManager.getInstance(this);
-            Intent intent = new Intent(ConstantValues.ADWEBVIEW_BROADCAST_CLOSED_STATUS);
+            Intent intent = new Intent(ConstantValues.ADWEBVIEW_BROADCAST_LANDINGPAGE_CLOSED_STATUS);
             lb.sendBroadcast(intent);
+
             if (null != adWebView) {
                 adWebView.stopLoading();
                 //修复了WebView.destroy() called while still attached!的bug

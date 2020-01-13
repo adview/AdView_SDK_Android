@@ -47,7 +47,12 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         screenWidth = screenSize[0];
         //这个高度减去导航条和状态条的高度
         screenHeight = screenSize[1] - AdViewUtils.getNaviBarHeight(context) - AdViewUtils.getStatusBarHeight(context);
-        logoHeight = screenWidth /4;
+        //取得app logo的高度
+//        Drawable drawable = kySpreadListener.getSpreadLogo();
+//        AdViewUtils.getResHeight(drawable);
+//        int h = drawable.getIntrinsicHeight();
+        logoHeight = screenWidth /4;//user logo 的高度;
+
         //this.setBackgroundColor(Color.BLUE); //wilder 2020
         this.densityScale = AdViewUtils.getScaledDensity(context);
         this.density = AdViewUtils.getDensity(context);
@@ -254,6 +259,7 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                         }
                         break;
 
+                        //user logo from app
                     case ConstantValues.SPREAD_UI_LOGOIMAGEID:
                         switch (layoutType) {
                             case ConstantValues.SPREAD_UI_NULL:
@@ -265,9 +271,17 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             case ConstantValues.SPREAD_UI_EXTRA1:
                                 if (hasLogo == ConstantValues.SPREAD_RESP_HAS_LOGO) {
                                     //child.layout(0, screenHeight - (screenWidth / 4), screenWidth, screenHeight); //wilder 2020
-                                    //Drawable drawable = kySpreadListener.getSpreadLogo();
-                                    //int h = drawable.getIntrinsicHeight();
-                                    child.layout(0, screenHeight - (logoHeight), screenWidth, screenHeight);
+                                    //2020-0108自动调整app logo的大小
+                                    Drawable drawable = kySpreadListener.getSpreadLogo();
+                                    if (null != drawable) {
+                                        int logoH = drawable.getIntrinsicHeight();
+                                        //logoHeight = logoH;
+                                        if (logoH < screenWidth /4) {
+                                            logoHeight = logoH;
+                                        }
+                                    }
+                                    //画出用户的logo image
+                                    child.layout(0, screenHeight - (logoHeight * hasLogo), screenWidth, screenHeight);
                                 }
                                 else {
                                     child.setVisibility(View.GONE);
@@ -284,38 +298,40 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                             case ConstantValues.SPREAD_UI_SCALE_INCLUDEHTML:
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        if (!isHtml)
+                                        if (!isHtml) {
                                             child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
-                                        else
+                                        } else {
                                             child.layout(0, (screenHeight - (logoHeight * hasLogo)) / 2 - sHeight / 2,
                                                     sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
+                                        }
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        if (!isHtml)
+                                        if (!isHtml) {
                                             child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
-                                        else
-                                            child.layout(0, (screenHeight - (logoHeight * hasLogo)) - sHeight, sWidth, screenHeight - (logoHeight * hasLogo));
+                                        }else {
+                                            child.layout(0, (screenHeight - (logoHeight * hasLogo)) - sHeight,
+                                                    sWidth, screenHeight - (logoHeight * hasLogo));
+                                        }
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
                                     case ConstantValues.SPREAD_UI_EXTRA3:
                                     case ConstantValues.SPREAD_UI_EXTRA2:
                                     case ConstantValues.SPREAD_UI_EXTRA1:
-                                        if (!isHtml)
+                                        if (!isHtml) {
                                             child.layout(0, 0, sWidth, (screenHeight - (logoHeight * hasLogo)));
-                                        else
+                                        } else {
                                             child.layout(0, 0, sWidth, sHeight);
+                                        }
                                         break;
                                 }
                                 break;
                             default:
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        //wilder 2020 更改坐标
+                                        //wilder 2020 更改坐标,这里整个instl view都是从0开始算起
 //                                        child.layout(0, 0 /*(screenHeight - (logoHeight * hasLogo)) / 2 - sHeight / 2*/,
 //                                                        sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
-//                                        child.layout(0, (screenHeight - (logoHeight * hasLogo)) / 2 - sHeight / 2,
-//                                                sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         child.layout(0, 0,
                                                 sWidth, (screenHeight - (logoHeight * hasLogo)));
                                         break;
@@ -335,71 +351,76 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                         break;
                     case ConstantValues.UI_ADICON_ID:
                         int iconHeight = screenWidth / 25;
+                        int iconWidth = screenWidth /8;
                         if (null != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID).getHeight()) {
                             if (sHeight == screenHeight) {
+                                //全屏的spread的逻辑
                                 //child.layout(0, screenHeight - screenWidth / 25, screenWidth / 8, screenHeight); wilder 2020
-                                child.layout(0, screenHeight - logoHeight - iconHeight, screenWidth / 8, screenHeight - logoHeight);
-                            } else if (sHeight > screenHeight - (screenWidth / 4)) {
-                                child.layout(0, (screenHeight - screenWidth / 4) - iconHeight, screenWidth / 8, (screenHeight - screenWidth / 4));
+                                child.layout(0, screenHeight - logoHeight - iconHeight, iconWidth, screenHeight - logoHeight);
+                            } else if (sHeight > screenHeight - logoHeight) {
+                                child.layout(0, screenHeight - logoHeight - iconHeight, iconWidth, screenHeight - logoHeight);
                             } else {
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        child.layout(0, ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - iconHeight, sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
+                                        child.layout(0, ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - iconHeight,
+                                                sWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        child.layout(0, (screenHeight - (logoHeight * hasLogo)) - iconHeight, sWidth, screenHeight - (logoHeight * hasLogo));
+                                        child.layout(0, (screenHeight - (logoHeight * hasLogo)) - iconHeight,
+                                                sWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
                                     case ConstantValues.SPREAD_UI_EXTRA3:
                                     case ConstantValues.SPREAD_UI_EXTRA2:
                                     case ConstantValues.SPREAD_UI_EXTRA1:
-                                        child.layout(0, sHeight - iconHeight, screenWidth / 8, sHeight);
+                                        child.layout(0, sHeight - iconHeight, iconWidth, sHeight);
                                         break;
                                 }
                             }
                         }else {
                             if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
-                                child.layout(0, bottom - iconHeight, screenWidth / 8, bottom);
-//                                bottom -= screenWidth / 10;
-//                                child.layout(0, bottom  - iconHeight, screenWidth / 8, bottom);
+                                child.layout(0, bottom - iconHeight, iconWidth, bottom);
                             }
                         }
                         break;
                     case ConstantValues.UI_ADLOGO_ID:
-                        int loHeight = screenWidth / 25;
+                        int adLogoH = screenWidth / 25;
+                        int adLogoW = screenWidth / 8;
                         if (null != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID) && 0 != findViewById(ConstantValues.SPREAD_UI_LOGOIMAGEID).getHeight()) {
                             if (sHeight == screenHeight) {
                                 //child.layout(screenWidth - (screenWidth / 8), screenHeight - screenWidth / 25, screenWidth, screenHeight); wilder 2020
-                                child.layout(screenWidth - (screenWidth / 8), screenHeight - logoHeight - loHeight,
+                                child.layout(screenWidth - adLogoW, screenHeight - logoHeight - adLogoH,
                                         screenWidth, screenHeight - logoHeight);
                             }
                             else if (sHeight > screenHeight - (screenWidth / 4)) {
-                                child.layout(screenWidth - (screenWidth / 8), (screenHeight - screenWidth / 4) - loHeight,
+                                child.layout(screenWidth - adLogoW, (screenHeight - screenWidth / 4) - adLogoH,
                                         screenWidth, (screenHeight - screenWidth / 4));
                             }else {
 //                                child.layout(screenWidth - (screenWidth / 8), sHeight - screenWidth / 25, screenWidth, sHeight);
                                 switch (layoutType) {
                                     case ConstantValues.SPREAD_UI_CENTER:
-                                        child.layout(screenWidth - (screenWidth / 8), ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - loHeight, screenWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
+                                        child.layout(screenWidth - adLogoW, ((screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2) - adLogoH,
+                                                screenWidth, (screenHeight - (logoHeight * hasLogo)) / 2 + sHeight / 2);
                                         break;
                                     case ConstantValues.SPREAD_UI_BOTTOM:
-                                        child.layout(screenWidth - (screenWidth / 8), (screenHeight - (logoHeight * hasLogo)) - loHeight, screenWidth, screenHeight - (logoHeight * hasLogo));
+                                        child.layout(screenWidth - adLogoW, (screenHeight - (logoHeight * hasLogo)) - adLogoH,
+                                                screenWidth, screenHeight - (logoHeight * hasLogo));
                                         break;
                                     case ConstantValues.SPREAD_UI_TOP:
                                     case ConstantValues.SPREAD_UI_ALLCENTER:
                                     case ConstantValues.SPREAD_UI_EXTRA3:
                                     case ConstantValues.SPREAD_UI_EXTRA2:
                                     case ConstantValues.SPREAD_UI_EXTRA1:
-                                        child.layout(screenWidth - (screenWidth / 8), sHeight - loHeight, screenWidth, sHeight);
+                                        child.layout(screenWidth - adLogoW, sHeight - adLogoH, screenWidth, sHeight);
                                         break;
                                 }
                             }
                         } else {
                             if (null != (adLayout = ((RelativeLayout) child.getParent()).findViewById(ConstantValues.SPREAD_UI_FRAMEID))) {
                                 int bottom = adLayout.getBottom();
-                                child.layout(screenWidth - (screenWidth / 8), bottom - loHeight, screenWidth, bottom);
+                                child.layout(screenWidth - adLogoW, bottom - adLogoH, screenWidth, bottom);
                             }
                         }
                         break;
@@ -529,10 +550,13 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
                     } else if (v.getId() == ConstantValues.SPREAD_UI_TEXTID || v.getId() == ConstantValues.MIXED_UI_BEHAVEICON_ID) {
                         if (null != kySpreadListener)
                             kySpreadListener.onViewClicked(event, null, null, event.getX(), event.getY());
-                    } else if (touchRect.contains((int) event.getRawX(), (int) event.getRawY()))
-//                        kySpreadListener.onViewCLicked(downX, downY, event.getX(), event.getY());
-//                }
-                        break;
+                    } else if (touchRect.contains((int) event.getRawX(), (int) event.getRawY())){
+                        //kySpreadListener.onViewClicked(downX, downY, event.getX(), event.getY());
+                        //wilder 2020
+                        //if (null != kySpreadListener)
+                        //    kySpreadListener.onCloseBtnClicked();
+                    }
+                    break;
             }
         } catch (Exception e) {
             e.printStackTrace();

@@ -94,12 +94,12 @@ public class ConstantValues {
     public static final int SPREAD_RESP_BITMAP_RECEIVED = 1;
     public static final int SPREAD_RESP_HTML_RECEIVED = 4;
     public static final int SPREAD_RESP_DELAY = 2;
-    public static final int SPREAD_RESP_STRICT = 3;
+    public static final int SPREAD_RESP_TIMEUP_STRICT = 3;  //开屏展示的限定时间，一般为3s，到时间会发送建议关闭事件
     public static final int SPREAD_RESP_COUNTDOWN = 5;
     public static final int SPREAD_RESP_USERCANCEL = 6;
     public static final int SPREAD_RESP_IMPRESSION = 7;
     public static final int SPREAD_RESP_UIDELAY_UPDATE = 8;
-    public static final int SPREAD_RESP_CLOSEDSTATUS_CHECK = 9;
+    public static final int SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK = 9;
 
     // spread logo
     public final static int SPREAD_RESP_HAS_LOGO = 1;
@@ -199,7 +199,7 @@ public class ConstantValues {
     public final static String DL_DOWNLOADED_STATUS     = "download_status_downloaded";
     public final static String DL_DOWNLOADFAILED_STATUS = "download_status_failed";
     //关闭落地页会广播closed事件，在spread中会有条件接受
-    public final static String ADWEBVIEW_BROADCAST_CLOSED_STATUS = "adwebview_closed_status";
+    public final static String ADWEBVIEW_BROADCAST_LANDINGPAGE_CLOSED_STATUS = "adwebview_landingpage_closed_status";
 
     //请求和report的thread的并发数量
     public final static int REPORT_THREADPOOL_NUM = 4;
@@ -255,8 +255,15 @@ public class ConstantValues {
 //            + "__SCRIPT__"
 //            + "</Div>";
 
+    //webView 里内容自适应屏幕
+    public static String h5_style = "<style>" +
+            "img{max-width:100%; height:auto}" +
+            "video{max-width:100%;height:auto}" +
+            "</style>";
+
     public static String MRAID_SCRIPT_HTMLSTYLE =
             "<Div align=\"center\" style=\"margin: 0 auto; text-align: center\">"
+            // + "<style>" + "img{max-width:100%; height:auto}" + "video{max-width:100%;height:auto}" + "</style>" //can make auto fit ?
             + "<script src=\"file:///android_asset/MRAID.js\" type=\"text/javascript\"></script>"
             + "<script src=\"file:///android_asset/omsdk-v1.js\" type=\"text/javascript\"></script>"
             // + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=2,user-scalable=yes\" />"

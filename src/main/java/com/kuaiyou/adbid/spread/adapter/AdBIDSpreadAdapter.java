@@ -38,7 +38,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.ref.SoftReference;
 import java.net.URLDecoder;
 
-public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadListener */ {
+public class AdBIDSpreadAdapter extends AdAdapterManager {
 
     private SpreadHandler handler;
     private KySpreadListener kySpreadViewListener;
@@ -53,7 +53,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
 
     private boolean isDisplayed = false;
 
-    static boolean isPageDone = false; //wilder 2019
+    private static boolean isPageDone = false; //wilder 2019
     private AdsBean adsBean;
 
     public MRAIDView getMRaidView() {
@@ -63,20 +63,11 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
         return null;
     }
 
-    public /*static*/ class SpreadHandler extends Handler {
-        //private SoftReference<AdBIDSpreadAdapter> adSpreadBIDViewReference = null;
+    public class SpreadHandler extends Handler {
         private boolean hasClosed = false;
-        //private AdsBean adsBean;
 
         public SpreadHandler(AdBIDSpreadAdapter adSpreadBIDAdpt) {
             super(Looper.getMainLooper());
-/*  wilder 2019 covered
-            adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>(adSpreadBIDAdpt);
-            adsBean = adSpreadBIDViewReference.get().kySpreadViewListener.getAdsBean();
-            adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().setSpreadViewListener(adSpreadBIDAdpt); //wilder : old is set to itself
-            //adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().setSpreadViewListener(adSpreadBIDAdpt.kySpreadViewListener);
-            adSpreadBIDViewReference.get().kySpreadViewListener.getSpreadView().init();
-*/
         }
 
        /**
@@ -84,26 +75,16 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private void notifyRecievedInterface(Message msg, boolean isHTML) {
             try {
-/* wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDAdpt = adSpreadBIDViewReference.get();
-*/
-
                 //wilder 2019 fixed for web content loader will slow and may counter down faster
                 if (isHTML) {
+                    //该参数表明页面是否加载完毕，只有加载完毕才能发送conutdown 事件
                     isPageDone = false; //wilder 2019 for start counter in page done, see bellow.
                 } else {
-                    //notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(), adSpreadBIDAdpt.kySpreadViewListener.getNotifyType()); wilder 2019 covered
                     notifyCountDown(adsBean.getRuleTime() + adsBean.getDelayTime(), kySpreadViewListener.getNotifyType());
                 }
 
                 setNotifyBackground((TextView) getViewById(ConstantValues.SPREAD_UI_COUNTERID, msg));
 
-/*               wilder 2019 covered
-                if (null != adSpreadBIDAdpt.kySpreadViewListener) {
-                    adSpreadBIDAdpt.kySpreadViewListener.onReceived(null, false);
-                }*/
                 if (null != kySpreadViewListener) {
                     kySpreadViewListener.onReceived(null, false);
                 }
@@ -133,17 +114,11 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private void notifyReady(Message msg) {
             try {
-/*          wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
 
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                */
-                removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                removeMessages(ConstantValues.SPREAD_RESP_TIMEUP_STRICT);
                 removeMessages(ConstantValues.SPREAD_RESP_DELAY);
                 Message msg2 = new Message();
-                msg2.what = ConstantValues.SPREAD_RESP_STRICT;
-                //msg2.arg1 = adSpreadBIDView.kySpreadViewListener.getNotifyType(); wilder 2019 covered
+                msg2.what = ConstantValues.SPREAD_RESP_TIMEUP_STRICT;
                 msg2.arg1 = kySpreadViewListener.getNotifyType();
                 sendMessageDelayed(msg2,adsBean.getRuleTime() * 1000l);
             } catch (Exception e) {
@@ -175,13 +150,6 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private void notifyImpressionInterface(Message msg) {
             try {
-/*              wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDAdpt = adSpreadBIDViewReference.get();
-                adSpreadBIDAdpt.kySpreadViewListener.onDisplay(null, false);
-                adSpreadBIDAdpt.isDisplayed = true;
-*/
                 kySpreadViewListener.onDisplay(null, false);
                 isDisplayed = true;
             } catch (Exception e) {
@@ -194,11 +162,6 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private void notifyUserCancelInterface(Message msg) {
             try {
-/*          wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-*/
 
                 WebView webView = (WebView) getViewById(ConstantValues.UI_WEBVIEW_ID, msg);
                 try {
@@ -212,9 +175,8 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                removeMessages(ConstantValues.SPREAD_RESP_TIMEUP_STRICT);
                 removeMessages(ConstantValues.SPREAD_RESP_DELAY);
-                //adSpreadBIDView.kySpreadViewListener.onCloseBtnClicked(); wilder 2019 covered
                 kySpreadViewListener.onCloseBtnClicked();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -226,36 +188,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private void notifyFaildedIntetface(String mg, Message msg) {
             try {
-/*          wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kySpreadViewListener.onAdFailed(null, mg, false);
-*/
                 kySpreadViewListener.onAdFailed(null, mg, false);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        /**
-         * 通知开屏倒计时/接口
-         */
-        private void notifyCustomCountDownInterface(Message msg) {
-            try {
-/*              wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                adSpreadBIDView.kySpreadViewListener.onAdNotifyCustomCallback(
-                        (RelativeLayout) getViewById(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID, msg),
-                        adsBean.getRuleTime(),
-                        adsBean.getDelayTime());
-*/
-                kySpreadViewListener.onAdNotifyCustomCallback(
-                        (RelativeLayout) getViewById(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID, msg),
-                        adsBean.getRuleTime(),
-                        adsBean.getDelayTime());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -280,12 +213,6 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
          */
         private View getViewById(int id, Message msg) {
             try {
-/*          wilder 2019 covered
-                if (null == adSpreadBIDViewReference.get())
-                    adSpreadBIDViewReference = new SoftReference<AdBIDSpreadAdapter>((AdBIDSpreadAdapter) msg.obj);
-                AdBIDSpreadAdapter adSpreadBIDView = adSpreadBIDViewReference.get();
-                return adSpreadBIDView.kySpreadViewListener.getSpreadView().findViewById(id);
-*/
                 return kySpreadViewListener.getSpreadView().findViewById(id);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -368,7 +295,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                 case ConstantValues.SPREAD_RESP_COUNTDOWN:
                     adCounter = (InstlView.CenterTextView) getViewById(ConstantValues.SPREAD_UI_COUNTERID, msg);
                     switch (msg.arg2) {
-                        // 倒计时
+                        // 倒计时的表现形式，取决于app端的设定，其中NOTIFY_COUNTER_CUSTOM全部由app自己画
                         case AdSpreadBIDView.NOTIFY_COUNTER_NUM:
                             if (1 <= msg.arg1) {
                                 if (null != adCounter) {
@@ -389,15 +316,22 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                                 adCounter.invalidate();
                             }
                             break;
-                        // 自定义 --通知接口
+                        // 自定义 --通知接口，直接通知app
                         case AdSpreadBIDView.NOTIFY_COUNTER_CUSTOM:
-                            notifyCustomCountDownInterface(msg);
+                            //notifyCustomCountDownInterface(msg);
+                            try {
+                                kySpreadViewListener.onAdNotifyCustomCallback(
+                                        (RelativeLayout) getViewById(ConstantValues.SPREAD_UI_NOTIFYLAYOUTID, msg),
+                                        adsBean.getRuleTime(),
+                                        adsBean.getDelayTime());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
                             break;
                     }
                     break;
                 // 当用户调用跳过广告时调用
                 case ConstantValues.SPREAD_RESP_USERCANCEL:
-                    //if (!adSpreadBIDAdapter.isDisplayed)  wilder 2019 covered
                     if (!isDisplayed) {
                         if (KyAdBaseView.spreadSettleType == KyAdBaseView.SpreadSettleType.CPM)
                             if ((null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg) &&
@@ -410,15 +344,15 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                     break;
                 // 广告接受失败时调用
                 case ConstantValues.SPREAD_RESP_FAILED:
-                    removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                    removeMessages(ConstantValues.SPREAD_RESP_TIMEUP_STRICT);
                     removeMessages(ConstantValues.SPREAD_RESP_DELAY);
                     notifyFaildedIntetface("failed" + msg.arg1, msg);
                     break;
                 // 初始化成功后会接到此消息
-                // 默认展示3秒
+                // 默认展示3秒，三秒后会发送“可以关闭”消息，当然用户可以根据自己的情况选择是否关闭
                 case ConstantValues.SPREAD_REQ_INIT_SUCCESS:
                     Message initMsg = new Message();
-                    initMsg.what = ConstantValues.SPREAD_RESP_STRICT;
+                    initMsg.what = ConstantValues.SPREAD_RESP_TIMEUP_STRICT;
                     initMsg.arg2 = -1;
                     sendMessageDelayed(initMsg, 3 * 1000l);
                     break;
@@ -441,7 +375,7 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                                 adWebView.loadUrl(adsBean.getXhtml());
                             }
                         }
-
+                        //通知app已经收到广告
                         notifyRecievedInterface(msg, true);
 
                         if (KyAdBaseView.spreadSettleType != KyAdBaseView.SpreadSettleType.CPM) {
@@ -496,37 +430,38 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                     break;
                 // 到达规定展示时间后发展示报告
                 // 并且发送延时信息
-                case ConstantValues.SPREAD_RESP_STRICT:
+                case ConstantValues.SPREAD_RESP_TIMEUP_STRICT:
                     try {
-                        Message msg2 = new Message();
-                        msg2.copyFrom(msg);
-                        msg2.what = ConstantValues.SPREAD_RESP_UIDELAY_UPDATE;
-                        if (adsBean.getRuleTime() == 0 || adsBean.getDelayTime() != 0)
+                        if (adsBean.getRuleTime() == 0 || adsBean.getDelayTime() != 0) {
+                            //该消息用于非custom的情况
+                            Message msg2 = new Message();
+                            msg2.copyFrom(msg);
+                            msg2.what = ConstantValues.SPREAD_RESP_UIDELAY_UPDATE;
                             sendMessage(msg2);
-                        sendEmptyMessageDelayed(
-                                ConstantValues.SPREAD_RESP_DELAY,
-                                null == adsBean ? 1
-                                        : adsBean.getDelayTime() * 1000l);
+                        }
+                        //延迟发送可关闭事件，时间值从bid服务器返回，默认1s
+                        sendEmptyMessageDelayed( ConstantValues.SPREAD_RESP_DELAY,
+                                            null == adsBean ? 1 : adsBean.getDelayTime() * 1000l);
                     } catch (Exception e) {
+                        e.printStackTrace();
                     }
                     break;
                 // 展示可以关闭，通知开发者
                 case ConstantValues.SPREAD_RESP_DELAY:
                     try {
-                        //if (!adSpreadBIDAdapter.isDisplayed) wilder 2019 covered
                         if (!isDisplayed)
                         {
                             if (KyAdBaseView.spreadSettleType == KyAdBaseView.SpreadSettleType.CPM)
                                 if ((null != getViewById(ConstantValues.UI_WEBVIEW_ID, msg) && getViewById(ConstantValues.UI_WEBVIEW_ID, msg).isShown()) ||
-                                        (null != getViewById(ConstantValues.MIXED_UI_ICONID, msg) && getViewById(ConstantValues.MIXED_UI_ICONID, msg).isShown())) {
+                                    (null != getViewById(ConstantValues.MIXED_UI_ICONID, msg) && getViewById(ConstantValues.MIXED_UI_ICONID, msg).isShown())){
                                     notifyImpressionInterface(msg);
                                 }
                         }
-                        //if (adSpreadBIDAdapter.kySpreadViewListener.isClickableConfirm())  wilder 2019 covered
                         if (kySpreadViewListener.isClickableConfirm())
                         {
                             hasClosed = true;
-                            removeMessages(ConstantValues.SPREAD_RESP_STRICT);
+                            removeMessages(ConstantValues.SPREAD_RESP_TIMEUP_STRICT);
+                            //通知可以关闭了
                             notifyCloseInterface(msg);
                         }
                     } catch (Exception e) {
@@ -548,9 +483,9 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
                         e.printStackTrace();
                     }
                     break;
-                case ConstantValues.SPREAD_RESP_CLOSEDSTATUS_CHECK:
+                case ConstantValues.SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK:
                     try {
-                        if (!hasMessages(ConstantValues.SPREAD_RESP_STRICT))
+                        if (!hasMessages(ConstantValues.SPREAD_RESP_TIMEUP_STRICT))
                             if (!hasMessages(ConstantValues.SPREAD_RESP_DELAY))
                                 sendEmptyMessage(ConstantValues.SPREAD_RESP_DELAY);
                     } catch (Exception e) {
@@ -560,28 +495,6 @@ public class AdBIDSpreadAdapter extends AdAdapterManager /*implements KySpreadLi
             }
         }
     }
-
-//    class InitRunnable implements Runnable {
-//
-//        public InitRunnable() {
-//        }
-//
-//        @Override
-//        public void run() {
-//            AdsBean adsBean = kySpreadViewListener.getAdsBean();
-//            switch (adsBean.getAdType()) {
-//                case ConstantValues.RESP_ADTYPE_HTML:
-//                    initRes(null);
-//                    break;
-//                case ConstantValues.RESP_ADTYPE_MIXED:
-//                    initRes(adsBean.getGetImageUrl() + adsBean.getAdIcon());
-//                    break;
-//                default:
-//                    initRes(adsBean.getGetImageUrl() + adsBean.getAdPic());
-//                    break;
-//            }
-//        }
-//    }
 
     private void setTouchArea() {
         //AdsBean adsBean = kySpreadViewListener.getAdsBean();

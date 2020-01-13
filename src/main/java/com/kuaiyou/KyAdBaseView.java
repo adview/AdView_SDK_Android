@@ -32,6 +32,7 @@ import android.webkit.WebView;
 import android.widget.RelativeLayout;
 
 import com.kuaiyou.adbid.AdAdapterManager;
+import com.kuaiyou.adbid.AdSpreadBIDView;
 import com.kuaiyou.interfaces.AdVGListener;
 import com.kuaiyou.interfaces.AdViewVideoInterface;
 import com.kuaiyou.interfaces.NativeAdCallBack;
@@ -480,7 +481,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
     //wilder 2019 for privacy information
     public static void showNativePrivacyInformation(final Context context, final String url ) {
         try {
-            AdViewUtils.openLandingPage(context, url, false);
+            AdViewUtils.openLandingPage(context, url, AdViewUtils.useCustomTab);
         }catch (Exception e) {
             e.printStackTrace();
         }
@@ -493,7 +494,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
      * @param adsBean
      * @param url
      */
-    public static boolean clickEvent(final Context context, final AdsBean adsBean, final String url, final ServiceConnection conn) {
+    public /*static*/ boolean clickEvent(final Context context, final AdsBean adsBean, final String url, final ServiceConnection conn) {
         try {
             final Intent i = new Intent();
             i.putExtra("adview_url", TextUtils.isEmpty(url) ? adsBean.getAdLink() : url);
@@ -519,13 +520,19 @@ public abstract class KyAdBaseView extends RelativeLayout {
                 // 部分地址可能有问题
                 default:
                 case ConstantValues.RESP_ACT_OPENWEB:
-                    AdViewUtils.openLandingPage(context,TextUtils.isEmpty(url) ? adsBean.getAdLink() : url, false);
+                    //if (onAdSpreadListener != null)
+//                    if (this instanceof AdSpreadBIDView){
+//                        //spread view 要采用 landingpage activity不建议用custom tab ,因为要获取页面关闭的事件
+//                        AdViewUtils.openLandingPage(context, TextUtils.isEmpty(url) ? adsBean.getAdLink() : url, false);
+//                    }else {
+                        AdViewUtils.openLandingPage(context, TextUtils.isEmpty(url) ? adsBean.getAdLink() : url, AdViewUtils.useCustomTab);
+//                    }
                     break;
                 case ConstantValues.RESP_ACT_DOWNLOAD:
                     //wilder 20190813 for AppLoving dsp 's resp: though download but url = market://xxxx
                     if (url.contains("market://")) {
                         //就算是download模式，但如果是market的格式则启动openweb模式打开,采用落地页接口，而不采用安装apk的模式
-                        AdViewUtils.openLandingPage(context,TextUtils.isEmpty(url) ? adsBean.getAdLink() : url, false);
+                        AdViewUtils.openLandingPage(context,TextUtils.isEmpty(url) ? adsBean.getAdLink() : url, AdViewUtils.useCustomTab);
                         break;
                     }
                     //end wilder 20190813
@@ -619,7 +626,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
      * @param adsBean
      * @param url
      */
-    public static boolean clickEvent(Context context, AdsBean adsBean, String url) {
+    public /*static*/ boolean clickEvent(Context context, AdsBean adsBean, String url) {
         String finalUrl = "";
         try {
             finalUrl = TextUtils.isEmpty(url) ? adsBean.getAdLink() : url;

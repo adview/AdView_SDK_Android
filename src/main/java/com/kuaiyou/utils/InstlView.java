@@ -167,12 +167,16 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
                             e.printStackTrace();
                         }
                         break;
-                    case ConstantValues.UI_WEBVIEW_ID:
+                    //case ConstantValues.UI_WEBVIEW_ID:
 //                    child.getLayoutParams().width = instlWidth;
 //                    child.getLayoutParams().height = instlHeight;
                     case ConstantValues.UI_MRAIDVIEW_ID:
-                        child.layout(0, 0, instlWidth, instlHeight);
-//                    ((MRAIDView) child).setLayoutParmas(instlWidth, instlHeight);
+                        //child.layout(0, 0, instlWidth, instlHeight); wilder 2020
+                        child.layout(0,0,r-l,b-t);
+                        //wilder 20200108 这里动态调整mraid view的大小，影响webview的布局,记住原坐标不变，大小进行调整
+                        RelativeLayout.LayoutParams  layoutParmars = new RelativeLayout.LayoutParams(r-l, b-t);
+                        layoutParmars.addRule(RelativeLayout.CENTER_IN_PARENT);
+                        child.setLayoutParams(layoutParmars);
                         break;
                 }
             }

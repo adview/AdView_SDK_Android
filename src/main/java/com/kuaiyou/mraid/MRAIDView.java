@@ -288,6 +288,15 @@ public class MRAIDView extends RelativeLayout {
 
     @SuppressLint({"SetJavaScriptEnabled", "NewApi"})
     private WebView createWebView() {
+//        WebView wv = new WebView(context);
+//		//[*关键的三行start] wilder 2020
+//		//设置WebView属性，能够执行Javascript脚本
+//		wv.getSettings().setJavaScriptEnabled(true);
+//		wv.getSettings().setAllowFileAccessFromFileURLs(true);
+//		wv.getSettings().setAllowUniversalAccessFromFileURLs(true);
+//		//[*关键的三行end]
+//		//加载需要显示的网页
+//		wv.loadUrl("https://www.baidu.com");
         WebView wv = new WebView(context) {
 
             private MotionEvent downEvent;
@@ -422,11 +431,10 @@ public class MRAIDView extends RelativeLayout {
         //so no suggested
         //wv.setInitialScale(90);
         // 设置可以支持缩放
-        //webSetting.setSupportZoom(true);
-//        webSetting.setUseWideViewPort(true);
-//        webSetting.setLoadWithOverviewMode(true);
+//        webSetting.setSupportZoom(true);
+//        webSetting.setUseWideViewPort(true); //wilder 2020
+//        webSetting.setLoadWithOverviewMode(true); //wilder 2020
 //        webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
-       // webSetting.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.SINGLE_COLUMN);
 
         //for cookie
         CookieManager.getInstance().setAcceptFileSchemeCookies(true);

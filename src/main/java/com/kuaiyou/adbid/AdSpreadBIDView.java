@@ -44,6 +44,7 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
     private String logoUriStr;
     private String adLogo;
     private String adIcon;
+    private String appID;
 
     private String bitmapPath;
     private SharedPreferences preferences = null;
@@ -84,8 +85,8 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         calcAdSize();
         this.routeType = routeType;
         density = AdViewUtils.getDensity(getContext());
-
-        applyAdBean = initRequestBean(appID, null, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
+        this.appID = appID;
+        //applyAdBean = initRequestBean(appID, null, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
 
         // 初始化 起始界面
         spreadView = new SpreadView(getContext());
@@ -120,6 +121,8 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
     private void requestAd() {
         long cacheTime;
         String configUrl;
+        //2020 RequestBean的动作必须在fetch GPID之后
+        applyAdBean = initRequestBean(appID, null, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
 
         configUrl = getConfigUrl(routeType);
         preferences = SharedPreferencesUtils.getSharedPreferences(getContext(),ConstantValues.SP_SPREADINFO_FILE);
@@ -257,6 +260,7 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
                         onAdSpreadListener.onAdRecieveFailed(this, (String) msg.obj);
                     }
                 } catch (Exception e) {
+                    e.printStackTrace();
                 }
                 break;
             default:
@@ -293,23 +297,25 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
 
     @Override
     protected void handleClick(MotionEvent event, int realX, int realY, String url) {
+        /*
         try {
+            //如果打开落地页，则当关闭落地页之后，需要延迟发送关闭消息给app
             LocalBroadcastManager.getInstance(getContext()).registerReceiver(new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     try {
                         isClickFinished = true;
-                        adAdapterManager.sendMessage(ConstantValues.SPREAD_RESP_CLOSEDSTATUS_CHECK);
-//                        handler.sendEmptyMessage(ConstantValues.SPREAD_RESP_CLOSEDSTATUS_CHECK);
+                        adAdapterManager.sendMessage(ConstantValues.SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK);
                         LocalBroadcastManager.getInstance(context).unregisterReceiver(this);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
-            }, new IntentFilter(ConstantValues.ADWEBVIEW_BROADCAST_CLOSED_STATUS));
+            }, new IntentFilter(ConstantValues.ADWEBVIEW_BROADCAST_LANDINGPAGE_CLOSED_STATUS));
         } catch (Exception e) {
             e.printStackTrace();
         }
+        */
         try {
             if (!isDisplayed) {
                 //目前只准对电视红包
@@ -324,10 +330,11 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         } catch (Exception e) {
             e.printStackTrace();
         }
-
+        //点击汇报
         reportClick(event, realX, realY, applyAdBean, adsBean, respAdBean);
 
         if (null != onAdSpreadListener) {
+            //向app发送click消息
             onAdSpreadListener.onAdClicked(AdSpreadBIDView.this);
         }
         if (adsBean.getAdAct() != ConstantValues.RESP_ACT_DOWNLOAD) {
@@ -335,7 +342,12 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
             adAdapterManager.removeMessage(ConstantValues.SPREAD_RESP_BITMAP_RECEIVED);
             isClickFinished = false;
         }
+        //打开落地页
         isClickFinished = clickEvent(getContext(), adsBean, url);
+        //wilder 2020 ,发送延迟可关闭的消息给app,因为目前采用的方式是custom tab，还不能获取关闭事件
+        //因此在这里就延迟一下，通知app可以关闭spread了
+        isClickFinished = true;
+        adAdapterManager.sendMessage(ConstantValues.SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK);
     }
 
     @Override

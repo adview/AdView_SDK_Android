@@ -39,7 +39,10 @@ import android.os.StrictMode;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.Nullable;
+import android.support.customtabs.CustomTabsCallback;
+import android.support.customtabs.CustomTabsClient;
 import android.support.customtabs.CustomTabsIntent;
+import android.support.customtabs.CustomTabsSession;
 import android.telephony.CellLocation;
 import android.telephony.TelephonyManager;
 import android.telephony.cdma.CdmaCellLocation;
@@ -129,7 +132,7 @@ public class AdViewUtils {
     /////////////// video_vast_js.html ， vast_vpaid_js.html在 resources中 ////
 
     public static int       VERSION = 415;
-    public static String    ADVIEW = "AdView SDK v4.1.5.rev.001";
+    public static String    ADVIEW = "AdView SDK v4.1.5.rev.002";
 
     private static String   OMSDK_PARTNER_NAME = "Adview";
     private static String   OMSDK_PARTNER_SDK_APP_VER = "4.1.5"; //最好是x.y
@@ -355,28 +358,82 @@ public class AdViewUtils {
     }
 
     /**
-     * 获取导航栏高度
+     * 获取导航栏高度，虚拟按键的高度
      *
      * @param context
      * @return
      */
-    public static int getNaviBarHeight(Context context) {
+    /**
+     * 底部导航是否显示
+     */
+    private static boolean isNavigationBarShow(Context context){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            //Display display = windowManager.defaultDisplay
+            WindowManager WM = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            Display display = WM.getDefaultDisplay();
+            Point size = new Point();
+            Point realSize = new Point();
+            display.getSize(size);
+            display.getRealSize(realSize);
+            return realSize.y != size.y;
+        } else {
+            boolean menu = ViewConfiguration.get(context).hasPermanentMenuKey();
+            boolean back = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
+            if (menu || back)
+                return true;
+            return false;
+        }
+    }
+
+    public static int getNaviBarHeight(Context context){
+        int barHeight = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            //Display display = windowManager.defaultDisplay
+            WindowManager WM = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            Display display = WM.getDefaultDisplay();
+            Point size = new Point();
+            Point realSize = new Point();
+            display.getSize(size);
+            display.getRealSize(realSize);
+            if (realSize.y != size.y) {
+                barHeight = realSize.y - size.y;
+            }
+        } else {
+            boolean menu = ViewConfiguration.get(context).hasPermanentMenuKey();
+            boolean back = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
+            if (menu || back) {
+                int rid = context.getResources().getIdentifier("config_showNavigationBar", "bool", "android");
+                if (rid != 0) {
+                    int resourceId = context.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+                    barHeight = context.getResources().getDimensionPixelSize(resourceId);
+                }
+            }
+        }
+
+        return barHeight;
+    }
+
+/*    public static int getNaviBarHeight(Context context) {
         try {
-            if (!checkDeviceHasNavigationBar(context))
+//            if (!checkDeviceHasNavigationBar(context)) wilder 2020,这个判断无实际意义
+//                return 0;
+            if (!isNavigationBarShow(context))
                 return 0;
             int result = 0;
             int resourceId = 0;
+            int barH = 0;
             int rid = context.getResources().getIdentifier("config_showNavigationBar", "bool", "android");
             if (rid != 0) {
                 resourceId = context.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-                return context.getResources().getDimensionPixelSize(resourceId);
+                barH = context.getResources().getDimensionPixelSize(resourceId);
+                return barH;
             } else
                 return 0;
         } catch (Exception e) {
             e.printStackTrace();
         }
         return 0;
-    }
+    }*/
 
     public static int getOrientation(Context context) {
         try {
@@ -392,39 +449,39 @@ public class AdViewUtils {
         return 0;
     }
 
-    public static boolean checkDeviceHasNavigationBar(Context context) {
-        try {
-            if (navigationBarExist(context)) {
-                String uiStr = Integer.toBinaryString(((Activity) context).getWindow().getDecorView().getSystemUiVisibility());
-                if (uiStr.length() >= 2) {
-                    byte[] a = uiStr.getBytes();
-                    if (a[a.length - 2] == 49)
-                        return false;
-                } else return true;
-            } else
-                return false;
-        } catch (Exception e) {
-        }
-        return true;
-    }
+//    public static boolean checkDeviceHasNavigationBar(Context context) {
+//        try {
+//            if (navigationBarExist(context)) {
+//                String uiStr = Integer.toBinaryString(((Activity) context).getWindow().getDecorView().getSystemUiVisibility());
+//                if (uiStr.length() >= 2) {
+//                    byte[] a = uiStr.getBytes();
+//                    if (a[a.length - 2] == 49)
+//                        return false;
+//                } else return true;
+//            } else
+//                return false;
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//        return true;
+//    }
 
-    public static boolean navigationBarExist(Context activity) {
-        try {
-            //通过判断设备是否有返回键、菜单键(不是虚拟键,是手机屏幕外的按键)来确定是否有navigation bar
-            boolean hasMenuKey = ViewConfiguration.get(activity)
-                    .hasPermanentMenuKey();
-            boolean hasBackKey = KeyCharacterMap
-                    .deviceHasKey(KeyEvent.KEYCODE_BACK);
-
-            if (!hasMenuKey && !hasBackKey) {
-                // 这个设备有一个导航栏
-                return true;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
+    /*wilder, 该函数有问题，此种判断不准确，准确的方法请见 getNaviBarHeight()*/
+//    public static boolean navigationBarExist(Context activity) {
+//        try {
+//            //通过判断设备是否有返回键、菜单键(不是虚拟键,是手机屏幕外的按键)来确定是否有navigation bar
+//            boolean hasMenuKey = ViewConfiguration.get(activity).hasPermanentMenuKey();
+//            boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
+//
+//            if (hasMenuKey && hasBackKey) {
+//                // 这个设备有一个导航栏
+//                return true;
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//        return false;
+//    }
 
     /**
      * 获得屏幕尺寸
@@ -440,12 +497,12 @@ public class AdViewUtils {
                 return new int[]{0, 0};
             if (isRaw)
                 return getWidthAndHeight(context, isArrange);
-            DisplayMetrics displayMetrics = context.getApplicationContext().getResources()
-                    .getDisplayMetrics();
+            DisplayMetrics displayMetrics = context.getApplicationContext().getResources().getDisplayMetrics();
             int width;
             int height;
             width = displayMetrics.widthPixels;
             height = displayMetrics.heightPixels;
+
             if (!isArrange)
                 return new int[]{width, height};
             else {
@@ -457,7 +514,6 @@ public class AdViewUtils {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            e.printStackTrace();
             return new int[]{0, 0};
         }
     }
@@ -468,8 +524,7 @@ public class AdViewUtils {
         try {
             if (null == context)
                 return new int[]{0, 0};
-            WindowManager WM = (WindowManager) context
-                    .getSystemService(Context.WINDOW_SERVICE);
+            WindowManager WM = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
             int width;
             int height;
             if (Build.VERSION.SDK_INT < 14) {
@@ -1758,17 +1813,17 @@ public class AdViewUtils {
     /**
      *  打开落地页
      */
-    public static void openLandingPage(final Context context, final String url, final boolean isVideo) {
+    public static void openLandingPage(final Context context, final String url, final boolean useCustom) {
         //采用 custom tab方式
         if (TextUtils.isEmpty(url))
             return;
         AdViewUtils.logInfo("######### openLandingPage() : " + url + "#########");
-        if ( useCustomTab && !url.contains("market://")) {
+        if ( useCustom && !url.contains("market://")) {
             CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
             CustomTabsIntent customTabsIntent = builder.build();
             customTabsIntent.launchUrl(context, Uri.parse(url));
         }else {
-            //采用landingpageactivity的方式来打开落地页,其中isVideo可能会启动下载service
+            //采用landingpage activity的方式来打开落地页,spread要使用这种方式，因为要判断ondestroy事件
             final Intent i = new Intent();
             i.putExtra("adview_url", url);
             i.setClass(context, AdViewLandingPage.class);
@@ -2216,6 +2271,7 @@ public class AdViewUtils {
         editor.commit();
     }
 
+    //第一次取得id等信息，必须在单独的线程中，之后给相关模块发送消息，之后才能发送广告请求
     public static void getDeviceIdFirstTime(final Context context, final KyAdBaseView baseView) {
         //final long lastGpidTime = sharedPreferences.getLong("gpid_time", 0);
         new Thread(new Runnable() {
@@ -2232,7 +2288,7 @@ public class AdViewUtils {
                     e.printStackTrace();
                     AdViewUtils.logInfo("#### first ###### device ID service  not available ###########");
                 }
-
+                //无论对错都不妨碍发送广告
                 if (null != baseView) {
                     baseView.notifyMsg(ConstantValues.NOTIFY_REQ_GPID_FETCH_DONE, "OK");
                 }
@@ -2245,8 +2301,9 @@ public class AdViewUtils {
         if (null != test_UserGPID && !test_UserGPID.isEmpty()) {
             return test_UserGPID;
         }
-        if (!checkClass("com.google.android.gms.ads.identifier.AdvertisingIdClient"))
+        if (!checkClass("com.google.android.gms.ads.identifier.AdvertisingIdClient")) {
             return "00000000-0000-0000-0000-000000000000";
+        }
 
         final SharedPreferences sharedPreferences = context.getSharedPreferences(ConstantValues.SP_ADVINFO_FILE, Context.MODE_PRIVATE);
         final long lastGpidTime = sharedPreferences.getLong("gpid_time", 0);
@@ -2265,11 +2322,14 @@ public class AdViewUtils {
             }).start();
         }
         //if no timeout, can use old one, the ad id user can change anytime
-        if (!sharedPreferences.getBoolean("gpid_limited",false)/*gpid_enabled*/)
-            return sharedPreferences.getString("gpid", "");
+        if (!sharedPreferences.getBoolean("gpid_limited",false)/*gpid_enabled*/) {
+
+            return sharedPreferences.getString("gpid", gpId);
             //return gpId;
-        else
+        }
+        else {
             return "00000000-0000-0000-0000-000000000000";
+        }
     }
 
     public static String getOAId(final Context context) {
@@ -2295,7 +2355,7 @@ public class AdViewUtils {
         }
         //if no timeout, can use old one, the ad id user can change anytime
         if (!sharedPreferences.getBoolean("oaid_limited",false)/*gpid_enabled*/)
-            return sharedPreferences.getString("oaid", "");
+            return sharedPreferences.getString("oaid", oaId);
             //return oaId;
         else
             return "00000000-0000-0000-0000-000000000000";
@@ -2729,6 +2789,7 @@ public class AdViewUtils {
     // Mraid + OMSDK support template
     public static WebView loadWebContentExt(WebView webView, String script) {
         String otherHtml = ConstantValues.MRAID_SCRIPT_HTMLSTYLE;
+        //otherHtml = otherHtml + ConstantValues.h5_style; //wilder 2020
         try {
             if (null == webView )
                 return null;
@@ -3214,7 +3275,30 @@ public class AdViewUtils {
         if (logMode)
             Log.i(ADVIEW, info + "");
     }
+    //判断是否为模拟器
+    public static boolean isSimulator(Context context)
+    {
+        String url = "tel:" + "123456";
+        Intent intent = new Intent();
+        intent.setData(Uri.parse(url));
+        intent.setAction(Intent.ACTION_DIAL);
+        // 是否可以处理跳转到拨号的 Intent
+        boolean canCallPhone = intent.resolveActivity(context.getPackageManager()) != null;
+        return !canCallPhone;
+//        return Build.FINGERPRINT.startsWith("generic") || Build.FINGERPRINT.toLowerCase()
+//                .contains("vbox") || Build.FINGERPRINT.toLowerCase()
+//                .contains("test-keys") || Build.MODEL.contains("google_sdk") || Build.MODEL.contains("Emulator") || Build.MODEL
+//                .contains("MuMu") || Build.MODEL.contains("virtual") || Build.SERIAL.equalsIgnoreCase("android") || Build.MANUFACTURER
+//                .contains("Genymotion") || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")) || "google_sdk"
+//                .equals(Build.PRODUCT) ||
+//                ((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE)).getNetworkOperatorName()
+//                .toLowerCase()
+//                .equals("android") || !canCallPhone;
+    }
 
-
+    public static int dip2px(Context context, float dpValue) {
+        final float scale = context.getResources().getDisplayMetrics().density;
+        return (int) (dpValue * scale + 0.5f);
+    }
 
 }

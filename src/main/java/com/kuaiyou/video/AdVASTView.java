@@ -3037,7 +3037,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 //            i.setClass(mContext, AdViewLandingPage.class);
 //            ((Activity)mContext).startActivity(i);
             //(3)这里打开落地页
-            AdViewUtils.openLandingPage(mContext, jumpUrl, true);
+            AdViewUtils.openLandingPage(mContext, jumpUrl, AdViewUtils.useCustomTab);
             //(4)omsdk v1.2 must send click event
             if (jumpUrl.contains("http://")||jumpUrl.contains("https://")) {
                 reportOMSDKEvents(TRACKING_EVENTS_TYPE.click);

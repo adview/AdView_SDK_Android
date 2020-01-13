@@ -534,7 +534,7 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 };
                 lbm.registerReceiver(brc, intentFilter);
             }
-            KyAdBaseView.clickEvent(context, adsBean, adsBean.getAdLink());
+            /*KyAdBaseView.*/clickEvent(context, adsBean, adsBean.getAdLink());
         } else {
             try {
                 Uri uri = Uri.parse(TextUtils.isEmpty(adsBean.getAdLink()) ? adsBean.getFallback() : adsBean.getAdLink());
