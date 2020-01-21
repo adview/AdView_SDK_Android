@@ -101,14 +101,14 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         }
         // 设置缓存大小
         try {
-            if (Class.forName("android.support.v4.util.LruCache") != null
-                    && Class.forName("android.support.v4.app.NotificationCompat") != null)
+            //if (Class.forName("android.support.v4.util.LruCache") != null) //20200120 wilder 用于测试androidx
+            if (Class.forName("android.util.LruCache") != null) //wilder 2020 for android x bug
                 ;
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
             //Toast.makeText(getContext(), "请添加最新版的android-support-v4 或 v13.jar", Toast.LENGTH_SHORT).show();
             AdViewUtils.logInfo("!!! [AdSpreadBIDView] err: pls import newest version of android-support-v4.jar !!!");
-            return;
+            //return;
         }
         //got gpid
         AdViewUtils.getDeviceIdFirstTime(context, this);

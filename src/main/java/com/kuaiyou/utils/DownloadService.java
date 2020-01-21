@@ -247,7 +247,6 @@ public class DownloadService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            Class.forName("android.support.v4.app.NotificationCompat");
             int notifyId = (int) System.currentTimeMillis();
 
             // if (isSecConfirm())
@@ -261,10 +260,8 @@ public class DownloadService extends Service {
             message.what = DOWNLOADINIT_STATUS;
             message.setData(bundle);
             DownloadService.this.updateHandler.sendMessage(message);
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+
             //Toast.makeText(this, e.toString() + "\n请添加最新的support-v4，否则将影响收入",Toast.LENGTH_SHORT).show();
-            AdViewUtils.logInfo("!!!! [DownloadService] err: pls add support-v4 !!!!");
         } catch (Exception e) {
             e.printStackTrace();
             Message message = new Message();

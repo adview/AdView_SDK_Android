@@ -132,7 +132,7 @@ public class AdViewUtils {
     /////////////// video_vast_js.html ， vast_vpaid_js.html在 resources中 ////
 
     public static int       VERSION = 415;
-    public static String    ADVIEW = "AdView SDK v4.1.5.rev.002";
+    public static String    ADVIEW = "AdView SDK v4.1.5.rev.003";
 
     private static String   OMSDK_PARTNER_NAME = "Adview";
     private static String   OMSDK_PARTNER_SDK_APP_VER = "4.1.5"; //最好是x.y
