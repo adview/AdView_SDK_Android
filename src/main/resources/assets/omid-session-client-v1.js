@@ -594,7 +594,7 @@ module$exports$omid$sessionClient$VideoEvents.prototype.adUserInteraction = func
 
 ////////////// OMSDK v1.0 .js /////////
 ;(function(omidGlobal) {
-  console.log("####### OMSdk loading ... #######");
+  console.log("###### OMSdk loading ... ######");
 
   'use strict';var k,aa='function'==typeof Object.defineProperties?Object.defineProperty:function(a,b,c){a!=Array.prototype&&a!=Object.prototype&&(a[b]=c.value)},l='undefined'!=typeof window&&window===this?this:'undefined'!=typeof global&&global?global:this;function ba(){ba=function(){};l.Symbol||(l.Symbol=ca)}var da=0;function ca(a){return'jscomp_symbol_'+(a||'')+da++}
 function n(){ba();var a=l.Symbol.iterator;a||(a=l.Symbol.iterator=l.Symbol('iterator'));'function'!=typeof Array.prototype[a]&&aa(Array.prototype,a,{configurable:!0,writable:!0,value:function(){return ea(this)}});n=function(){}}function ea(a){var b=0;return fa(function(){return b<a.length?{done:!1,value:a[b++]}:{done:!0}})}function fa(a){n();a={next:a};a[l.Symbol.iterator]=function(){return this};return a}function p(a){n();ba();n();var b=a[Symbol.iterator];return b?b.call(a):ea(a)}
@@ -643,6 +643,6 @@ function Tb(a,b,c,d){function e(a){for(var b=[],e=0;e<arguments.length;++e)b[e-0
 break;case 'VerificationService.setTimeout':var w=p(b),H=w.next().value,B=w.next().value;a.h[H]=rb(a.a,'setTimeout')(e,B);break;case 'VerificationService.clearTimeout':var C=p(b).next().value;tb(a.a,a.h[C]);break;case 'VerificationService.setInterval':var x=p(b),xa=x.next().value,ya=x.next().value;a.f[xa]=pb(a.a,e,ya);break;case 'VerificationService.clearInterval':var za=p(b).next().value;sb(a.a,a.f[za]);break;case 'VerificationService.injectJavaScriptResource':var S=p(b).next().value;Sb(a,S,function(a){return e(!0,
 a)},function(){return e(!1)});break;case 'VerificationService.getVersion':p(b).next();var Aa=Q().c.omidJsInfo;e(Aa.serviceVersion)}}catch(z){d.sendMessage(new v(f,'error',g,'\n              name: '+z.name+'\n              message: '+z.message+'\n              filename: '+z.filename+'\n              lineNumber: '+z.lineNumber+'\n              columnNumber: '+z.columnNumber+'\n              stack: '+z.stack+'\n              toString(): '+z.toString()+'\n          '),c)}};var Z=new Sa,Ub=new function(){var a;this.a=a=void 0===a?omidGlobal:a};new Qb(Z,Ub);var Vb=new function(){var a=new Ma;this.c=Z;this.b=a;this.a=Q()},Wb;if(A){var Xb=A;Wb=Xb.IntersectionObserver&&Xb.MutationObserver?new yb(A,Vb,Z):new wb(A,Vb,Ub,Z)}else Wb=null;var cc=Wb,dc=new Fb(Z,cc);A.omidBridge=new Y(Z,Vb,new function(){var a=Q();this.b=Z;this.a=a},new function(){},cc);new Ob(dc);
 if(A.frames&&A.document&&!('omid_v1_present'in A.frames)){var ec;if(ec=!A.document.body)ec='MutationObserver'in A;ec?ua():A.document.body?ta(A):A.document.write('<iframe style="display:none" id="omid_v1_present" name="omid_v1_present"></iframe>')};
-console.log("####### OMSdk Loaded  #######");
+console.log("###### OMSdk Loaded  ######");
 }).call(this, this);
 

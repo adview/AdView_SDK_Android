@@ -74,6 +74,16 @@
     <methods>;
 }
 
+-keep public class com.kuaiyou.interfaces.AdViewVideoInterface {
+    <fields>;
+    <methods>;
+}
+
+-keep public class com.kuaiyou.interfaces.NativeAdCallBack {
+    <fields>;
+    <methods>;
+}
+
 -keep public class com.kuaiyou.adbid.AdInstlBIDView {
     <fields>;
     <methods>;
@@ -109,16 +119,6 @@
 }
 
 -keep public class com.kuaiyou.utils.MD5Utils {
-    <fields>;
-    <methods>;
-}
-
--keep public class com.kuaiyou.interfaces.AdViewVideoInterface {
-    <fields>;
-    <methods>;
-}
-
--keep public class com.kuaiyou.interfaces.NativeAdCallBack {
     <fields>;
     <methods>;
 }

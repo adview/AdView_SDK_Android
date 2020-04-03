@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Base64;
@@ -57,7 +59,7 @@ public class AdViewControllerVpaid implements BridgeEventHandler {
     private String mVastFileContent;
     private AdControllerInterface adListener;
 
-    private Activity parentACT;
+    private Activity parentACT = null;
     //private String js_bridge;
     //private String js_ui;
 
@@ -184,6 +186,9 @@ public class AdViewControllerVpaid implements BridgeEventHandler {
     public void runOnUiThread(Runnable runnable) {
         if (parentACT != null) {
             parentACT.runOnUiThread(runnable);
+        }else {
+            //wilder 2020 for non-context
+            new Handler(Looper.getMainLooper()).post(runnable);
         }
     }
 

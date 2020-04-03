@@ -79,7 +79,7 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
             if (adType == ConstantValues.RESP_ADTYPE_MIXED) {
                 //混合资源广告
                 titleBitmap = new SoftReference<Bitmap>(new BitmapDrawable(getResources(),
-                        AdViewUtils.getImageFromAssetsFile("mixed_bg.jpg")).getBitmap());
+                        AdViewUtils.getImageFromAssetsFile2("mixed_bg.jpg", getContext())).getBitmap()); //wilder 2020 for non-context
 //                titleBitmap = new SoftReference<Bitmap>(BitmapFactory.decodeStream(getClass()
 //                        .getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "mixed_bg.jpg")));
                 if (null != titleBitmap || null != titleBitmap.get()) {
@@ -98,6 +98,11 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    //wilder 2020 for adActivity
+    public AdVGListener getInstlViewListener() {
+        return this.instlViewListener;
     }
 
     public void setInstlViewListener(AdVGListener kyListener) {
@@ -320,8 +325,20 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
             }
 
             if (null != instlViewListener) {
-                setAdLogo(0, instlViewListener.getAdLogo());
-                setAdLogo(1, instlViewListener.getAdIcon());
+                if (AdViewUtils.adLogoOnLine) {
+                    if (instlViewListener instanceof KyInstalListener)
+                    {
+                        setAdLogoBmp(0, ((KyInstalListener)instlViewListener).getAdLogoBmp());
+                        setAdLogoBmp(1, ((KyInstalListener)instlViewListener).getAdIconBmp());
+                    }else {
+                        setAdLogo(0, instlViewListener.getAdLogo());  //wilder 20200228
+                        setAdLogo(1, instlViewListener.getAdIcon());
+                    }
+                }else {
+                    setAdLogo(0, instlViewListener.getAdLogo());  //wilder 20200228
+                    setAdLogo(1, instlViewListener.getAdIcon());
+                }
+
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -334,7 +351,8 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
             if (null != view) {
                 String resoursePath = ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "close_ad_btn.png";
                 //if (Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN) {
-                    Bitmap bm = AdViewUtils.getImageFromAssetsFile("close_ad_btn.png");
+                //Bitmap bm = AdViewUtils.getImageFromAssetsFile("close_ad_btn.png"); wilder 2020 for non-context
+                    Bitmap bm = AdViewUtils.getImageFromAssetsFile2("close_ad_btn.png", getContext());
                     view.setImageDrawable(new BitmapDrawable(this.getResources(), bm));
                     //view.setImageDrawable(new BitmapDrawable(this.getResources(), getClass().getResourceAsStream(resoursePath)));
 //                }
@@ -380,14 +398,36 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
                 return;
             if (path.startsWith("/assets")) {
                 //wilder load assets file
-                Bitmap bm = AdViewUtils.getImageFromAssetsFile(path.replace("/assets/", ""));
+                //Bitmap bm = AdViewUtils.getImageFromAssetsFile(path.replace("/assets/", "")); wilder 2020 for non-context
+                Bitmap bm = AdViewUtils.getImageFromAssetsFile2(path.replace("/assets/", ""), getContext());
                 view.setImageDrawable(new BitmapDrawable(this.getResources(), bm));
-                //view.setImageDrawable(new BitmapDrawable(this.getResources(), getClass().getResourceAsStream(path)));
             }
             else {
                 view.setImageDrawable(new BitmapDrawable(this.getResources(), path));
-                //view.setImageDrawable(new BitmapDrawable(this.getResources(), getClass().getResourceAsStream(path)));
+//                if (instlViewListener instanceof KyInstalListener)
+//                    view.setImageBitmap(((KyInstalListener)instlViewListener).getAdLogoBmp());
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    //wilder 20200228
+    private void setAdLogoBmp(int isLogo, Bitmap bitmap) {
+        ImageView view;
+        try {
+            if (null == bitmap)
+                return;
+            if (isLogo == 0)
+                view = (ImageView) findViewById(ConstantValues.UI_ADLOGO_ID);
+            else
+                view = (ImageView) findViewById(ConstantValues.UI_ADICON_ID);
+            if (null == view) //in spread mode, view will be null
+                return;
+
+            if (instlViewListener instanceof KyInstalListener)
+                view.setImageBitmap(bitmap);
+
         } catch (Exception e) {
             e.printStackTrace();
         }

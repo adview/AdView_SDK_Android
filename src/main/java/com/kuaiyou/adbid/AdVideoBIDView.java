@@ -88,7 +88,6 @@ public class AdVideoBIDView extends KyAdBaseView {
 
         //got gpid
         AdViewUtils.getDeviceIdFirstTime(context, this);
-        //requestAd();
 
     }
 
@@ -103,7 +102,6 @@ public class AdVideoBIDView extends KyAdBaseView {
 
         //got gpid
         AdViewUtils.getDeviceIdFirstTime(context, this);
-        //requestAd();
     }
 
     public AdAdapterManager getAdAdapterManager() {
@@ -303,19 +301,17 @@ public class AdVideoBIDView extends KyAdBaseView {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////// from KyAdBaseView.java ////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    String adLogo, adIcon;
+    //String adLogo, adIcon;
     @Override
     protected boolean initAdLogo(Object object) {
-        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
-            adLogo = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdLogoUrl(), 1);
-        }
-        if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
-            adIcon = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdIconUrl(), 1);
-        }
-//        else
-//            adIcon = "/assets/icon_ad.png";
+        //Video目前用不到这个数据
+//        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
+//            adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
+//        }
+//        if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
+//            adIcon = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdIconUrl(), 1);
+//        }
+
         return true;
     }
 

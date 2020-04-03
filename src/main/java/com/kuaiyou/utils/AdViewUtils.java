@@ -82,6 +82,7 @@ import com.kuaiyou.obj.ApplyAdBean;
 import com.kuaiyou.obj.VideoBean;
 
 import org.apache.http.conn.ssl.BrowserCompatHostnameVerifier;
+import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -129,13 +130,13 @@ import static com.iab.omid.library.adview.adsession.ErrorType.GENERIC;
 public class AdViewUtils {
     /////////////////////////////// 核心版本号 ////////////////////////////////
     ////////////////改动版本号需要同时注意以下文件  ////////////////////////////
-    /////////////// video_vast_js.html ， vast_vpaid_js.html在 resources中 ////
+    /////////////// vast_video_js.html ， vast_vpaid_js.html在 resources中 ////
 
-    public static int       VERSION = 415;
-    public static String    ADVIEW = "AdView SDK v4.1.5.rev.003";
+    public static int       VERSION = 420;
+    public static String    ADVIEW = "[AdView-SDK v4.2.0.rev.001]";
 
     private static String   OMSDK_PARTNER_NAME = "Adview";
-    private static String   OMSDK_PARTNER_SDK_APP_VER = "4.1.5"; //最好是x.y
+    private static String   OMSDK_PARTNER_SDK_APP_VER = "4.2.0"; //最好是x.y
 
     /* -------------------------  正式线 ----------------------------------------*/
     public static String adbidAddr = "https://bid.adview.com/agent/getAd";  //正式线 server
@@ -144,9 +145,8 @@ public class AdViewUtils {
     //public static String adbidAddr = "https://gbjtest.adview.com/agent/getAd"; //测试线 test server
 
     ////////////////////////////////////////////////////////////////
-    //public static boolean isTest = false;// false
-    public static boolean cacheMode = false;
-    public static boolean logMode = true;
+    public static boolean cacheMode = false;  //默认没有cache模式
+    public static boolean logMode = true;     //默认log模式打开
 
     //测试客户用的客户的应用包名,正式release必须设为空
     public static String test_UserPackage = "";//"com.particlenews.newsbreak";
@@ -160,6 +160,7 @@ public class AdViewUtils {
     //wilder 2019 , play all video online
     public static boolean playOnLine = true;    //是否在线播放视频
     public static boolean bitmapOnLine = true; //wilder 2019 for load bitmap online
+    public static boolean adLogoOnLine = false; //wilder 2020 ,adlogo & adicon不用缓存，在线获取
     public static boolean videoAutoPlay = false;  //是否自动播放视频
     public static boolean htmlUseBlankErrorPage = false; //(wilder 2019) use self blank page for webview load xs error
     public static String htmlErrorPage = "http://www.adview.com/videoadtest";
@@ -173,7 +174,7 @@ public class AdViewUtils {
     public static boolean useSelfIcon = true; //用于downloadservice: 下载的小图标为app的icon
     public static boolean useWechatApp = false;     //是否支持ACT_WECHATAPP，海外版目前不支持
     public static boolean useOMSDK = true;          //从3.1.5开始将始终支持omsdk
-    public static boolean useCustomTab = true;      //采用chrome的Chrome Custom Tab 模式，我们默认是采用landingpage模块，即Chorme Webview
+    public static boolean useCustomTab = false;      //采用chrome的Chrome Custom Tab 模式，我们默认是采用landingpage模块，即Chorme Webview
     public static boolean useHuaWeiOAID = true;     //支持华为OAID的上传在华为设备上
     public static boolean useVideoFullScreen = true; //支持mrec video全屏播放
     public static boolean useVastBehavedView = false; //支持vast的companion, icon等extension
@@ -217,7 +218,10 @@ public class AdViewUtils {
     public AdViewUtils() {
         super();
     }
-
+    //wilder 2020 加入log的开关
+    public static void setLogMode(boolean mode) {
+        logMode = mode;
+    }
     ////////////////////  以下聚合所使用，目前海外版没有聚合 ///////////////////////////////////
     public static String adrtbAddr = "https://rtb.adview.cn/agent/getAd";
     public static String adbidErrorLink = "https://bid.adview.com/agent/reportError.php";
@@ -385,6 +389,7 @@ public class AdViewUtils {
         }
     }
 
+    //wilder 2020, 新的判断导航条的方法，可用于全面屏
     public static int getNaviBarHeight(Context context){
         int barHeight = 0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
@@ -449,39 +454,6 @@ public class AdViewUtils {
         return 0;
     }
 
-//    public static boolean checkDeviceHasNavigationBar(Context context) {
-//        try {
-//            if (navigationBarExist(context)) {
-//                String uiStr = Integer.toBinaryString(((Activity) context).getWindow().getDecorView().getSystemUiVisibility());
-//                if (uiStr.length() >= 2) {
-//                    byte[] a = uiStr.getBytes();
-//                    if (a[a.length - 2] == 49)
-//                        return false;
-//                } else return true;
-//            } else
-//                return false;
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        return true;
-//    }
-
-    /*wilder, 该函数有问题，此种判断不准确，准确的方法请见 getNaviBarHeight()*/
-//    public static boolean navigationBarExist(Context activity) {
-//        try {
-//            //通过判断设备是否有返回键、菜单键(不是虚拟键,是手机屏幕外的按键)来确定是否有navigation bar
-//            boolean hasMenuKey = ViewConfiguration.get(activity).hasPermanentMenuKey();
-//            boolean hasBackKey = KeyCharacterMap.deviceHasKey(KeyEvent.KEYCODE_BACK);
-//
-//            if (hasMenuKey && hasBackKey) {
-//                // 这个设备有一个导航栏
-//                return true;
-//            }
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//        return false;
-//    }
 
     /**
      * 获得屏幕尺寸
@@ -868,8 +840,13 @@ public class AdViewUtils {
         Field field = null;
         int x = 0, statusBarHeight = 0;
         try {
-            WindowManager.LayoutParams attrs = ((Activity) context).getWindow().getAttributes();
-            if ((attrs.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) == WindowManager.LayoutParams.FLAG_FULLSCREEN) {
+            if (context instanceof Activity) {
+                WindowManager.LayoutParams attrs = ((Activity) context).getWindow().getAttributes();
+                if ((attrs.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) == WindowManager.LayoutParams.FLAG_FULLSCREEN) {
+                    return statusBarHeight;
+                }
+            }else {
+                //wilder 2020, 考虑到没有activity的情形
                 return statusBarHeight;
             }
             c = Class.forName("com.android.internal.R$dimen");
@@ -1041,13 +1018,14 @@ public class AdViewUtils {
                 url = new URL(link);
             else
                 url = new URL(link + "?" + content);
-            AdViewUtils.logDebug(url + "");
+
+            AdViewUtils.logDebug("### getHttps(): " + url + " ###");
+
             int responseCode = -1;
             if (link.startsWith("https://")) {
                 connection = (HttpsURLConnection) url.openConnection();
-               //((HttpsURLConnection) connection).setHostnameVerifier(new BrowserCompatHostnameVerifier());
+               //((HttpsURLConnection) connection).setHostnameVerifier(new BrowserCompatHostnameVerifier()); 该模式使用系统的SSL，通常情况下可以
                ((HttpsURLConnection) connection).setSSLSocketFactory(new TLSSocketFactory("mode2"));
-                //end test
             } else {
                 connection = (HttpURLConnection) url.openConnection();
             }
@@ -1071,7 +1049,7 @@ public class AdViewUtils {
                 result = "getAd_Failed : " + responseCode;
             }
         } catch (Exception e) {
-            AdViewUtils.logError("", e);
+            AdViewUtils.logError("getHttpsResponse(): ", e);
         } finally {
             if (null != connection)
                 connection.disconnect();
@@ -1145,6 +1123,53 @@ public class AdViewUtils {
         return builder.toString();
     }
 
+    /**
+     * 获取网落图片资源
+     * @param url
+     * @return
+     */
+    public static Bitmap getHttpBitmap(String url){
+        URL myFileURL;
+        Bitmap bitmap=null;
+        HttpURLConnection conn;
+
+        if (Thread.currentThread().getName().startsWith("main")) {
+            AdViewUtils.logInfo("#### getHttpBitmap():can not in Main Thread Work,returned null ####");
+            return null;
+        }
+
+        try{
+            myFileURL = new URL(url);
+            //获得连接
+            if (url.startsWith("https://")) {
+                conn = (HttpsURLConnection) myFileURL.openConnection();
+                ((HttpsURLConnection) conn).setHostnameVerifier(new BrowserCompatHostnameVerifier());
+                //((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory("mode2"));
+            } else {
+                conn = (HttpURLConnection) myFileURL.openConnection();
+            }
+            //设置超时时间为6000毫秒，conn.setConnectionTiem(0);表示没有时间限制
+            conn.setConnectTimeout(6000);
+            //连接设置获得数据流
+            conn.setDoInput(true);
+            //不使用缓存
+            conn.setUseCaches(false);
+            //这句可有可无，没有影响
+            //conn.connect();
+            //得到数据流
+            InputStream is = conn.getInputStream();
+            //解析得到图片
+            bitmap = BitmapFactory.decodeStream(is);
+            //关闭数据流
+            is.close();
+        }catch(Exception e){
+            AdViewUtils.logInfo("!!!!!! getHttpBitmap(): can not got url = " + url + " !!!!!");
+            e.printStackTrace();
+        }
+
+        return bitmap;
+
+    }
 
     /**
      * 获得图片路径的输入流 || 路径，该函数主要用于将广告内容存到本地在播放，海外版都改为在线显示图片
@@ -1154,8 +1179,7 @@ public class AdViewUtils {
      * @param type    0: getInputStream 1:getPath
      * @return
      */
-    public static Object getInputStreamOrPath(Context context, String url,
-                                              int type) {
+    public static Object getInputStreamOrPath(Context context, String url, int type) {
         if (Thread.currentThread().getName().startsWith("main")) {
             AdViewUtils.logInfo("warn:Main Thread Work,returned");
             return null;
@@ -1163,11 +1187,12 @@ public class AdViewUtils {
         String tempUrl;
         URL myFileUrl;
         InputStream is = null;
-        String picPath = null;
+        String picPath = url;
         File updateDir;
         File updateFile = null;
         boolean isFirst = true;
         int responseCode = -1;
+
         try {
             if (null == url || url.trim().equals(""))
                 return null;
@@ -1179,15 +1204,14 @@ public class AdViewUtils {
             String filename = url.hashCode() + "";
             String a_path = context.getFilesDir() + "/Adview/";
             //针对海外版，采用应用内不的文件系统，随着app的卸载，广告所属应当清除
-            updateDir = new File(/*ConstantValues.CACHE_AD_PATH*/a_path);
+            updateDir = new File(a_path);
             updateFile = new File(updateDir.getPath(), filename);
 
 //            if ("mounted".equals(Environment.getExternalStorageState())) { // SD卡状态：正常挂载
             if (updateDir.exists()) {
                 if (updateFile.exists()) {
-                    if (System.currentTimeMillis()
-                            - lastVisitTime.getLong(
-                            updateFile.getAbsolutePath(), -1) <= 10 * 60 * 1000) {// 10分钟
+                    if (System.currentTimeMillis() - lastVisitTime.getLong(updateFile.getAbsolutePath(), -1) <= 10 * 60 * 1000)
+                    {// 10分钟
                         if (type == 1) {
                             return updateFile.getAbsolutePath();
                         } else {
@@ -1236,8 +1260,7 @@ public class AdViewUtils {
 
             if (responseCode == 304) {
                 Editor editor = lastVisitTime.edit();
-                editor.putLong(updateFile.getAbsolutePath(),
-                        System.currentTimeMillis());
+                editor.putLong(updateFile.getAbsolutePath(),System.currentTimeMillis());
                 editor.commit();
                 if (type == 1) {
                     picPath = updateFile.getAbsolutePath();
@@ -1276,8 +1299,7 @@ public class AdViewUtils {
                     }
                 }
                 Editor visitEditor = lastVisitTime.edit();
-                visitEditor.putLong(updateFile.getAbsolutePath(),
-                        System.currentTimeMillis());
+                visitEditor.putLong(updateFile.getAbsolutePath(),System.currentTimeMillis());
                 visitEditor.commit();
             }
         } catch (Exception e) {
@@ -1309,7 +1331,7 @@ public class AdViewUtils {
             conn.setReadTimeout(ConstantValues.REQUEST_CONNECT_TIMEOUT);
             //conn.connect();
             if (nextUri.startsWith("https://")) {
-                ((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory());
+                ((HttpsURLConnection) conn).setSSLSocketFactory(new TLSSocketFactory("mode2"));
             }
             responseCode = conn.getResponseCode();
 
@@ -1361,6 +1383,7 @@ public class AdViewUtils {
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
         }
+        logInfo("### ERROR ### getActivity is null ###");
         return null;
     }
 
@@ -1380,7 +1403,7 @@ public class AdViewUtils {
                         return "0000000000000000";
                     devid = tm.getDeviceId();
                     if (devid != null && devid.length() > 0) {
-                        AdViewUtils.logInfo("########## imei = " + devid +" ###########");
+                        AdViewUtils.logInfo("### imei = " + devid +" ###");
                         return devid;
                     }
             }else {
@@ -1817,7 +1840,7 @@ public class AdViewUtils {
         //采用 custom tab方式
         if (TextUtils.isEmpty(url))
             return;
-        AdViewUtils.logInfo("######### openLandingPage() : " + url + "#########");
+        AdViewUtils.logInfo("### openLandingPage() : " + url + " ###");
         if ( useCustom && !url.contains("market://")) {
             CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
             CustomTabsIntent customTabsIntent = builder.build();
@@ -1830,6 +1853,7 @@ public class AdViewUtils {
 
             if (context instanceof Activity) {
             } else {
+                //如果不是activity，没有这个开关将无法弹出
                 i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             }
             context.startActivity(i);
@@ -1897,36 +1921,47 @@ public class AdViewUtils {
     }
 
     public static void trafficConfirmDialog(final Context context, final DownloadConfirmInterface downloadConfirmInterface) {
-        ((Activity) context).runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(context);
-                    dialogBuilder.setTitle("流量提醒");
-                    dialogBuilder.setMessage("当前处在非WIFI环境下，继续下载将会消耗流量");
-                    dialogBuilder.setPositiveButton("继续", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            if (null != downloadConfirmInterface)
-                                downloadConfirmInterface.confirmDownload();
-                        }
-                    });
-                    dialogBuilder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            if (null != downloadConfirmInterface)
-                                downloadConfirmInterface.cancelDownload();
-                        }
-                    });
-                    dialogBuilder.setCancelable(false);
-                    dialogBuilder.show();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    if (null != downloadConfirmInterface)
-                        downloadConfirmInterface.error();
+        if (context instanceof Activity) {
+            //alert dialog 必须在UI主线程操作
+            ((Activity) context).runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(context);
+                        dialogBuilder.setTitle("流量提醒");
+                        dialogBuilder.setMessage("当前处在非WIFI环境下，继续下载将会消耗流量");
+                        dialogBuilder.setPositiveButton("继续", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                if (null != downloadConfirmInterface)
+                                    downloadConfirmInterface.confirmDownload();
+                            }
+                        });
+                        dialogBuilder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                if (null != downloadConfirmInterface)
+                                    downloadConfirmInterface.cancelDownload();
+                            }
+                        });
+                        dialogBuilder.setCancelable(false);
+                        dialogBuilder.show();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        if (null != downloadConfirmInterface)
+                            downloadConfirmInterface.error();
+                    }
                 }
-            }
-        });
+            });
+        }else {
+            AdViewUtils.logInfo("!!!!!! alert dialog 必须在UI线程 !!!!!!");
+//            new Handler(Looper.getMainLooper()).post(new Runnable() {
+//                @Override
+//                public void run() {
+//
+//                }
+//            });
+        }
     }
 
     public static boolean checkClickLimitTime(Context context, int type, String adId) {
@@ -1985,8 +2020,7 @@ public class AdViewUtils {
     public static String[] getLocation(Context context) {
         String[] locas = new String[2];
         try {
-            LocationManager locationManager = (LocationManager) context
-                    .getSystemService(Context.LOCATION_SERVICE);
+            LocationManager locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
             Criteria criteria = new Criteria();
             criteria.setCostAllowed(false);
             // 设置位置服务免费
@@ -2216,17 +2250,17 @@ public class AdViewUtils {
             gpid_limited = info.isLimitAdTrackingEnabled();
             if (!gpid_limited) {
                 gpId = info.getId();
-                AdViewUtils.logInfo("########## Google GPID ##########");
+                AdViewUtils.logInfo("### Google GPID ###");
             }
         }catch (Exception e) {
             gpid_limited = true;
         }
 
         if (!gpid_limited) {
-            AdViewUtils.logInfo("#### first ###### gpId = " + gpId + " ###########");
+            AdViewUtils.logInfo("### first ### gpId = " + gpId + " ###");
         }else {
             gpId = "00000000-0000-0000-0000-000000000000";
-            AdViewUtils.logInfo("#### first ###### gpId is closed ###########");
+            AdViewUtils.logInfo("### first ### gpId is closed ###");
         }
         Editor editor = sharedPreferences.edit();
         editor.putString("gpid", gpId);
@@ -2257,10 +2291,10 @@ public class AdViewUtils {
         }
 
         if (!oaid_limited) {
-            AdViewUtils.logInfo("#### first ###### oaId = " + oaId + " ###########");
+            AdViewUtils.logInfo("### first ### oaId = " + oaId + " ###");
         }else {
             oaId = "00000000-0000-0000-0000-000000000000";
-            AdViewUtils.logInfo("#### first ###### oaId is closed ###########");
+            AdViewUtils.logInfo("### first ### oaId is closed ###");
         }
 
         //put config
@@ -2286,7 +2320,7 @@ public class AdViewUtils {
                     getDevice_GPID(context);
                 } catch (Exception e) {
                     e.printStackTrace();
-                    AdViewUtils.logInfo("#### first ###### device ID service  not available ###########");
+                    AdViewUtils.logInfo("### first ### device ID service  not available ###");
                 }
                 //无论对错都不妨碍发送广告
                 if (null != baseView) {
@@ -2584,13 +2618,13 @@ public class AdViewUtils {
     }
 
     //wilder 2019 test function
-    public static String loadAssetsFile(String path) {
+    public static String loadAssetsFile(String path, Context context) {
         byte[] Data = null;
         ///assets/test/vpaid--fix2.xml  , vast-test1.xml
-        //InputStream abpath = getActivity().getClass().getResourceAsStream(path); //
         InputStream abpath = null;
         try {
-            abpath = getActivity().getResources().getAssets().open(path);
+            //abpath = getActivity().getResources().getAssets().open(path); wilder 2020 for non-activity
+            abpath = context.getResources().getAssets().open(path);
             //ByteArrayOutputStream bytestream = new ByteArrayOutputStream();
             //int ch;
             int lenght = abpath.available();
@@ -2621,20 +2655,25 @@ public class AdViewUtils {
         }
         return new String(Data);
     }
+
     /**
      * 从Assets中读取图片
      */
-    public static Bitmap getImageFromAssetsFile(String path)
+    public static Bitmap getImageFromAssetsFile2(String path, Context ctx)
     {
         Bitmap image = null;
-        Activity act = null;
+        //AdViewUtils.logInfo("========= getImageFromAssetsFile2() ===============");
         try
         {
-            act = getActivity();
-            if (act != null) {
-                InputStream abpath = getActivity().getResources().getAssets().open(path);
+            if (ctx != null) {
+                //InputStream abpath = getActivity().getResources().getAssets().open(path); wilder 2020
+                //Context mContext;
+                //AdViewUtils.logInfo("========= path: " + path + "=============");
+                InputStream abpath = ctx.getResources().getAssets().open(path);
+                //AdViewUtils.logInfo("========= InputStream :" + abpath.toString() + "===============");
                 //InputStream is = am.open(fileName);
                 image = BitmapFactory.decodeStream(abpath);
+                //AdViewUtils.logInfo("========= after decode, image = " + image.toString() + "===============");
                 abpath.close();
             }
         }
@@ -2645,6 +2684,32 @@ public class AdViewUtils {
 
         return image;
     }
+    /**
+     * 从Assets中读取图片
+     */
+    /*public static Bitmap getImageFromAssetsFile(String path)
+    {
+        Bitmap image = null;
+        Activity act = null;
+        try
+        {
+            act = getActivity();
+            if (act != null) {
+                InputStream abpath = getActivity().getResources().getAssets().open(path);
+                //Context mContext;
+                //InputStream abpath = mContext.getResources().getAssets().open(path);
+                image = BitmapFactory.decodeStream(abpath);
+                abpath.close();
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+        return image;
+    }*/
+
     /*//从assets 文件夹中获取文件并读取数据
     public String getFromAssets(String fileName){
         String result = "";
@@ -2663,9 +2728,10 @@ public class AdViewUtils {
         return result;
     }*/
      //get 1 line from txt file
-     public static String getLineFromAssets(String fileName) {
+     public static String getLineFromAssets(String fileName, Context context) {
          try {
-             InputStreamReader inputReader = new InputStreamReader(getActivity().getResources().getAssets().open(fileName));
+             //InputStreamReader inputReader = new InputStreamReader(getActivity().getResources().getAssets().open(fileName)); //wilder 2020 for non-activity
+             InputStreamReader inputReader = new InputStreamReader(context.getResources().getAssets().open(fileName));
              BufferedReader bufReader = new BufferedReader(inputReader);
              String line = "";
              String Result = "";
@@ -2876,7 +2942,7 @@ public class AdViewUtils {
         return webView;
     }
 
-    public static void loadVPAIDURL(WebView wv, String vpaidURL) {
+    public static void loadVPAIDURL(WebView wv, String vpaidURL, Context context) {
         //if (!vpaidURL.startsWith("https"))
         {
             String vpURL = vpaidURL;
@@ -2889,7 +2955,7 @@ public class AdViewUtils {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                     try {
                         //String html = ConstantValues.VPAID_HTML;
-                        String html = AdViewUtils.loadAssetsFile("VAST_VPAID_JS.html");
+                        String html = AdViewUtils.loadAssetsFile("VAST_VPAID_JS.html", context);
                         String finalHtml = html.replace(ConstantValues.VPAID_CREATIVE_URL_STRING, vpaidURL);
                         //finalHtml = finalHtml.replace(ConstantValues.VPAID_BRIDGE_JS_STRING,js_bridge);
                         //AdViewUtils.logInfo("++++ html: " + finalHtml);
@@ -3003,7 +3069,7 @@ public class AdViewUtils {
             if (verificationScriptResources.size() == 0)
                 return null;
 
-            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js");
+            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js", v.getContext());
             AdSessionContext adSessionContext = AdSessionContext.createNativeAdSessionContext(
                     AdViewUtils.getOMPartner(),
                     OMID_JS_SERVICE_CONTENT,
@@ -3035,7 +3101,7 @@ public class AdViewUtils {
         AdSession adSession = null;
         try {
             String customReferenceData = "";
-            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js");
+            String OMID_JS_SERVICE_CONTENT = loadAssetsFile("omsdk-v1.js", v.getContext());
             AdSessionContext adSessionContext = AdSessionContext.createNativeAdSessionContext(
                     AdViewUtils.getOMPartner(),
                     OMID_JS_SERVICE_CONTENT,
@@ -3257,23 +3323,19 @@ public class AdViewUtils {
      * *************** Android output logs ****************************
      */
     public static void logWarn(String info, Throwable r) {
-        if (logMode)
-            Log.w(ADVIEW, info + "", r);
+        if (logMode) Log.w(ADVIEW, info + "", r);
     }
 
     public static void logDebug(String info) {
-        if (logMode)
-            Log.d(ADVIEW, info + "");
+        if (logMode) Log.d(ADVIEW, info + "");
     }
 
     public static void logError(String info, Throwable r) {
-        if (logMode)
-            Log.e(ADVIEW, info + "", r);
+        if (logMode) Log.e(ADVIEW, info + "", r);
     }
 
     public static void logInfo(String info) {
-        if (logMode)
-            Log.i(ADVIEW, info + "");
+        if (logMode) Log.i(ADVIEW, info + "");
     }
     //判断是否为模拟器
     public static boolean isSimulator(Context context)
@@ -3301,4 +3363,22 @@ public class AdViewUtils {
         return (int) (dpValue * scale + 0.5f);
     }
 
+    //wilder 2020 for save map data ，map转json
+    public static <K, V> boolean putHashMapData(Map<K, V> map, Context ctx) {
+        boolean result;
+        SharedPreferences sp = ctx.getSharedPreferences("SIGN", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sp.edit();
+        try {
+            //Gson gson = new Gson();
+            JSONObject jsonObject = new JSONObject(map);
+            String json = jsonObject.toString();
+            editor.putString("recognizeUserMap", json);
+            result = true;
+        } catch (Exception e) {
+            result = false;
+            e.printStackTrace();
+        }
+        editor.apply();
+        return result;
+    }
 }

@@ -21,6 +21,7 @@ import com.kuaiyou.interfaces.AdVGListener;
 import com.kuaiyou.obj.AgDataBean;
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.ConstantValues;
+import com.kuaiyou.utils.InstlView;
 import com.kuaiyou.video.vast.VASTPlayer;
 import com.kuaiyou.video.vast.VASTPlayerListener;
 
@@ -35,7 +36,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
     public final static int CHECKTIMEOUT = 1;
     public final static int CHECKRESULT = 2;
 
-
+    protected static InstlView instlView = null; //wilder 2020
     protected AgDataBean agDataBean;
 
     private AdVGListener onAdListener;
@@ -70,8 +71,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
     public static AdAdapterManager initAd(Context context, int sdkType, String adType, int express) {
         AdAdapterManager adViewAdapter = null;
         try {
-            Constructor<? extends AdAdapterManager> constructor = getAdapterClass(sdkType, adType, express)
-                    .getConstructor();
+            Constructor<? extends AdAdapterManager> constructor = getAdapterClass(sdkType, adType, express).getConstructor();
             adViewAdapter = constructor.newInstance(); // 构造函数
             adViewAdapter.initAdapter(context);
         } catch (Exception e) {
@@ -146,7 +146,7 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
         return true;
     }
 
-    public boolean showInstl(Activity activity) {
+    public boolean showInstl(Context context) {
 
         return false;
     }
@@ -163,11 +163,39 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
         return null;
     }
 
+    public static View getInstl() { return instlView; } //wilder 2020
+
     public View getDialogView() {
         return null;
     }
 
     private static Class<? extends AdAdapterManager> getAdapterClass(int sdkType, String type, int express) {
+        switch (sdkType) {
+            case ConstantValues.SDK_REQ_TYPE_BANNER:
+                if (type.equals(BID_TYPE))
+                    return AdBIDBannerAdapter.class;
+                break;
+            case ConstantValues.SDK_REQ_TYPE_INSTL:
+                if (type.equals(BID_TYPE))
+                    return AdBIDInstlAdapter.class;
+                break;
+            case ConstantValues.SDK_REQ_TYPE_SPREAD:
+                if (type.equals(BID_TYPE))
+                    return AdBIDSpreadAdapter.class;
+                break;
+            case ConstantValues.SDK_REQ_TYPE_NATIVE:
+                if (type.equals(BID_TYPE))
+                    return AdBIDNativeAdapter.class;
+                break;
+            case ConstantValues.SDK_REQ_TYPE_VIDEO:
+                if (type.equals(BID_TYPE))
+                    return AdBIDVideoAdapter.class;
+                break;
+        }
+        return null;
+    }
+
+   /* private static Class<? extends AdAdapterManager> getAdapterClass(int sdkType, String type, int express) {
         switch (sdkType) {
             case ConstantValues.SDK_REQ_TYPE_BANNER:
                 if (type.equals(BID_TYPE))
@@ -192,6 +220,8 @@ public abstract class AdAdapterManager implements VASTPlayerListener {
         }
         return null;
     }
+
+    */
 
     public abstract View getAdView();
 

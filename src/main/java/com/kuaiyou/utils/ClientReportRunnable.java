@@ -48,32 +48,30 @@ public class ClientReportRunnable implements Runnable {
         String result = null;
         try {
             if (TextUtils.isEmpty(url)) {
-                AdViewUtils.logInfo("warn:  url is Null ");
+                AdViewUtils.logInfo("### ClientReportRunnable(): warn:  url is Null ###");
                 return;
             }
             if (null == content) {
-                AdViewUtils.logInfo("ClientReport  content is Null ");
+                AdViewUtils.logInfo("### ClientReportRunnable(): ClientReport  content is Null ###");
                 return;
             }
             if (!isExchange) {
                 if (method.equals(ConstantValues.GET))
                     result = AdViewUtils.getResponse(url, content, false, ConstantValues.REQUEST_CONNECT_TIMEOUT);
                 else {
-//                         Log.i(AdViewUtils.ADVIEW, url + "?" + content);
+//                         AdViewUtils.logInfo(url + "?" + content);
                     result = AdViewUtils.postResponse(url, content, false);
-//                         Log.i(AdViewUtils.ADVIEW, result + "");
+//                         AdViewUtils.logInfo(result + "");
                 }
             } else {
                 result = AdViewUtils.kyPostResponse(url, content);
             }
             if (result == null && curTryNum < 2) {
                 Timer timer = new Timer();
-
                 TimerTask timerTask = new TimerTask() {
                     @Override
                     public void run() {
-                        new ClientReportRunnable(content, url, method,
-                                curTryNum + 1);
+                        new ClientReportRunnable(content, url, method,curTryNum + 1);
                     }
                 };
                 timer.schedule(timerTask, 30 * 1000);

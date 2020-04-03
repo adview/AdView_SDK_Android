@@ -37,8 +37,7 @@ public class MRAIDNativeFeatureProvider {
 	private final Context context;
 	private final MRAIDNativeFeatureManager nativeFeatureManager;
 
-	public MRAIDNativeFeatureProvider(Context context,
-									  MRAIDNativeFeatureManager nativeFeatureManager) {
+	public MRAIDNativeFeatureProvider(Context context, MRAIDNativeFeatureManager nativeFeatureManager) {
 		this.context = context;
 		this.nativeFeatureManager = nativeFeatureManager;
 	}
@@ -160,19 +159,19 @@ public class MRAIDNativeFeatureProvider {
 		//AdViewUtils.openLandingPage(context,url, true);
 	}
 
-	// public void openBrowser(String url) {
-	// if (url.startsWith("market:")) {
-	// Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-	// context.startActivity(intent);
-	// } else if (url.startsWith("http:") || url.startsWith("https:")) {
-	// Intent intent = new Intent(context, AdviewWebView.class);
-	// intent.putExtra(MRAIDBrowser.URL_EXTRA, url);
-	// intent.putExtra(MRAIDBrowser.MANAGER_EXTRA,
-	// nativeFeatureManager.getSupportedNativeFeatures());
-	// intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-	// context.startActivity(intent);
-	// }
-	// }
+/*	 public void openBrowser(String url) {
+	 if (url.startsWith("market:")) {
+	 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+	 context.startActivity(intent);
+	 } else if (url.startsWith("http:") || url.startsWith("https:")) {
+	 Intent intent = new Intent(context, AdviewWebView.class);
+	 intent.putExtra(MRAIDBrowser.URL_EXTRA, url);
+	 intent.putExtra(MRAIDBrowser.MANAGER_EXTRA,
+	 nativeFeatureManager.getSupportedNativeFeatures());
+	 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+	 context.startActivity(intent);
+	 }
+	 }*/
 
 	public void storePicture(final String url) {
 		if (nativeFeatureManager.isStorePictureSupported()) {

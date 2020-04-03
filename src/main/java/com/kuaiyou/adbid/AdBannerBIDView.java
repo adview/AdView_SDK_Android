@@ -1,6 +1,7 @@
 package com.kuaiyou.adbid;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -34,7 +35,8 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
 
     private int reFreshTime = 30; // default 30 sec,-1 will not refresh
     private int routeType = ConstantValues.ROUTE_ADBID_TYPE;
-    private String appId;
+    private String appID;
+    private String posID;
     private ArrayList<KyAdBaseView> schedulerList = null;
     private boolean isEnded = false;
     private ApplyAdBean applyAdBean;
@@ -45,6 +47,7 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
 
     private String adLogo, adIcon;
     private String bitmapPath;
+
 
     /**
      * 独立竞价使用
@@ -74,18 +77,16 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
      * 构造
      * @param context
      */
-    public AdBannerBIDView(Context context, String appID, int type,
-                           int adSize, int reFreshTime, String vPosID) {
+    public AdBannerBIDView(Context context, String appID, int type, int adSize, int reFreshTime, String vPosID) {
         super(context);
         super.adSize = adSize;
-        //super.videoPosID = vPosID;
-        setVideoPosID(vPosID);
         //wilder 2019 here can get adsize for mrec
         calcAdSize();
         this.reFreshTime = reFreshTime;
         this.routeType = type;
         this.isEnded = false;
-        this.appId = appID;
+        this.appID = appID;
+        this.posID = vPosID;
 
         if (null == schedulerList)
             schedulerList = new ArrayList<KyAdBaseView>();
@@ -108,16 +109,17 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
     public void playVideo(Context context) {
         AdViewUtils.logInfo("<----------------   ADBannerBIDView(): playVideo ------------->  " );
         //(wilder 2019) just covered, play video can by user , but now is auto play after vast parse done
-        if (TextUtils.isEmpty(getVideoPosID()))
+        if (!getVideoMode())
             return;
 
         if (!AdViewUtils.videoAutoPlay && adAdapterManager != null) {
             adAdapterManager.playVideo(context);
         }
     }
+
     //20191105 for video autoplay
     public void setAutoPlay(boolean enable) {
-        if (TextUtils.isEmpty(getVideoPosID()))
+        if (!getVideoMode())
             return;
         AdViewUtils.videoAutoPlay = enable;
     }
@@ -131,8 +133,9 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
     }
 
     //MREC used pos id
-    public void setVideoInfo(String posid) {
-        super.setVideoPosID(posid);
+    public void setVideoMode(boolean enable) {
+
+        super.setVideoMode(enable);
     }
 
     @Override
@@ -154,8 +157,8 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
                 case ConstantValues.NOTIFY_RESP_RECEIVEAD_OK:
                     // onAdRecieved
                     if (!selfTestMode_mrecVideo &&        //only test mode can accept all kinds of video type PDU
-                            !TextUtils.isEmpty(videoPosID) &&
-                            adsBean.getAdType() != ConstantValues.RESP_ADTYPE_VIDEO_EMBED) {
+                        getVideoMode() &&
+                        adsBean.getAdType() != ConstantValues.RESP_ADTYPE_VIDEO_EMBED) {
                         //类型不匹配，这里仅能接收Mrec视频或者普通视频
                         AdViewUtils.logInfo("!!!!!!ADBannerBIDView(): Mrec video type err, type = " + adsBean.getAdType() + "!!!!!!!" );
                         notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, "INVALID_POS_MATCHED");
@@ -220,10 +223,16 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
     @Override
     protected boolean initAdLogo(Object object) {
         if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
-            adLogo = (String) AdViewUtils.getInputStreamOrPath( getContext(), adsBean.getAdLogoUrl(), 1);
+            if (AdViewUtils.adLogoOnLine)
+                adLogoBmp = AdViewUtils.getHttpBitmap(adsBean.getAdLogoUrl());//wilder 20200228 for test
+            else
+                adLogo = (String) AdViewUtils.getInputStreamOrPath( getContext(), adsBean.getAdLogoUrl(), 1);
         }
         if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
-            adIcon = (String) AdViewUtils.getInputStreamOrPath( getContext(), adsBean.getAdIconUrl(), 1);
+            if (AdViewUtils.adLogoOnLine)
+                adIconBmp = AdViewUtils.getHttpBitmap(adsBean.getAdIconUrl());//wilder 20200228 for test
+            else
+                adIcon = (String) AdViewUtils.getInputStreamOrPath( getContext(), adsBean.getAdIconUrl(), 1);
         }
 //        else
 //            adIcon = "/assets/icon_ad.png";
@@ -317,11 +326,12 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
                 if (reportImpression(adsBean, respAdBean, applyAdBean, true)) {
                     isImpressioned = true;
                 }
-            }
-            //OMSDK v1.2, this must be last called, cause muti-called will cause error
-            MRAIDView v = ((BannerView)adAdapterManager.getAdView()).getMraidView();
-            if (null != v) {
-                v.sendOMImpression();
+
+                //OMSDK v1.2, this must be last called, cause muti-called will cause error
+                MRAIDView v = ((BannerView)adAdapterManager.getAdView()).getMraidView();
+                if (null != v) {
+                    v.sendOMImpression();
+                }
             }
 
         } catch (Exception e) {
@@ -336,7 +346,7 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
             return;
         }
         //wilder 2019 for change
-        if (!TextUtils.isEmpty(videoPosID)) {
+        if (getVideoMode()) {
             //mrec video
             reFreshTime = -1;
         }
@@ -419,19 +429,19 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
             String configUrl = getConfigUrl(routeType);
             int sdktype;
             //this sdk type need to upload to server so must obey SDK接口文档
-            if(!TextUtils.isEmpty(videoPosID)) {
+            if(getVideoMode()) {
+                //mrec可能承载video,这里没有对size进行限制
                 sdktype = ConstantValues.SDK_REQ_TYPE_VIDEO;
+
             }else if (adSize == ConstantValues.BANNER_REQ_SIZE_MREC) {
-                if (selfTestMode_mrecUpLinkInstPDU) {
-                    sdktype = ConstantValues.SDK_REQ_TYPE_INSTL; //for test just send inst type
-                }else {
-                    sdktype = ConstantValues.SDK_REQ_TYPE_MREC;
-                }
+                //mrec有特定类型
+                sdktype = ConstantValues.SDK_REQ_TYPE_MREC;
             }else {
+                //默认是普通banner
                 sdktype = ConstantValues.SDK_REQ_TYPE_BANNER;
             }
 
-            applyAdBean = initRequestBean(appId, videoPosID, routeType, sdktype, 1);
+            applyAdBean = initRequestBean(appID, posID, routeType, sdktype, 1);
 
             bannerReqScheduler.schedule(
                     new InitAdRunable(
@@ -557,7 +567,7 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
     public void onAdFailed(AgDataBean agDataBean, String error, boolean force) {
         try {
             if (error.startsWith("CustomError://")) {
-                reportLoadError(adsBean, appId, Integer.valueOf(error.replace("CustomError://", "")));
+                reportLoadError(adsBean, appID, Integer.valueOf(error.replace("CustomError://", "")));
             }
             else {
                 if (null != agDataBean && null != agDataBean.getFailUrls())
@@ -605,6 +615,16 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
         return adIcon;
     }
 
+    //wilder 20200228
+    @Override
+    public Bitmap getAdLogoBmp() {
+        return adLogoBmp;
+    }
+    @Override
+    public Bitmap getAdIconBmp() {
+        return adIconBmp;
+    }
+    //end wilder 20200228
 
     @Override
     public AdsBean getAdsBean() {

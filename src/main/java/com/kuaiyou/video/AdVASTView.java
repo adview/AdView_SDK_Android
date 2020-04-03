@@ -89,7 +89,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     private DisplayMetrics displayMetrics;
     //private int contentViewTop;
     private Rect currentPosition;
-    private int originalRequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private int originalRequestedOrientation = Configuration.ORIENTATION_UNDEFINED;
     //first frame, 是否提前获取第一帧
     private boolean  useFirstFrameCache = true;
 
@@ -258,15 +258,18 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
         isOMSDKSupport = false; //omsdk v1.2
         displayMetrics = new DisplayMetrics();
-        ((Activity) mContext).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        if (mContext instanceof  Activity) {
+            ((Activity) mContext).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        }else {
+            //wilder 2020 没有界面，采用屏幕尺寸计算
+            displayMetrics = mContext.getResources().getDisplayMetrics();
+        }
 
         currentPosition = new Rect();
 
-        if (mContext instanceof Activity) {
-            originalRequestedOrientation = ((Activity) mContext).getRequestedOrientation();
-        } else {
-            originalRequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-        }
+        //wilder 2020 for non-activity
+        originalRequestedOrientation = getResources().getConfiguration().orientation;
+
         //AdViewUtils.logInfo("originalRequestedOrientation " + getOrientationString(originalRequestedOrientation));
         handler = new WebClientHandler();
         createContentView(); //生成content的webview
@@ -294,7 +297,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         AdViewUtils.logInfo("============== AdVastView::loadNextVideoContainer () ==== real play  & start playing timer ===========");
         currentTotalTime = "0"; //replay的时候还会根据totaltime来判断，所以重新加载页面时要重置
         String mediaType = getCurrentMediaType();
-        //这里正经取的video的url，在这之前都没有办法得到vast的数据
+        /////////// 这里正经取的video的url，在这之前都没有办法得到vast的数据  ///////////
         String url = mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl();
         //video timer start from now
         if (mVastModel.get(adCount).getCreativeList().get(creativeCount).isFailed() ||
@@ -328,7 +331,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                         mIsWaitingForWebView = true;
                         //load creative URL
                         mACVpaidCtrl.setWebView(contentWebView);
-                        AdViewUtils.loadVPAIDURL(contentWebView, vpURL);
+                        AdViewUtils.loadVPAIDURL(contentWebView, vpURL, getContext()); //wilder 2020 for non-activity ,use view's context
                     }
                 } //end wilder
                 else {
@@ -344,10 +347,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 VASTPlayer.executorService = Executors.newFixedThreadPool(1);
             }
 
-            Boolean isHtmlorJS = mVastModel.get(adCount).getCreativeList().get(creativeCount).
-                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)
-                    || mVastModel.get(adCount).getCreativeList().get(creativeCount).
-                    getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX);
+            Boolean isHtmlorJS =
+                    mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_HTML_TYPE_REGEX)
+                 || mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoType().matches(DefaultMediaPicker.SUPPORTED_JAVASCRIPT_TYPE_REGEX);
 
             VASTPlayer.executorService.execute(new DownloadRunnable(mContext,
                     mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoUrl(),
@@ -454,7 +456,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     //this was used by full screen activity ,
     // always triggered by after rotated screen , must recalc size
     public void getScreenSize(boolean isOriented) {
-        DisplayMetrics displayMetrics = this.getResources().getDisplayMetrics();
+        DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
         density = displayMetrics.density;
 
         screenWidth = displayMetrics.widthPixels;
@@ -515,7 +517,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         //这里需要实际去改变video的大小
         contentWebView.loadUrl("javascript:fixSize(" + desiredWidth / density + "," + desiredHeight / density + ")");
 
-        Log.i("[fixLayoutSize]", "fixSize(" + desiredWidth / density + " x " + desiredHeight / density + ")");
+        AdViewUtils.logInfo("fixSize(" + desiredWidth / density + " x " + desiredHeight / density + ")");
         RelativeLayout.LayoutParams layoutParams = (LayoutParams) contentWebView.getLayoutParams();
 
         if (hasBehaved) {
@@ -757,7 +759,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         //contentWebView.getGlobalVisibleRect(visibleRect); //only can be used in fullscreen video view
         mRootLayout.getLocalVisibleRect(visibleRect);   //relative to parent's position
 
-        Log.i("createActionView", "size = " + visibleRect);
+        AdViewUtils.logInfo("size = " + visibleRect);
         if (visibleRect.width() == 0 || visibleRect.height() == 0)
             return;
 //        FrameLayout.LayoutParams viewLayoutParams = new FrameLayout.LayoutParams(cornerSize, cornerSize);  wilder 20191209
@@ -781,22 +783,26 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 break;
             case CLOSE_VIEW_ID:
                 view = new ImageView(getContext());
-                bm = AdViewUtils.getImageFromAssetsFile("close_video.png");
+                //bm = AdViewUtils.getImageFromAssetsFile("close_video.png");
+                bm = AdViewUtils.getImageFromAssetsFile2("close_video.png", getContext()); //wilder 2020 for non-context
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
                 break;
             case REPLAY_VIEW_ID:
                 view = new ImageView(getContext());
-                bm = AdViewUtils.getImageFromAssetsFile("replay.png");
+                //bm = AdViewUtils.getImageFromAssetsFile("replay.png");
+                bm = AdViewUtils.getImageFromAssetsFile2("replay.png", getContext());//wilder 2020 for non-context
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
                 break;
             case VOLUME_VIEW_ID:
                 view = new ImageView(getContext());
                 if (null == volumeON) {
-                    bm = AdViewUtils.getImageFromAssetsFile("unmute.png");
+                    //bm = AdViewUtils.getImageFromAssetsFile("unmute.png");
+                    bm = AdViewUtils.getImageFromAssetsFile2("unmute.png", getContext()); //wilder 2020 for non-context
                     volumeON = new BitmapDrawable(getResources(), bm);
                 }
                 if (null == volumeOFF) {
-                    bm = AdViewUtils.getImageFromAssetsFile("mute.png");
+                    //bm = AdViewUtils.getImageFromAssetsFile("mute.png");
+                    bm = AdViewUtils.getImageFromAssetsFile2("mute.png", getContext()); //wilder 2020 for non-context
                     volumeOFF = new BitmapDrawable(getResources(), bm);
                 }
                 //((ImageView) view).setImageDrawable(AdViewUtils.isMediaMuted(getContext()) ? volumeOFF : volumeON);
@@ -822,20 +828,23 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 return;*/
             case PLAYER_VIEW_ID:
                 view = new ImageView(getContext());
-                bm = AdViewUtils.getImageFromAssetsFile("icon_video.png");
+                //bm = AdViewUtils.getImageFromAssetsFile("icon_video.png"); wilder 2020 for non-context
+                bm = AdViewUtils.getImageFromAssetsFile2("icon_video.png", getContext());
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
 
                 break;
             case PAUSE_VIEW_ID:
                 view = new ImageView(getContext());
-                bm = AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png");
+                //bm = AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png"); wilder 2020 for non-context
+                bm = AdViewUtils.getImageFromAssetsFile2("webview_bar_pause.png", getContext());
                 ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
 
                 break;
             case FULLSCREEN_VIEW_ID:
                 if (AdViewUtils.useVideoFullScreen) {
                     view = new ImageView(getContext());
-                    bm = AdViewUtils.getImageFromAssetsFile("replay.png");
+                    //bm = AdViewUtils.getImageFromAssetsFile("replay.png"); wilder 2020 for non-context
+                    bm = AdViewUtils.getImageFromAssetsFile2("replay.png", getContext());
                     ((ImageView) view).setImageDrawable(new BitmapDrawable(getResources(), bm));
                 }
                 break;
@@ -1001,7 +1010,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     }
 
     private void cleanActivityUp() {
-        AdViewUtils.logInfo("cleanActivityUp stopQuartileTimer ");
+        AdViewUtils.logInfo("--- cleanActivityUp(): stopQuartileTimer ---");
         this.stopQuartileTimer();
         isSkippShown = false;
 
@@ -1024,14 +1033,21 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     private boolean getDesiredSize(int w, int h) {
         float videoWidth = w == 0 ? (float) mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoWidth() : (float) w;
         float videoHeight = h == 0 ? (float) mVastModel.get(adCount).getCreativeList().get(creativeCount).getPickedVideoHeight() : (float) h;
+        int originalReqOrientation = Configuration.ORIENTATION_UNDEFINED;
+        //wilder 2020 for non-activity, 因为activity的返回屏幕状态和configuration的返回不同，所以需要转义一下便于与下面相容
+        originalReqOrientation = getResources().getConfiguration().orientation;
 
-        Activity activity = (Activity) mContext;
-
-        if (activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ||
-                activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+        if (originalReqOrientation == Configuration.ORIENTATION_LANDSCAPE ) {
+            //当前是横屏
             if ( w < h  && !isEmbed) {
                 //wilder 2019 , add if w > h, it will means portrait mode, must rotated
-                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT );
+                if (mContext instanceof Activity) {
+                    ((Activity)mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                }else {
+                    //wilder 2020 for non-activity, 这里使用最顶端的activity来操作转屏
+                    AdViewUtils.logInfo("### acivity is null, use getAcitivity() to handle rotate ###");
+                    AdViewUtils.getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                }
                 desiredWidth = screenWidth;
                 desiredHeight = (int) (((float) screenWidth / videoWidth) * videoHeight);
                 return false;
@@ -1047,12 +1063,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                 desiredHeight = screenHeight;
             }
 
-        } else if (activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT ||
-                activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT) {
+        } else if (originalReqOrientation == Configuration.ORIENTATION_PORTRAIT ) {
+            //当前是竖屏
             desiredWidth = screenWidth;
             desiredHeight = (int) (((float) screenWidth / videoWidth) * videoHeight);
         }else {
             //AdViewUtils.logInfo(" need fix width & height");
+            //默认情况
             float dx = videoWidth / screenWidth;
             float dy = videoHeight / screenHeight;
             if (dx > dy) {
@@ -1070,11 +1087,25 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     private void initVPAID() {
         //wilder 2019 VPAID
-        Activity activity = (Activity) mContext;
-        mAdParams = mVastModel.get(adCount).getCreativeList().get(creativeCount).getAdParameters();
-        mACVpaidCtrl = new AdViewControllerVpaid( activity, mAdParams);
-        mACVpaidCtrl.setListener(this);
-        contentWebView.addJavascriptInterface(mACVpaidCtrl.getBridge(), "android");
+        try {
+            //此处待定 wilder 2020 ,non-context todo
+//            if (mContext instanceof Activity) {
+//                Activity activity = (Activity) mContext;
+//                mAdParams = mVastModel.get(adCount).getCreativeList().get(creativeCount).getAdParameters();
+//                mACVpaidCtrl = new AdViewControllerVpaid(activity, mAdParams);
+//                mACVpaidCtrl.setListener(this);
+//                contentWebView.addJavascriptInterface(mACVpaidCtrl.getBridge(), "android");
+//            }else
+            {
+                //wilder 20200226 , vpaid暂且全部使用mainloop
+                mAdParams = mVastModel.get(adCount).getCreativeList().get(creativeCount).getAdParameters();
+                mACVpaidCtrl = new AdViewControllerVpaid(null, mAdParams);
+                mACVpaidCtrl.setListener(this);
+                contentWebView.addJavascriptInterface(mACVpaidCtrl.getBridge(), "android");
+            }
+        }catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private boolean isFinalMedia() {
@@ -1332,8 +1363,13 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
     @Override
     public void runOnUiThread(Runnable runnable) {
-       //
-        ((Activity) mContext).runOnUiThread(runnable);
+       //wilder 20200226 全部改成mainloop的形式
+        //WindowManager wm = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
+//        if (mContext instanceof Activity)
+//            ((Activity) mContext).runOnUiThread(runnable);
+//        else {
+        new Handler(Looper.getMainLooper()).post(runnable);
+        //}
     }
 
     class WebClientHandler extends Handler {
@@ -1617,16 +1653,27 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
     }
 
     private void setFullScreen(boolean fullScreen) {
-        WindowManager.LayoutParams attrs = ((Activity) mContext).getWindow().getAttributes();
+        //wilder 2020 ,要利用到window的特性，必须采用activity,如果启动参数context不是activity,需要取得顶端激活的activity
+        Activity activity = null;
+        if (mContext instanceof Activity) {
+            activity = (Activity)mContext;
+        }else {
+            activity = AdViewUtils.getActivity();
+            if (null == activity) {
+                AdViewUtils.logInfo("### error -> setFullScreen(): getActivity failed !!!!! ### ");
+                return;
+            }
+        }
+        WindowManager.LayoutParams attrs = activity.getWindow().getAttributes();
         if (fullScreen) {
             attrs.flags |= WindowManager.LayoutParams.FLAG_FULLSCREEN;
-            ((Activity) mContext).getWindow().setAttributes(attrs);
-            ((Activity) mContext).getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+            activity.getWindow().setAttributes(attrs);
+            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
             fullVideoOrientation = true;
         } else {
             attrs.flags &= (~WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            ((Activity) mContext).getWindow().setAttributes(attrs);
-            ((Activity) mContext).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+            activity.getWindow().setAttributes(attrs);
+            activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
             fullVideoOrientation = false;
         }
 
@@ -1639,12 +1686,20 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             return;
         AdViewUtils.logInfo("===========expandFullScreen()==============");
         if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
-            Log.i("[expandFullScreen]", "横屏");
-            ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            AdViewUtils.logInfo("横屏");
+            if (mContext instanceof Activity) {
+                ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            } else {
+                AdViewUtils.getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            }
             showCustomView2(true);
         }else if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            Log.i("[expandFullScreen]", "竖屏");
-            ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            AdViewUtils.logInfo("竖屏");
+            if (mContext instanceof Activity)
+                ((Activity) mContext).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            else {
+                AdViewUtils.getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+            }
             showCustomView2(false);
         }
     }
@@ -1664,20 +1719,25 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
                             //ViewGroup.LayoutParams.MATCH_PARENT,
                             //ViewGroup.LayoutParams.MATCH_PARENT
                     );
-                    FrameLayout decor = (FrameLayout) ((Activity) mContext).getWindow().getDecorView();
+                    FrameLayout decorView = null;
+                    //wilder 2020这里要取得视频的承载窗口，如果context不是activity，那要取得当前的激活的activity作为承载方
+                    if (mContext instanceof Activity) {
+                        decorView = (FrameLayout) ((Activity) mContext).getWindow().getDecorView();
+                    }else {
+                        decorView = (FrameLayout) (AdViewUtils.getActivity()).getWindow().getDecorView();
+                    }
                     if (changeFull) {
                         //先移除旧的root layout
                         removeView(mRootLayout);
-                        decor.addView(mRootLayout, COVER_SCREEN_PARAMS);
+                        decorView.addView(mRootLayout, COVER_SCREEN_PARAMS);
                         setFullScreen(true);
                     } else {
-                        decor.removeView(mRootLayout);
+                        decorView.removeView(mRootLayout);
                         addView(mRootLayout, new FrameLayout.LayoutParams(
                                             LayoutParams.MATCH_PARENT,
                                             LayoutParams.MATCH_PARENT ));
                         setFullScreen(false);
                     }
-
                 }//end run()
             });
            // }, 500);
@@ -1707,7 +1767,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
         @Override
         public View getVideoLoadingProgressView() {
-            Log.i("ToVmp","--------- getVideoLoadingProgressView ------------ ");
+            AdViewUtils.logInfo("--------- getVideoLoadingProgressView ------------ ");
 //            if (null != mProgressBar)
 //                return mProgressBar;
 //            else
@@ -1735,20 +1795,20 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
         @Override
         public void onShowCustomView(View view, CustomViewCallback callback) {
-            Log.i("ToVmp","--------- onShowCustomView ------------ ");
+            AdViewUtils.logInfo("--------- onShowCustomView ------------ ");
             super.onShowCustomView(view, callback);
         }
 
         @Override
         public void onHideCustomView() {
-            Log.i("ToVmp","--------- onHideCustomView ---------------");
+            AdViewUtils.logInfo("--------- onHideCustomView ---------------");
             super.onHideCustomView();
         }
     }
 
     class VideoWebClient extends WebViewClient {
-        //wilder 2019
-        @Override
+        //wilder 2019, wilder 20200224 不能使用proceed()否则googleplay 不能上架
+       /* @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error){
             //fix https can not access
             //super.onReceivedSslError(view, handler, error); wilder 2019 must remove this line.
@@ -1760,12 +1820,12 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             }else{
                 handler.cancel();
             }
-            /*
+            *//*
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 // android 5.0以上默认不支持Mixed Content
                 view.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-            } */
-        }
+            } *//*
+        }*/
 
         @Override
         public void onPageFinished(WebView view, String url) {
@@ -1947,13 +2007,15 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             mVastModel.get(pos).getCreativeList().get(creativePos).setReady(true);
             mVastModel.get(pos).getCreativeList().get(creativePos).setPickedVideoUrl(path);
             if (isWaittingDownload) {
-                ((Activity) mContext).runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        isWaittingDownload = false;
-                        loadNextVideoContainer();
-                    }
-                });
+                //((Activity) mContext).runOnUiThread(
+                //wilder 2020 change for non-activity
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                isWaittingDownload = false;
+                                loadNextVideoContainer();
+                            }
+                        });
             }
         }
 
@@ -1963,7 +2025,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             mVastModel.get(pos).getCreativeList().get(creativePos).setFailed(true);
             reportErrorEvent();
             if (isWaittingDownload) {
-                ((Activity) mContext).runOnUiThread(new Runnable() {
+                //((Activity) mContext).runOnUiThread(new Runnable() {
+                //wilder 2020 change for non-activity
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
                     public void run() {
                         isWaittingDownload = false;
@@ -2038,6 +2102,7 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
 
         if (null != tempStr) {
             if (url.startsWith("http") || url.startsWith("https")) {
+
                 return tempStr.replace("__COLOR__", color).
                         replace("VIDEO_FILE", url).
                         replace("WIDTH", desiredWidth / density + "").
@@ -2255,7 +2320,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             //close view
             final ImageView closeView = (ImageView)mRootLayout.findViewById(CLOSE_VIEW_ID);
             if (null == closeView) {
-                ((Activity) mContext).runOnUiThread(new Runnable() {
+                //((Activity) mContext).runOnUiThread(new Runnable() {
+                //wilder 2020 change for non-activity
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
                     public void run() {
                         if (noSkip && !isVPAID()) {
@@ -2268,7 +2335,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             }
             //超时处理
             if (currentVideoPlayTime > duration) {
-                ((Activity) mContext).runOnUiThread(new Runnable() {
+                //((Activity) mContext).runOnUiThread(new Runnable() {
+                //wilder 2020 for non-activity
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
                     public void run() {
                         if(!isVPAID()) {
@@ -2303,7 +2372,9 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
             }
             //倒计时countdown的处理
             if (null != countDownView) {
-                ((Activity) mContext).runOnUiThread(new Runnable() {
+                //((Activity) mContext).runOnUiThread(new Runnable() {
+                //wilder 2020 for non-activity
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
                     public void run() {
                         int duration = mVastModel.get(adCount).getCreativeList().get(creativeCount).getDuration() * 1000;
@@ -2459,9 +2530,11 @@ public class AdVASTView extends RelativeLayout implements AdControllerInterface,
         }
 
         if(!isEmbed) {
-            ((Activity)mContext).finish();
+            if (mContext instanceof Activity) {
+                ((Activity) mContext).finish();
+            }
         }
-
+        //要发送事件
         onCloseBtnClicked();
     }
 

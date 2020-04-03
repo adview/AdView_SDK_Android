@@ -37,9 +37,7 @@ public class AdBIDVideoAdapter extends AdAdapterManager {
 //        bdle.putString("bgColor", bgColor.equals("#undefine") ? "#000000" : bgColor);
 
         vastPlayerIntent.putExtras(bundle);
-        //vastPlayerIntent.putExtra("adsBean", (Serializable)adsBean);
         context.startActivity(vastPlayerIntent);
-        //((Activity)context).startActivityForResult(vastPlayerIntent, SUBACTIVITY1);
         return ;
     }
 

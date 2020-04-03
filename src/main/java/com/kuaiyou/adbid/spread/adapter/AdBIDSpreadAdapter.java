@@ -166,11 +166,12 @@ public class AdBIDSpreadAdapter extends AdAdapterManager {
                 WebView webView = (WebView) getViewById(ConstantValues.UI_WEBVIEW_ID, msg);
                 try {
                     if (null != webView) {
+                        //wilder 2020 用这些会在webview出错
                         webView.getClass().getMethod("onPause").invoke(webView, (Object[]) null);
-                        ViewGroup vp = (ViewGroup) webView.getParent();
-                        vp.removeView(webView);
-                        webView.removeAllViews();
-                        webView.destroy();
+//                        ViewGroup vp = (ViewGroup) webView.getParent();
+//                        vp.removeView(webView);
+//                        webView.removeAllViews();
+//                        webView.destroy();
                     }
                 } catch (Exception e) {
                     e.printStackTrace();

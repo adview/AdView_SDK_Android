@@ -385,7 +385,7 @@ public class FixedPopupWindow {
                 } else if (event.getAction() == KeyEvent.ACTION_UP) {
                     final KeyEvent.DispatcherState state = getKeyDispatcherState();
                     if (state != null && state.isTracking(event) && !event.isCanceled()) {
-//                        dismiss();
+                        //dismiss(); //wilder 2020 for back can support
                         return true;
                     }
                 }

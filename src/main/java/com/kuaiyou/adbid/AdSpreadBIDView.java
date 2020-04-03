@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -45,6 +46,7 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
     private String adLogo;
     private String adIcon;
     private String appID;
+    private String posID = "";
 
     private String bitmapPath;
     private SharedPreferences preferences = null;
@@ -66,15 +68,15 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
 
     private AdAdapterManager adAdapterManager = null;
 
-    public AdSpreadBIDView(Context context, String key, ViewGroup view) {
-        this(context, key, view, ConstantValues.ROUTE_ADBID_TYPE);
+    public AdSpreadBIDView(Context context, String key, String posid, ViewGroup view) {
+        this(context, key, posid, view, ConstantValues.ROUTE_ADBID_TYPE);
     }
     /**
      * @param context () Context
      * @param appID     Adview SDK KEY
      * @param view    attached view
      */
-    public AdSpreadBIDView(Context context, String appID, ViewGroup view, int routeType) {
+    public AdSpreadBIDView(Context context, String appID, String posID, ViewGroup view, int routeType) {
         super(context);
         setWillNotDraw(false);
 
@@ -86,6 +88,7 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         this.routeType = routeType;
         density = AdViewUtils.getDensity(getContext());
         this.appID = appID;
+        this.posID = posID;
         //applyAdBean = initRequestBean(appID, null, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
 
         // 初始化 起始界面
@@ -100,16 +103,14 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
             new TimeoutHandler(this).sendEmptyMessageDelayed(ConstantValues.SPREAD_REQ_INIT_SUCCESS, timeOutTime);
         }
         // 设置缓存大小
-        try {
-            //if (Class.forName("android.support.v4.util.LruCache") != null) //20200120 wilder 用于测试androidx
-            if (Class.forName("android.util.LruCache") != null) //wilder 2020 for android x bug
-                ;
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            //Toast.makeText(getContext(), "请添加最新版的android-support-v4 或 v13.jar", Toast.LENGTH_SHORT).show();
-            AdViewUtils.logInfo("!!! [AdSpreadBIDView] err: pls import newest version of android-support-v4.jar !!!");
-            //return;
-        }
+//        try {
+//            if (Class.forName("android.util.LruCache") != null) //wilder 2020 for android x bug
+//                ;
+//        } catch (ClassNotFoundException e) {
+//            e.printStackTrace();
+//            //Toast.makeText(getContext(), "请添加最新版的android-support-v4 或 v13.jar", Toast.LENGTH_SHORT).show();
+//            AdViewUtils.logInfo("!!! [AdSpreadBIDView] err: pls import newest version of android-support-v4.jar !!!");
+//        }
         //got gpid
         AdViewUtils.getDeviceIdFirstTime(context, this);
 
@@ -122,7 +123,7 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         long cacheTime;
         String configUrl;
         //2020 RequestBean的动作必须在fetch GPID之后
-        applyAdBean = initRequestBean(appID, null, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
+        applyAdBean = initRequestBean(appID, posID, routeType, ConstantValues.SDK_REQ_TYPE_SPREAD, 1);
 
         configUrl = getConfigUrl(routeType);
         preferences = SharedPreferencesUtils.getSharedPreferences(getContext(),ConstantValues.SP_SPREADINFO_FILE);
@@ -198,7 +199,14 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
      */
     public void cancelAd() {
         try {
-            adAdapterManager.cancelSpreadAd();
+            if (null != adAdapterManager) {
+                adAdapterManager.cancelSpreadAd();
+            } else {
+                //wilder 2020 if no ads received, still can support cancelAd()
+                if (null != onAdSpreadListener) {
+                    onAdSpreadListener.onAdSpreadPrepareClosed();
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -274,10 +282,16 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         if (null == adsBean)
             return false;
         if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
-            adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
+            if (AdViewUtils.adLogoOnLine)
+                adLogoBmp = AdViewUtils.getHttpBitmap(adsBean.getAdLogoUrl());//wilder 20200228 for test
+            else
+                adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
         }
         if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
-            adIcon = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdIconUrl(), 1);
+            if (AdViewUtils.adLogoOnLine)
+                adIconBmp = AdViewUtils.getHttpBitmap(adsBean.getAdIconUrl());//wilder 20200228 for test
+            else
+                adIcon = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdIconUrl(), 1);
         }
         return true;
     }
@@ -338,8 +352,10 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
             onAdSpreadListener.onAdClicked(AdSpreadBIDView.this);
         }
         if (adsBean.getAdAct() != ConstantValues.RESP_ACT_DOWNLOAD) {
-            adAdapterManager.removeMessage(ConstantValues.SPREAD_REQ_INIT_SUCCESS);
-            adAdapterManager.removeMessage(ConstantValues.SPREAD_RESP_BITMAP_RECEIVED);
+            if (null != adAdapterManager) {
+                adAdapterManager.removeMessage(ConstantValues.SPREAD_REQ_INIT_SUCCESS);
+                adAdapterManager.removeMessage(ConstantValues.SPREAD_RESP_BITMAP_RECEIVED);
+            }
             isClickFinished = false;
         }
         //打开落地页
@@ -347,7 +363,8 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
         //wilder 2020 ,发送延迟可关闭的消息给app,因为目前采用的方式是custom tab，还不能获取关闭事件
         //因此在这里就延迟一下，通知app可以关闭spread了
         isClickFinished = true;
-        adAdapterManager.sendMessage(ConstantValues.SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK);
+        if (null != adAdapterManager)
+            adAdapterManager.sendMessage(ConstantValues.SPREAD_RESP_LANDINGPAGE_CLOSEDSTATUS_CHECK);
     }
 
     @Override
@@ -502,6 +519,17 @@ public class AdSpreadBIDView extends KyAdBaseView implements KySpreadListener {
     public String getAdIcon() {
         return adIcon;
     }
+
+    //wilder 20200228
+    @Override
+    public Bitmap getAdLogoBmp() {
+        return adLogoBmp;
+    }
+    @Override
+    public Bitmap getAdIconBmp() {
+        return adIconBmp;
+    }
+    //end wilder 20200228
     @Override
     public AdsBean getAdsBean() {
         return adsBean;

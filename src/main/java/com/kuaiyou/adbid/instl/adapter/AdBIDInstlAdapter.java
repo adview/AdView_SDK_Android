@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -15,6 +16,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -31,6 +33,7 @@ import com.kuaiyou.adbid.AdInstlBIDView;
 import com.kuaiyou.interfaces.KyInstalListener;
 import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.obj.AgDataBean;
+import com.kuaiyou.utils.AdActivity;
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.ConstantValues;
 import com.kuaiyou.utils.FixedPopupWindow;
@@ -45,8 +48,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
     private AlertDialog instlDialog = null;
     private int instlWidth;
     private int instlHeight;
-    private int currentRotation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-    private InstlView instlView;
+    private int currentRotation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; //这里要用到activity,因为可能会触发旋转动作
 
     private KyInstalListener kyInstlViewListener = null;
 
@@ -68,7 +70,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
     @Override
     public void handleAd(Context context, Bundle bundle) {
 
-        bitmapPath = bundle.getString("bitmapPath");
+        bitmapPath = bundle.getString("bitmapPath"); //这种情况是纯图片
         kyInstlViewListener = (KyInstalListener) bundle.getSerializable("interface");
         adsBean = kyInstlViewListener.getAdsBean();
         this.context = context;
@@ -76,26 +78,24 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
 
     }
 
-
     private void createInstlView(Context context, final AdsBean adsBean) {
         try {
             int width_tmp = 500, height_tmp = 600;
             if (null != instlDialog && instlDialog.isShowing())
                 return;
             if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
-                if (null != adsBean.getXhtml()
-                        && adsBean.getXhtml().length() > 0) {
+                if (null != adsBean.getXhtml() && adsBean.getXhtml().length() > 0) {
                     //double density = AdViewUtils.getDensity(context); //wilder 20191205
-                    //+20能容纳不太规范的页面
-                    height_tmp = adsBean.getAdHeight() + 20;
-                    width_tmp = adsBean.getAdWidth() + 20;
+                    //+10能容纳不太规范的页面
+                    height_tmp = adsBean.getAdHeight() + 10;
+                    width_tmp = adsBean.getAdWidth() + 10;
                     //DisplayMetrics displayMetrics = context.getApplicationContext().getResources().getDisplayMetrics();
                     //int screenSize[] = AdViewUtils.getWidthAndHeight(context, false, true);
 //                    width_tmp = displayMetrics.widthPixels;
 //                    height_tmp = displayMetrics.heightPixels;
                 }
             } else {
-                // 只获得图片尺寸
+                // 非H5的广告只获得图片尺寸
                 if ( !AdViewUtils.bitmapOnLine ) { //wilder 2019
                     if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_MIXED) {
                         BitmapFactory.Options opts = new BitmapFactory.Options();
@@ -105,6 +105,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
                         width_tmp = opts.outWidth;
                     }
                 }else {
+                    //用于at = 3等纯图片的情况
                     height_tmp = adsBean.getAdHeight();
                     width_tmp = adsBean.getAdWidth();
                 }
@@ -128,105 +129,102 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
                     kyInstlViewListener.setClickMotion(instlView.getMraidView(), null);
 //                setClickMotion(instlView.getMraidView(), adsBean, null);
             }
-            switch (adsBean.getAdType()) {
-                case ConstantValues.RESP_ADTYPE_MIXED:
-                    break;
-                case ConstantValues.RESP_ADTYPE_HTML:
-                    if (null != adsBean.getXhtml() && adsBean.getXhtml().length() > 0) {
-                    }
-                    break;
-                default:
-                    if (null != bitmapPath) {
-                        //wilder 2019 , bitmap mode should be loaded in showPopupWindows(), see below, else may cause webview not be shown
-                        //KyAdBaseView.loadWebContentURL(instlView.getWebView(),bitmapPath, adsBean.getAdLink());
-                    }
-                    break;
-            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private boolean showPopupWindows(final Activity ctx) {
+    //该方法使用于activity作为启动参数的情形，和dialog的区别是它背景可透明
+    private boolean showPopupWindows(final Context ctx) {
         try {
-            final Activity activity = null == ctx ? (Activity) context : ctx;
-            if (null == fixedPopupWindow || !fixedPopupWindow.isShowing()) {
-                //用 popupwindow加载instlView
-                fixedPopupWindow = new FixedPopupWindow(instlView, adsBean.getRealAdWidth(), adsBean.getRealAdHeight());
+            if (ctx instanceof Activity) {
+                //wilder 2020 for context is not activity
+                final Activity activity = null == ctx ? (Activity) context : (Activity) ctx;
+                if (null == fixedPopupWindow || !fixedPopupWindow.isShowing()) {
+                    //用 popupwindow加载instlView
+                    fixedPopupWindow = new FixedPopupWindow(instlView, adsBean.getRealAdWidth(), adsBean.getRealAdHeight());
 
-                fixedPopupWindow.showAtLocation((activity).getWindow().getDecorView(), Gravity.CENTER);
-                if (fixedPopupWindow.isShowing()) {
-                    if (null != kyInstlViewListener)
-                        kyInstlViewListener.onDisplay(null,false);
+                    fixedPopupWindow.showAtLocation(activity.getWindow().getDecorView(), Gravity.CENTER);
+                    if (fixedPopupWindow.isShowing()) {
+                        if (null != kyInstlViewListener)
+                            kyInstlViewListener.onDisplay(null, false);
 
-                    currentRotation = activity.getRequestedOrientation();
-                    switch (activity.getWindow().getWindowManager()
-                            .getDefaultDisplay().getRotation()) {
-                        case Surface.ROTATION_0:
-                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-                            break;
-                        case Surface.ROTATION_90:
-                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-                            break;
-                        case Surface.ROTATION_180:
-                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
-                            break;
-                        case Surface.ROTATION_270:
-                            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
-                            break;
+                        switch (activity.getWindow().getWindowManager().getDefaultDisplay().getRotation()) {
+                            case Surface.ROTATION_0:
+                                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                                break;
+                            case Surface.ROTATION_90:
+                                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                                break;
+                            case Surface.ROTATION_180:
+                                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
+                                break;
+                            case Surface.ROTATION_270:
+                                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                                break;
+                        }
                     }
-                }
-                fixedPopupWindow.setOnDismissListener(new FixedPopupWindow.OnDismissListener() {
-                    @Override
-                    public void onDismiss() {
-                        (activity).setRequestedOrientation(currentRotation);
+                    currentRotation = activity.getRequestedOrientation();;
+                    fixedPopupWindow.setOnDismissListener(new FixedPopupWindow.OnDismissListener() {
+                        @Override
+                        public void onDismiss() {
+                            activity.setRequestedOrientation(currentRotation);
 //                        if (null != kyInstlViewListener)              wilder 20190612
 //                            kyInstlViewListener.onCloseBtnClicked();
-                        try {
-                            if (null != instlView) {
-                                if (null != instlView.getWebView()) {
-                                    //修复了WebView.destroy() called while still attached!的bug
-                                    ViewGroup vp = (ViewGroup) instlView.getParent();
-                                    if (vp != null) {
-                                        vp.removeView(instlView);
-                                        instlView.getWebView().loadUrl("about:blank");
+                            try {
+/* wilder 2020 still not use ，sometimes can cause exception
+                                if (null != instlView) {
+                                    if (null != instlView.getWebView()) {
+                                        //修复了WebView.destroy() called while still attached!的bug
+                                        ViewGroup vp = (ViewGroup) instlView.getParent();
+                                        if (vp != null) {
+                                            vp.removeView(instlView);
+                                            //instlView.getWebView().loadUrl("about:blank");
+                                        }
+                                        instlView.getWebView().removeAllViews();
+                                        instlView.getWebView().destroy();
                                     }
-                                    instlView.getWebView().removeAllViews();
-                                    instlView.getWebView().destroy();
                                 }
+*/
+                            } catch (Exception e) {
+                                e.printStackTrace();
                             }
-                        } catch (Exception e) {
-                            e.printStackTrace();
                         }
-                    }
-                });
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
-                            WebView webView = instlView.getWebView();
-                            if (null != webView) {
-                                if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
-                                    AdViewUtils.loadWebContentExt(instlView.getWebView(),adsBean.getXhtml());
+                    });
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_HTML) {
+                                WebView webView = instlView.getWebView();
+                                if (null != webView) {
+                                    if (!adsBean.getXhtml().startsWith("http://") && !adsBean.getXhtml().startsWith("https://")) {
+                                        AdViewUtils.loadWebContentExt(instlView.getWebView(), adsBean.getXhtml());
+                                    } else {
+                                        instlView.getWebView().loadUrl(adsBean.getXhtml());
+                                    }
                                 } else {
-                                    instlView.getWebView().loadUrl(adsBean.getXhtml());
+                                    AdViewUtils.logInfo("###  webview is null error !!! ###");
                                 }
-                            } else {
-                                AdViewUtils.logInfo("#######  webview is null error !!! ########");
-                            }
 
-                        }else if (adsBean.getAdType() != ConstantValues.RESP_ADTYPE_MIXED){
-                            //wilder 2019
-                            if (AdViewUtils.bitmapOnLine) {
-                                AdViewUtils.loadWebImageURL(instlView.getWebView(),bitmapPath, adsBean.getAdLink());
-                            }else {
-                                AdViewUtils.loadWebImageLocal(instlView.getWebView(), bitmapPath, adsBean.getAdLink(), instlWidth, instlHeight);
+                            } else if (adsBean.getAdType() != ConstantValues.RESP_ADTYPE_MIXED) {
+                                //wilder 2019，纯图片的
+                                if (AdViewUtils.bitmapOnLine) {
+                                    AdViewUtils.loadWebImageURL(instlView.getWebView(), bitmapPath, adsBean.getAdLink());
+                                } else {
+                                    AdViewUtils.loadWebImageLocal(instlView.getWebView(), bitmapPath, adsBean.getAdLink(), instlWidth, instlHeight);
+                                }
                             }
                         }
-                    }
-                }, 0);
+                    }, 0);
+                }
+                return true;
+            }else {
+                if (null != fixedPopupWindow)
+                    fixedPopupWindow.dismiss();
+                AdViewUtils.logInfo("====== error, you must use activity's context to handle popup window !! ========");
+                return false;
             }
-            return true;
         } catch (Exception e) {
             e.printStackTrace();
             if (null != fixedPopupWindow)
@@ -236,11 +234,20 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
 
     }
 
-    private boolean showDialog(Activity context) {
-        final Context ctx = null == context ? this.context : context;
+    //使用默认最顶层的activity的方法来驱动，使用的alertDialog,该dialog必须运行在Activity的UI线程中
+    private boolean showDialog(final Context context) {
+       //Context ctx = null == context ? this.context : context;
+        final Context ctx = (context instanceof Activity) ? context : AdViewUtils.getActivity();
+       if (context instanceof Activity) {
+           AdViewUtils.logInfo("---- show dilaog ---");
+       } else {
+          AdViewUtils.logInfo("### showDialog() must use Activity ###");
+//           return false;
+           //ctx = AdViewUtils.getActivity().getBaseContext(); 这样的用法无法弹出，会报找不到activity
+       }
         try {
             if (null == instlDialog || !instlDialog.isShowing()) {
-
+                //alertdialog必须在UI线程，所以只适用于有activity的情况
                 instlDialog = new AlertDialog.Builder(ctx).create();
                 instlDialog.setCancelable(false);
                 instlDialog.setCanceledOnTouchOutside(false);
@@ -249,7 +256,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
                             @Override
                             public void onCancel(DialogInterface dialog) {
                                 // TODO Auto-generated method stub
-                                ((Activity) ctx).setRequestedOrientation(currentRotation);
+                                //((Activity) ctx).setRequestedOrientation(currentRotation); wilder 20200226 for test
 //                                if (null != kyInstlViewListener)          wilder 20190612
 //                                    kyInstlViewListener.onCloseBtnClicked();
 
@@ -276,25 +283,20 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
                         if (null != kyInstlViewListener)
                             kyInstlViewListener.onDisplay(null, false);
 
-                        currentRotation = ((Activity) ctx)
-                                .getRequestedOrientation();
-                        switch (((Activity) ctx).getWindow().getWindowManager()
-                                .getDefaultDisplay().getRotation()) {
+                        currentRotation = ((Activity) ctx).getRequestedOrientation();
+                        //int rotation = context.getResources().getConfiguration().orientation;
+                        switch (((Activity) ctx).getWindow().getWindowManager().getDefaultDisplay().getRotation()) {
                             case Surface.ROTATION_0:
-                                ((Activity) ctx)
-                                        .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                                ((Activity) ctx).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
                                 break;
                             case Surface.ROTATION_90:
-                                ((Activity) ctx)
-                                        .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                                ((Activity) ctx).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
                                 break;
                             case Surface.ROTATION_180:
-                                ((Activity) ctx)
-                                        .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
+                                ((Activity) ctx).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
                                 break;
                             case Surface.ROTATION_270:
-                                ((Activity) ctx)
-                                        .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                                ((Activity) ctx).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
                                 break;
                         }
                     }
@@ -329,14 +331,45 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
         return false;
     }
 
+    //wilder 2020 该方法适用于没有activity的情况
+    private boolean showDialogActivity(Context context) {
+        final Context ctx = null == context ? this.context : context;
+        try {
+            if (null == instlDialog || !instlDialog.isShowing()) {
+
+                Intent intent = new Intent(context, AdActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); //不加这个参数对于可能无法显示
+                //intent.putExtra("mode", "1");
+                intent.putExtra("data",adsBean);
+                intent.putExtra("bmpPath", bitmapPath);
+                intent.putExtra("insWidth",instlWidth);
+                intent.putExtra("insHeight", instlHeight);
+                context.startActivity(intent);
+
+                //发送展示汇报
+                if (null != kyInstlViewListener)
+                    kyInstlViewListener.onDisplay(null, false);
+
+
+                return true;
+            }
+        } catch (Exception e) {
+            // TODO: handle exception
+            e.printStackTrace();
+            //instlDialog.cancel();
+            return false;
+        }
+        //instlDialog.cancel();
+        return false;
+    }
     /**
      * 展示插屏广告
      *
-     * @param activity
+     * @param context
      * @return 展示成功返回true 否则false
      */
     @Override
-    public boolean showInstl(final Activity activity) {
+    public boolean showInstl(final Context context) {
         try {
             int notifyType = 0;
             if (null != adsBean) {
@@ -351,12 +384,11 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
             switch (notifyType) {
                 case AdInstlBIDView.DISPLAYMODE_DEFAULT:
                 case AdInstlBIDView.DISPLAYMODE_POPUPWINDOWS:
-//                return showDialog(activity);
                     //缺省用的popup的window
-                    return showPopupWindows(activity);
+                    return showPopupWindows(context); //context
                 case AdInstlBIDView.DISPLAYMODE_DIALOG:
-                    return showDialog(activity);
-
+                    return showDialogActivity(context); //wilder 2020
+                    //return showDialog(context); //wilder 20200226 for test
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -399,7 +431,7 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
     }
 
     /**
-     * 手动调用 关闭插屏
+     * 手动调用 关闭插屏，发生在点击close按钮
      */
     @Override
     public void closeInstl() {
@@ -410,6 +442,10 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
             }
             if (null != fixedPopupWindow && fixedPopupWindow.isShowing()) {
                 fixedPopupWindow.dismiss();
+            }
+            //wilder 2020 for new dialog for context
+            if (AdActivity.getInstance() != null) {
+                AdActivity.getInstance().finish();
             }
 
         } catch (Exception e) {
@@ -499,4 +535,6 @@ public class AdBIDInstlAdapter extends AdAdapterManager {
 
         return sizeMap;
     }
+
+
 }

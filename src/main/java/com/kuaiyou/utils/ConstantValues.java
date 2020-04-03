@@ -28,7 +28,7 @@ public class ConstantValues {
     public final static int RESP_ADTYPE_FULLIMAGE = 0; //banner纯图片
     public final static int RESP_ADTYPE_INTERLINK = 1; //banner文字链
     public final static int RESP_ADTYPE_MIXED = 2;  //banner图文混合
-    public final static int RESP_ADTYPE_INSTL = 3;  //插屏
+    public final static int RESP_ADTYPE_INSTL = 3;  //插屏纯图片
     public final static int RESP_ADTYPE_HTML = 4;    //html
     public final static int RESP_ADTYPE_SPREAD = 5; //开屏纯图片
     public final static int RESP_ADTYPE_VIDEO = 6; //激励视频
@@ -179,7 +179,7 @@ public class ConstantValues {
     // 网络连接超时时间
     public final static int REQUEST_CONNECT_TIMEOUT = 15 * 1000;
     // 广告缓存时间
-    public static final int DEFAULT_CACHE_PEROID = 5;// seconds
+    public static final int DEFAULT_CACHE_PEROID = 5; //seconds
 
     public final static long AD_EXPIRE_TIME = 20 * 60 * 1000;//广告有效期 20分钟 过期时间
     public final static int VIDEO_CACHE_SIZE = 200 * 1024 * 1024;//视频缓存大小200M

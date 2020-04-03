@@ -8,3 +8,7 @@
   - CCPA is supported.
   - Endcard is supported for rewarded video.
   - The acquisition of unnecessary permissions is deleted to ensure security.
+
+## Version 4.2.0 (April 30, 2020)
+  - Supports uploading ad placement id for all ad formats.
+  - Compatibility optimization for context.

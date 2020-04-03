@@ -6,9 +6,10 @@
 
 package com.kuaiyou.video.vast;
 
-import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 
 import com.kuaiyou.utils.AdViewUtils;
@@ -53,7 +54,7 @@ public class VASTPlayer {
 
     private Context context;
     private VASTPlayerListener vastPlayerListener;   //wilder 2019
-
+    private Handler mainHandler = null;
     private ArrayList<VASTModel> vastModel = new ArrayList<VASTModel>();
     private ArrayList<VASTModel> wrapperModel = new ArrayList<VASTModel>();
     private Bundle bundle;
@@ -62,6 +63,7 @@ public class VASTPlayer {
         this.context = context;
         this.bundle = bundle;
         this.vastPlayerListener = callback;
+        this.mainHandler = new Handler(Looper.getMainLooper()); //wilder 2020 for loop handler
     }
 
     public ArrayList<VASTModel> getVastModel() {
@@ -129,7 +131,7 @@ public class VASTPlayer {
                             //vpaid-xfinity-0001.xml, [omsdk]vast-video-00001.txt, [omsdk]VPAID-innovid-tv-https.xml (要vpn)
                             //[omsdk]VPAID-video-adview-sample-001.xml
                             //String testDat = AdViewUtils.loadAssetsFileByContext("test/[omsdk]VPAID-video-adview-sample-001.xml",context );
-                            String testDat = AdViewUtils.loadAssetsFile("test/VAST-0830-vast_tag.xml"); //[omsdk-ok]omsdk-videoData.xml
+                            String testDat = AdViewUtils.loadAssetsFile("test/VAST-0830-vast_tag.xml", context); //[omsdk-ok]omsdk-videoData.xml
                             error = processor.process(testDat);
                         } else {
                             //end wilder 2019
@@ -379,14 +381,23 @@ public class VASTPlayer {
         if (vastModel != null) {
             if (AdViewUtils.isConnectInternet(context)) {
                 //add for embed vast view
-                //sendLocalBroadcast(context, ACTION_DOWNLOADCANCEL, null);
                 if (vastPlayerListener != null) {
-                    ((Activity) context).runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            vastPlayerListener.vastPlayReady(bundle);
-                        }
-                    });
+//                    if (context instanceof Activity) {
+//                        ((Activity) context).runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                vastPlayerListener.vastPlayReady(bundle);
+//                            }
+//                        });
+//                    }else {
+                        //wilder 2020 for non-context
+                        mainHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                //load url must handled in main loop thread
+                                vastPlayerListener.vastPlayReady(bundle);
+                            }
+                        });
                 }
             } else {
                 sendError(ERROR_NO_NETWORK);
@@ -399,11 +410,11 @@ public class VASTPlayer {
     private void sendDownloadCanceled() {
         AdViewUtils.logInfo("sendDownloadCanceled");
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastDownloadCancel();
-                }
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                   @Override
+                   public void run() {
+                       vastPlayerListener.vastDownloadCancel();
+                   }
             });
         }
     }
@@ -414,23 +425,22 @@ public class VASTPlayer {
 
     private void sendParseReady() {
         AdViewUtils.logInfo("sendReady");
-        //sendLocalBroadcast(context, ACTION_VASTPARSEDONE, null);
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-               public void run() {
-                    vastPlayerListener.vastParseDone(getPlayer());
-                }
-            });
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        //load url must handled in main loop thread
+                        vastPlayerListener.vastParseDone(getPlayer());
+                    }
+                });
         }
-
     }
 
     private void sendDownloadReady() {
         AdViewUtils.logInfo("sendDownloadReady");
-        //sendLocalBroadcast(context, ACTION_VASTDOWNLOADREADY, null);
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
+            //webview 必须在主线程
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override
                 public void run() {
                     vastPlayerListener.vastDownloadReady();
@@ -443,47 +453,46 @@ public class VASTPlayer {
         AdViewUtils.logInfo("{{{{{{{{{{{{{{{{ sendError:" + error + "}}}}}}}}}}}}}}}}");
         Bundle bundle = new Bundle();
         bundle.putInt("error", error);
-        //sendLocalBroadcast(context, ACTION_VASTERROR, bundle);
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastError(error);
-                }
-            });
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        vastPlayerListener.vastError(error);
+                    }
+                });
         }
     }
 
     public void sendClick() {
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastClick();
-                }
-            });
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        vastPlayerListener.vastClick();
+                    }
+                });
         }
     }
 
     public void sendComplete() {
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastComplete();
-                }
-            });
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        vastPlayerListener.vastComplete();
+                    }
+                });
         }
     }
 
     public void sendDismiss() {
         if (vastPlayerListener != null) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    vastPlayerListener.vastDismiss();
-                }
-            });
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        vastPlayerListener.vastDismiss();
+                    }
+                });
         }
     }
 

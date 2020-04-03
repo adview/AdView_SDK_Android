@@ -1,11 +1,11 @@
 //  mraid.js
 (function() {
-	console.log("########  MRAID object loading ...######");
+	console.log("######  MRAID object loading ...######");
 	// console logging helper
 	var LogLevelEnum = {"DEBUG"   : 0,"INFO"    : 1,"WARNING" : 2,	"ERROR"   : 3,"NONE"    : 4	};
 	var logLevel = LogLevelEnum.NONE;
 	var log = {};
-	log.i = function(msg) {	if (logLevel <= LogLevelEnum.INFO) { console.log("####### (I-mraid.js) " + msg + "#######");}};
+	log.i = function(msg) {	if (logLevel <= LogLevelEnum.INFO) { console.log("###### (I-mraid.js) " + msg + "######");}};
 	log.e = function(msg) {	if (logLevel <= LogLevelEnum.ERROR){ console.log("(E-mraid.js) " + msg);}};
 	// MRAID declaration
 	var mraid = window.mraid = {};
@@ -498,8 +498,8 @@
             (containedRect.y + containedRect.height) <= (containingRect.y + containingRect.height));
     }
     function printRect(label, rect) {
-        log.i(label +" [" + rect.x + "," + rect.y + "]" +",[" + (rect.x + rect.width) + "," + (rect.y + rect.height) + "]" +
-            " (" + rect.width + "x" + rect.height + ")");
+//        log.i(label +" [" + rect.x + "," + rect.y + "]" +",[" + (rect.x + rect.width) + "," + (rect.y + rect.height) + "]" +
+//            " (" + rect.width + "x" + rect.height + ")");
     }
 	mraid.dumpListeners = function() {
 		var nEvents = Object.keys(listeners).length;
@@ -512,7 +512,7 @@
 			}
 		}
 	};
-	console.log("####### MRAID object loaded #######");
+	console.log("###### MRAID object loaded ######");
 })();
 
 

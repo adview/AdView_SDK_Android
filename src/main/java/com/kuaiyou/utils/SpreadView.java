@@ -1,6 +1,7 @@
 package com.kuaiyou.utils;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
@@ -212,8 +213,8 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
 
     private void setBehaveIcon(String behaveIcon) {
         if (null != findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID)) {
-            //BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),getClass().getResourceAsStream(behaveIcon));
-            BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),AdViewUtils.getImageFromAssetsFile(behaveIcon));
+            //BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),AdViewUtils.getImageFromAssetsFile(behaveIcon)); wilder 2020 for non-context
+            BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),AdViewUtils.getImageFromAssetsFile2(behaveIcon, getContext()));
             ((ImageView) findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID)).setImageDrawable(selfBehavIcon);
             findViewById(ConstantValues.MIXED_UI_BEHAVEICON_ID).setBackgroundColor(Color.parseColor("#663e3d3d"));
         }
@@ -474,13 +475,26 @@ public class SpreadView extends RelativeLayout implements View.OnTouchListener {
         ImageView logoImage = (ImageView)findViewById(ConstantValues.UI_ADLOGO_ID);
         ImageView iconImage = (ImageView)findViewById(ConstantValues.UI_ADICON_ID);
         if (null != kySpreadListener) {
+            Bitmap bmp = null;
             if (null != logoImage) {
-                String logoPath = kySpreadListener.getAdLogo();
-                logoImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), logoPath));
+                if (AdViewUtils.adLogoOnLine) {
+                    bmp =  kySpreadListener.getAdLogoBmp();
+                    if (null != bmp)
+                        logoImage.setImageBitmap(bmp);
+                }else {
+                    String logoPath = kySpreadListener.getAdLogo();
+                    logoImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), logoPath));
+                }
             }
             if (null != iconImage) {
-                String iconPath = kySpreadListener.getAdIcon();
-                iconImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), iconPath));
+                if (AdViewUtils.adLogoOnLine) {
+                    bmp =  kySpreadListener.getAdIconBmp();
+                    if (null != bmp)
+                        iconImage.setImageBitmap(bmp);
+                }else {
+                    String iconPath = kySpreadListener.getAdIcon();
+                    iconImage.setImageDrawable(new BitmapDrawable(getContext().getResources(), iconPath));
+                }
             }
         }
     }

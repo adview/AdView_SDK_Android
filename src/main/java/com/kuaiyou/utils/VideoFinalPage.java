@@ -3,6 +3,7 @@ package com.kuaiyou.utils;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -46,7 +47,8 @@ public class VideoFinalPage extends RelativeLayout {
 
     public VideoFinalPage(Context context) {
         super(context);
-        orientation = ((Activity) context).getRequestedOrientation();
+        orientation = context.getResources().getConfiguration().orientation;
+
         icon = new ImageView(context);
         background = new ImageView(context);
 
@@ -131,10 +133,11 @@ public class VideoFinalPage extends RelativeLayout {
             return;
 
         switch (orientation) {
-            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT:
-            case ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT:
-            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT:
-            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT:
+//            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT:
+//            case ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT:
+//            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT:
+//            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT:
+            case Configuration.ORIENTATION_PORTRAIT:
                 for (int i = 0; i < getChildCount(); i++) {
                     View child = getChildAt(i);
                     switch (child.getId()) {
@@ -175,10 +178,11 @@ public class VideoFinalPage extends RelativeLayout {
                     }
                 }
                 break;
-            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:
-            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE:
-            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:
-            case ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE:
+//            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:
+//            case ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE:
+//            case ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:
+//            case ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE:
+            case Configuration.ORIENTATION_LANDSCAPE:
                 for (int i = 0; i < getChildCount(); i++) {
                     View child = getChildAt(i);
                     switch (child.getId()) {

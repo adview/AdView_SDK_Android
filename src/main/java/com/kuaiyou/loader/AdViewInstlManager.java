@@ -33,17 +33,19 @@ public class AdViewInstlManager extends InitSDKManager {
     private final static String GETINSTLHEIGHT_METHOD_NAME = "getInstlHeight";
     private final static String SETONADVIEWLISTENER_METHOD_NAME = "setOnAdInstlListener";
 
-    public AdViewInstlManager(Context context, String key, boolean canClosed) {
+    public AdViewInstlManager(Context context, String key, String posID, boolean canClosed) {
         getInstance().init(context, key);
-        Class[] params = new Class[3];
+        Class[] params = new Class[4];
         params[0] = Context.class;
         params[1] = String.class;
-        params[2] = boolean.class;
+        params[2] = String.class;
+        params[3] = boolean.class;
 
-        Object[] objects = new Object[3];
+        Object[] objects = new Object[4];
         objects[0] = context;
         objects[1] = key;
-        objects[2] = canClosed;
+        objects[2] = posID;
+        objects[3] = canClosed;
 
         object = requestAd(INSTL_CLASS_NAME, params, objects);
     }
@@ -103,8 +105,8 @@ public class AdViewInstlManager extends InitSDKManager {
         invoke(object, CLOSEINSTL_METHOD_NAME, new Class[]{}, new Object[]{});
     }
 
-    public boolean showInstl(Activity activity) {
-        Object value = invoke(object, SHOWINSTL_METHOD_NAME, new Class[]{Activity.class}, new Object[]{activity});
+    public boolean showInstl(Context ctx) {
+        Object value = invoke(object, SHOWINSTL_METHOD_NAME, new Class[]{Context.class}, new Object[]{ctx});
         try {
             if (null != value)
                 return Boolean.valueOf(String.valueOf(value));

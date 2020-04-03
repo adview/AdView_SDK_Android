@@ -40,17 +40,19 @@ public class  AdViewSpreadManager extends InitSDKManager {
 
     private final static String SETONADVIEWLISTENER_METHOD_NAME = "setOnAdSpreadListener";
 
-    public AdViewSpreadManager(Context context, String key, ViewGroup view) {
+    public AdViewSpreadManager(Context context, String key, String posid, ViewGroup view) {
         getInstance().init(context, key);
-        Class[] params = new Class[3];
+        Class[] params = new Class[4];
         params[0] = Context.class;
         params[1] = String.class;
-        params[2] = ViewGroup.class;
+        params[2] = String.class; //wilder 2020
+        params[3] = ViewGroup.class;
 
-        Object[] objects = new Object[3];
+        Object[] objects = new Object[4];
         objects[0] = context;
         objects[1] = key;
-        objects[2] = view;
+        objects[2] = posid;
+        objects[3] = view;
 
         object = requestAd(SPREAD_CLASS_NAME, params, objects);
     }

@@ -50,11 +50,7 @@ public class CustomWebview extends WebView {
 //        webSetting.setAppCachePath(appCacheDir);
 //        webSetting.setAppCacheEnabled(true);
 //        webSetting.setCacheMode(WebSettings.LOAD_DEFAULT);
-
-
-
         // webSetting.setCacheMode(WebSettings.LOAD_CACHE_ONLY);
-        webSetting.setJavaScriptEnabled(true);
 
         //end settings
         if (isVideo) {
@@ -64,6 +60,7 @@ public class CustomWebview extends WebView {
             //webSetting.setSupportZoom(true);
             webSetting.setLoadWithOverviewMode(true);// setUseWideViewPort方法设置webview推荐使用的窗口。setLoadWithOverviewMode方法是设置webview加载的页面的模式。
             this.setLayerType(View.LAYER_TYPE_HARDWARE, null); //(wiler 2019) if show blank, pls use LAYER_TYPE_SOFTWARE
+
         }
         else {
             this.setLayerType(View.LAYER_TYPE_SOFTWARE, null); //如果不是video,最好使用software,便于网页缩放显示

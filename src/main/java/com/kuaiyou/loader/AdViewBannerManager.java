@@ -30,9 +30,10 @@ public class AdViewBannerManager extends InitSDKManager {
     private final static String SET_OPENANIM_METHOD_NAME = "setOpenAnim";
     private final static String SET_ONADVIEWLISTENER_METHOD_NAME = "setOnAdViewListener";
     private final static String STOP_REQUEST_METHOD_NAME = "stopRequest";
-    private final static String SET_VIDEOINFO_METHOD_NAME = "setVideoInfo"; //wilder 2019 for mrec
     private final static String PLAYVIDEO_METHOD_NAME = "playVideo"; //wilder 2019 for mrec
     private final static String SET_AUTOPLAY_METHOD_NAME = "setAutoPlay";
+    private final static String SET_VIDEOMODE_METHOD_NAME = "setVideoMode"; //wilder 2020 for video pos
+
 
     public AdViewBannerManager(Context context, String key, String vPosID, int routeType, int adSize, boolean canClosed) {
         getInstance().init(context, key);
@@ -61,7 +62,12 @@ public class AdViewBannerManager extends InitSDKManager {
         this(context, key, vPosID, 998, adSize, canClosed);
     }
 
-    //widler 2019 for IAB's GDPR
+    //wilder 2020 for posid support
+    public void setVideoMode(boolean enable) {
+        invoke(object, SET_VIDEOMODE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
+
+    }
+    //wilder 2019 for IAB's GDPR
     public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
         invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
                         new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
@@ -74,9 +80,6 @@ public class AdViewBannerManager extends InitSDKManager {
     //wilder 20191105
     public void setAutoPlay(boolean enable) {
         invoke(object, SET_AUTOPLAY_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
-    }
-    public void setVideoInfo(String posID) {
-        invoke(object, SET_VIDEOINFO_METHOD_NAME, new Class[]{String.class}, new Object[]{posID});
     }
 
     public void setHtmlSupport(int htmlSupport) {

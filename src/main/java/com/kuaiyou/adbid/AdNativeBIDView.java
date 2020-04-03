@@ -185,7 +185,7 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
         try {
             AdsBean adsBean = null;
             if (null == adsBeanList) {
-                AdViewUtils.logInfo("adsList is null");
+                AdViewUtils.logInfo("### reportClick(): adsList is null ###");
                 return;
             }
             for (AdsBean ads : adsBeanList) {
@@ -197,9 +197,8 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 }
             }
             try {
-//                if (null == adsBean) {
                 int pos = Integer.valueOf(adi);
-                if (pos >= 0) {
+                if (pos >= 0) { //打底所用，GDT之流,一般情况adi是字符串
                     if (null != adAdapterManager)
                         adAdapterManager.reportClick(view, adi);
 //                    if (pos == 0)
@@ -208,8 +207,9 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
 //                        KyAdBaseView.reportOtherUrls(adsBean.getAgDataBeanList().get(pos).getCliUrls());
                 }
                 return;
-//                }
             } catch (Exception e1) {
+                //e1.printStackTrace();
+                AdViewUtils.logInfo("### reportClick(): adi = " + adi + "###");
             }
             if (null != adsBean) {
                 adsBean.setAction_down_x(x);
@@ -217,7 +217,6 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 adsBean.setAction_up_x(x);
                 adsBean.setAction_up_y(y);
                 reportClick(adsBean);
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -250,7 +249,7 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
         try {
             int pos = Integer.valueOf(adi);
             if (pos >= 0) {
-                //打底所用，GDT之流
+                //打底所用，GDT之流,一般情况adi是字符串
                 if (null != adAdapterManager)
                     adAdapterManager.reportImpression(view, adi);
 //                if (pos == 0)
@@ -260,14 +259,13 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
             }
             return;
         } catch (Exception e1) {
-            AdViewUtils.logInfo("adi = " + adi);
+            AdViewUtils.logInfo("### reportImpression(): adi = " + adi + "###");
         }
         reportImpression(adsBean);
     }
 
-    public void reportVideoStatus(Activity context, String adi, int status) {
+    public void reportVideoStatus(Context context, String adi, int status) {
         try {
-            //reportVideoStatus((Context) context, adi, status);
             AdsBean adsBean = null;
             if (null == adsBeanList) {
                 AdViewUtils.logInfo("adsList is null");
@@ -279,32 +277,32 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                     break;
                 }
             }
-            reportStatus((Context)context, adsBean, status);
+            reportStatus(context, adsBean, status);
         } catch (Exception e) {
             e.printStackTrace();
             AdViewUtils.logInfo("reportVideoStatus error,status=" + status + ";adi=" + adi);
         }
     }
 
-    private void reportStatus(Context activity, AdsBean adsBean, int status) {
+    private void reportStatus(Context ctx, AdsBean adsBean, int status) {
         switch (status)
         {
             case NativeVideoStatus.START:
-                fireUrls(activity, adsBean, status, adsBean.getSpTrackers());
+                fireUrls(ctx, adsBean, status, adsBean.getSpTrackers());
                 break;
             case NativeVideoStatus.MEDIUM:
-                fireUrls(activity, adsBean, status, adsBean.getMpTrackers());
+                fireUrls(ctx, adsBean, status, adsBean.getMpTrackers());
                 break;
             case NativeVideoStatus.END:
-                fireUrls(activity, adsBean, status, adsBean.getCpTrackers());
+                fireUrls(ctx, adsBean, status, adsBean.getCpTrackers());
                 break;
             case NativeVideoStatus.STOP:
-                fireUrls(activity, adsBean, status, adsBean.getPlayMonUrls());
+                fireUrls(ctx, adsBean, status, adsBean.getPlayMonUrls());
                 break;
             case NativeVideoStatus.RESUME:
                 break;
             case NativeVideoStatus.ERROR:
-                fireUrls(activity, adsBean, status, adsBean.getPlayMonUrls());
+                fireUrls(ctx, adsBean, status, adsBean.getPlayMonUrls());
                 break;
             case NativeVideoStatus.FIRSTQUARTILE:
                 break;
@@ -534,7 +532,7 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 };
                 lbm.registerReceiver(brc, intentFilter);
             }
-            /*KyAdBaseView.*/clickEvent(context, adsBean, adsBean.getAdLink());
+            clickEvent(context, adsBean, adsBean.getAdLink());
         } else {
             try {
                 Uri uri = Uri.parse(TextUtils.isEmpty(adsBean.getAdLink()) ? adsBean.getFallback() : adsBean.getAdLink());
@@ -547,7 +545,11 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
 
     }
 
-    private void createConfirmDialog(Context context, final String adi) {
+    //是否打开落地页的确认框，目前没有用到
+    private void createClickConfirmDialog(Context context, final String adi) {
+        //要确保context是顶层的activity
+        Context ctx = (context instanceof Activity) ? context : AdViewUtils.getActivity();
+
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(confirmDialog_Title)
                 .setMessage(confirmDialog_Message)
@@ -602,13 +604,17 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 String[] location = new String[]{"", ""};
                 String uuid = "";
                 try {
-                    location = AdViewUtils.getLocation(AdViewUtils.getActivity().getApplicationContext());
-                    if (AdViewUtils.useIMEI)
-                        uuid = AdViewUtils.getImei(AdViewUtils.getActivity().getApplicationContext());
-                    else {
-                        uuid = AdViewUtils.getGpId(AdViewUtils.getActivity().getApplicationContext()); //wilder 2019 changed uuid -> gpid
+                    //location = AdViewUtils.getLocation(AdViewUtils.getActivity().getApplicationContext()); wilder 2020 for non-activity
+                    location = AdViewUtils.getLocation(getContext());
+                    if (AdViewUtils.useIMEI) {
+                        //uuid = AdViewUtils.getImei(AdViewUtils.getActivity().getApplicationContext()); wilder 2020 for non-activity
+                        uuid = AdViewUtils.getImei(getContext());
+                    } else {
+                        //uuid = AdViewUtils.getGpId(AdViewUtils.getActivity().getApplicationContext()); //wilder 2019 changed uuid -> gpid
+                        uuid = AdViewUtils.getGpId(getContext()); //wilder 2020 for non-activity
                         if (uuid.contains("00000000-0000")) {
-                            uuid = AdViewUtils.getOAId(AdViewUtils.getActivity().getApplicationContext());
+                            //uuid = AdViewUtils.getOAId(AdViewUtils.getActivity().getApplicationContext()); wilder 2020 for non-activity
+                            uuid = AdViewUtils.getOAId(getContext());
                         }
                     }
                 } catch (Exception e) {
@@ -620,9 +626,10 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                         if (null == urls[j] || urls[j].length() == 0)
                             continue;
                         executorService.schedule(new ClientReportRunnable("",
-                                        KyAdBaseView.replaceKeys(urls[j], "0", "", "", location[0], location[1], uuid), ConstantValues.GET),
-                                        Integer.valueOf(keysString[i]),
-                                        TimeUnit.SECONDS);
+                                                        KyAdBaseView.replaceKeys(urls[j], "0", "", "", location[0], location[1], uuid),
+                                                        ConstantValues.GET), //都用get方法
+                                                Integer.valueOf(keysString[i]),
+                                                TimeUnit.SECONDS);
                     }
                 }
                 //omsdk v1.2 send impression
@@ -656,11 +663,16 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                 String[] location = new String[]{"", ""};
                 String uuid = "";
                 try {
-                    location = AdViewUtils.getLocation(AdViewUtils.getActivity().getApplicationContext());
-                    if (AdViewUtils.useIMEI)
-                        uuid = AdViewUtils.getImei(AdViewUtils.getActivity().getApplicationContext());
-                    else
-                        uuid = AdViewUtils.getGpId(AdViewUtils.getActivity().getApplicationContext()); //wilder 2019 changed uuid -> gpid
+                    //location = AdViewUtils.getLocation(AdViewUtils.getActivity().getApplicationContext()); wilder 2020 for non-activity
+                    location = AdViewUtils.getLocation(getContext());
+                    if (AdViewUtils.useIMEI) {
+                        //uuid = AdViewUtils.getImei(AdViewUtils.getActivity().getApplicationContext()); wilder 2020 for non-activity
+                        uuid = AdViewUtils.getImei(getContext());
+                    }
+                    else {
+                        //uuid = AdViewUtils.getGpId(AdViewUtils.getActivity().getApplicationContext()); //wilder 2019 changed uuid -> gpid
+                        uuid = AdViewUtils.getGpId(getContext()); //wilder 2020 for non-activity
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -669,9 +681,10 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
                     for (int j = 0; j < urls.length; j++) {
                         if (null == urls[j] || urls[j].length() == 0)
                             continue;
-                        executorService.schedule(new ClientReportRunnable("", KyAdBaseView.replaceKeys(urls[j], "0", "", "", location[0], location[1], uuid),
+                        executorService.schedule(new ClientReportRunnable("",
+                                        KyAdBaseView.replaceKeys(urls[j], "0", "", "", location[0], location[1], uuid),
                                         ConstantValues.GET),
-                                Integer.valueOf(keysString[i]), TimeUnit.SECONDS);
+                                        Integer.valueOf(keysString[i]), TimeUnit.SECONDS);
                     }
                 }
             }
@@ -809,19 +822,17 @@ public class AdNativeBIDView extends KyAdBaseView implements KyNativeListener {
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////// from KyAdBaseView.java ////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    String adLogo, adIcon;
+    //String adLogo, adIcon;
     @Override
     protected boolean initAdLogo(Object object) {
-        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
-            adLogo = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdLogoUrl(), 1);
-        }
-        if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
-            adIcon = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdIconUrl(), 1);
-        }
-//        else
-//            adIcon = "/assets/icon_ad.png";
+        //wilder 2020 ,native格式用不到解码后的数据
+//        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
+//            adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
+//        }
+//        if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
+//            adIcon = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdIconUrl(), 1);
+//        }
+
         return true;
     }
 

@@ -36,7 +36,7 @@ dependencies {
     compileOnly fileTree(include: ['*.jar','*.aar'], dir: 'libs') //jar 模式用这个就好
     implementation fileTree(include: ['omsdk-android-1.2.15-Adview.jar'], dir: 'libs') //omsdk要使用这个打包进aar
 
-    api 'com.android.support:support-v4:26.0.0'
+    api 'com.android.support:support-v4:26.1.0'
     api 'com.android.support:appcompat-v7:26.1.0'
 
     api 'com.google.android.gms:play-services-ads:15.+'  //google ads

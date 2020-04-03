@@ -31,6 +31,7 @@ import com.kuaiyou.obj.AdsBean;
 
 import com.kuaiyou.video.AdVASTView;
 import com.kuaiyou.interfaces.AdViewVideoInterface;
+//import com.kuaiyou.video.AdVASTView2;
 
 
 import java.net.URLDecoder;
@@ -47,8 +48,9 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
 
     private int padding = 4;
     private int adWidth, adHeight;
-    private String adLogo, adIcon;
-    // 动画切换默认间隔
+    //private String adLogo, adIcon;
+
+        // 动画切换默认间隔
     private static int ANIM_OFF = 30;
     private AdVGListener adVGListener;
     private String bitmapPath;
@@ -56,6 +58,7 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
     private boolean hasWindow = false;
     private int adAct;
     //wilder 2019 for MRec
+    //private AdVASTView2 mvastView; //wilder 2020 for surface ,from AdVASTView -> AdVASTView2
     private AdVASTView mvastView;
     private AdAdapterManager adAdapterManager;
     public BannerView(Context context, Bundle bundle, AdVGListener adVGListener, AdAdapterManager adm) {
@@ -138,7 +141,8 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
                 closeBtn.setVisibility(View.GONE);
             }
 
-            Bitmap bm = AdViewUtils.getImageFromAssetsFile("close_ad_btn.png");
+            //Bitmap bm = AdViewUtils.getImageFromAssetsFile("close_ad_btn.png"); wilder 2020 for non-context
+            Bitmap bm = AdViewUtils.getImageFromAssetsFile2("close_ad_btn.png", getContext());
             closeBtn.setImageDrawable(new BitmapDrawable(getResources(), bm));
 
             closeBtn.setOnTouchListener(this);
@@ -208,12 +212,11 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
                 //create banner view
                 initWidgetLayout(adsBean.getAdType(), colorMap);
 
-                if (null != adVGListener) {
-                    adIcon = adVGListener.getAdIcon();
-                    adLogo = adVGListener.getAdLogo();
-                }
+                if (AdViewUtils.adLogoOnLine)
+                    setAdIconLogoBmp();
+                else
+                    setAdIconLogo();
 
-                setAdIconLogo();
                 setTouchListener();
                 setCloseButton(adVGListener.getCloseble());
                 setBehaveIcon();
@@ -299,7 +302,6 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
                             bundle.putInt("vastOrientation", -1); //-1 means no rotation
                             bundle.putBoolean("trafficWarnEnable", true);
                             bundle.putString("bgColor", "#000000");
-                            //sendMessages(msgHandler, MESSAGE_SUCCEED, bundle);
                             if (mvastView != null ) {
                                 //mvastView.video_handlerAd(getContext(), adsBean, true, -1, null, bundle);
                                 mvastView.processVastVideo(getContext(),bundle);
@@ -417,17 +419,42 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
         return animationSet;
     }
 
+    private void setAdIconLogoBmp() {
+        try {
+            ImageView adIconView = (ImageView) findViewById(ConstantValues.UI_ADICON_ID);
+            ImageView adLogoView = (ImageView) findViewById(ConstantValues.UI_ADLOGO_ID);
+            //BitmapDrawable logo = null, icon = null;
+            //logo
+            if (null != adLogoView && null != adVGListener) {
+                adLogoView.setImageBitmap(adVGListener.getAdLogoBmp());
+            }
+            //icon
+            if (null != adIconView && null != adVGListener ) {
+                adIconView.setImageBitmap(adVGListener.getAdIconBmp());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     private void setAdIconLogo() {
         try {
             ImageView adIconView = (ImageView) findViewById(ConstantValues.UI_ADICON_ID);
             ImageView adLogoView = (ImageView) findViewById(ConstantValues.UI_ADLOGO_ID);
             BitmapDrawable logo = null, icon = null;
+            String adLogo = null, adIcon = null;
+            if (null != adVGListener) {
+                adLogo = adVGListener.getAdLogo();
+                adIcon = adVGListener.getAdIcon();
+            }else
+                return;
             //logo
             if (!TextUtils.isEmpty(adLogo) && adLogoView != null) {
                 if (adLogo.startsWith("/assets")) {
-                    //logo = new BitmapDrawable(getResources(),getClass().getResourceAsStream(adLogo));
-                    Bitmap bm = AdViewUtils.getImageFromAssetsFile(adLogo.replace("/assets/",""));
+                    //Bitmap bm = AdViewUtils.getImageFromAssetsFile(adLogo.replace("/assets/","")); wilder 2020 for non-context
+                    Bitmap bm = AdViewUtils.getImageFromAssetsFile2(adLogo.replace("/assets/",""), getContext());
                     logo = new BitmapDrawable(getResources(),bm);
                 }
                 else {
@@ -442,8 +469,8 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
             //icon
             if ( !TextUtils.isEmpty(adIcon) && adIconView != null ) {
                 if (adIcon.startsWith("/assets")) {
-                    //icon = new BitmapDrawable(getResources(), getClass().getResourceAsStream(adIcon));
-                    Bitmap bm = AdViewUtils.getImageFromAssetsFile(adIcon.replace("/assets/",""));
+                    //Bitmap bm = AdViewUtils.getImageFromAssetsFile(adIcon.replace("/assets/","")); wilder 2020 for non-context
+                    Bitmap bm = AdViewUtils.getImageFromAssetsFile2(adIcon.replace("/assets/",""), getContext());
                     icon = new BitmapDrawable(getResources(),bm);
                 }
                 else {
@@ -473,7 +500,7 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
                 return;
             behavIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);
             BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),
-                                    AdViewUtils.getImageFromAssetsFile(KyAdBaseView.getActIcon(adAct)));
+                                    AdViewUtils.getImageFromAssetsFile2(KyAdBaseView.getActIcon(adAct),getContext())); //
 //            BitmapDrawable selfBehavIcon = new BitmapDrawable(getResources(),
 //                                    getClass().getResourceAsStream(KyAdBaseView.getActIcon(adAct)));
             behavIcon.setImageDrawable(selfBehavIcon);
@@ -497,11 +524,10 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (adWidth > 0)
-            widthMeasureSpec = MeasureSpec.makeMeasureSpec(adWidth,
-                    MeasureSpec.AT_MOST);
+            widthMeasureSpec = MeasureSpec.makeMeasureSpec(adWidth, MeasureSpec.AT_MOST);
         if (adHeight > 0)
-            heightMeasureSpec = MeasureSpec.makeMeasureSpec(adHeight,
-                    MeasureSpec.AT_MOST);
+            heightMeasureSpec = MeasureSpec.makeMeasureSpec(adHeight, MeasureSpec.AT_MOST);
+
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         setMeasuredDimension(adWidth, adHeight);
 
@@ -562,7 +588,8 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
             adType == ConstantValues.RESP_ADTYPE_VIDEO) {
             //mrec
             this.setBackgroundColor(Color.parseColor(colorMap.get(ConstantValues.MIXED_PARENTBACKGROUND_COLOR)));
-            mvastView = new AdVASTView(getContext(), this.adWidth, this.adHeight, true, adAdapterManager);
+            mvastView = new AdVASTView(getContext(), this.adWidth, this.adHeight, true, adAdapterManager); //wilder 2020 for surface
+            //mvastView = new AdVASTView2(getContext(), this.adWidth, this.adHeight, true, adAdapterManager);
             mvastView.setVideoAppListener(new AdViewVideoInterface() {
                 @Override
                 public void onReceivedVideo(String vast) {

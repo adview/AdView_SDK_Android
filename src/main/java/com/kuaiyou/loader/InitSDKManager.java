@@ -44,9 +44,9 @@ public class InitSDKManager {
     //private MessageHandler messageHandler = null;
     private static InitSDKManager instance;
     //SDK壳版本号
-    public final static int LOADER_VERSION = 3;
+    //public final static int LOADER_VERSION = 3;
 
-    public final static int RELEASE_VERSION = 410; //oversea version
+    //public final static int RELEASE_VERSION = 410; //oversea version
     public final static String TAG = "SDK_LOADER";
 
 
@@ -57,6 +57,16 @@ public class InitSDKManager {
         //empty
     }
 
+    //log 模式
+    public void setLog(boolean mode) {
+        AdViewUtils.setLogMode(mode);
+    }
+
+    //取得sdk版本号
+    public String getSDKver() {
+
+        return AdViewUtils.ADVIEW;
+    }
 
     private boolean classCheck() {
         try {
@@ -84,7 +94,7 @@ public class InitSDKManager {
     }
 
     public void init(final Context context, final String appId, final InitSDKInterface initSDKInterface) {
-        Log.i(TAG, "============ OverSea SDK核心版本:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "=============");
+        Log.i(TAG, "============ OverSea 核心版本:" + AdViewUtils.VERSION + " ; Rev = " + AdViewUtils.ADVIEW + "=============");
         //init OMSDK
         initOMSDK(context);
         //init gpid
@@ -113,9 +123,9 @@ public class InitSDKManager {
                 boolean activated = Omid.activateWithOmidApiVersion(Omid.getVersion(), context);
                 if (!activated) {
                     // SDK failed to activate. Handle appropriately.
-                    Log.i(TAG, "!!!!!!!!! OverSea 初始化OMSDK失败:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "!!!!!!!!");
+                    Log.i(TAG, "!!!!!!!!! OverSea 初始化OMSDK失败:" + AdViewUtils.VERSION + ";Loader Ver = " + AdViewUtils.ADVIEW + "!!!!!!!!");
                 } else {
-                    Log.i(TAG, "############ OverSea 初始化OMSDK成功:" + RELEASE_VERSION + ";Loader Ver = " + LOADER_VERSION + "#############");
+                    Log.i(TAG, "#### OverSea 初始化OMSDK成功:" + AdViewUtils.VERSION + ";Loader Ver = " + AdViewUtils.ADVIEW + "####");
                     AdViewUtils.createOMPartner();
                 }
             }

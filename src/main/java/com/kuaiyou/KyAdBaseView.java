@@ -13,6 +13,8 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -95,7 +97,6 @@ public abstract class KyAdBaseView extends RelativeLayout {
     protected static boolean selfTestMode_downlink_fake_adsMode = false; //ads mode only , the upper define must be true
 
     protected static boolean selfTestMode_VIDEO = false; //for video type, can test paste / normal video for all
-    protected static boolean selfTestMode_mrecUpLinkInstPDU = false; //wilder 2019 , send Instl uplink PDU instead MREC
     protected static boolean selfTestMode_mrecVideo = false; //only test mode can accept all kinds of video type PDU
     protected static boolean selfTestMode_Spread = false; //spead test, for spread timeout not countdown
     protected static String testPDUPath = "test/";
@@ -202,14 +203,18 @@ public abstract class KyAdBaseView extends RelativeLayout {
 
     public static int isH5Changed = 1;
     public static int batteryLevel = 100;
-
-    protected String videoPosID = "";  //wilder 2019 for mrec
+    //mrec使用的
+    protected boolean mrecVideoMode = false; //wilder 2020 默认mrec的video模式是false
     //video used
     protected int videoOrientation = -1;
     protected boolean trafficWarnEnable = true;
     protected String bgColor = "#undefine";
     protected boolean autoCloseAble = false;
     //end video used
+    //adlogo & adicon 使用的
+    protected Bitmap adLogoBmp; //wilder 20200228 for test
+    protected Bitmap adIconBmp;//wilder 20200228 for test
+
     /////////////////// abstract method ////////////////////////////////
     public abstract String getBitmapPath();
     /**
@@ -290,6 +295,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
     }
 
     public void setLogMode(boolean logMode) {
+
         AdViewUtils.logMode = logMode;
     }
 
@@ -298,11 +304,12 @@ public abstract class KyAdBaseView extends RelativeLayout {
         KyAdBaseView.isSupportHtml = isSupport;
     }
 
-    //wilder 2019 for mrec
-    public void setVideoPosID(String posID) {
-        videoPosID = posID;
+    //wilder 2020 for mrec
+    public void setVideoMode(boolean enable) {
+        mrecVideoMode  = enable;
     }
-    public String getVideoPosID() { return videoPosID; }
+
+    public boolean getVideoMode() { return mrecVideoMode; }
 
 //    for GDPR 2019
     public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents){
@@ -494,7 +501,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
      * @param adsBean
      * @param url
      */
-    public /*static*/ boolean clickEvent(final Context context, final AdsBean adsBean, final String url, final ServiceConnection conn) {
+    public  boolean clickEvent(final Context context, final AdsBean adsBean, final String url, final ServiceConnection conn) {
         try {
             final Intent i = new Intent();
             i.putExtra("adview_url", TextUtils.isEmpty(url) ? adsBean.getAdLink() : url);
@@ -626,7 +633,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
      * @param adsBean
      * @param url
      */
-    public /*static*/ boolean clickEvent(Context context, AdsBean adsBean, String url) {
+    public boolean clickEvent(Context context, AdsBean adsBean, String url) {
         String finalUrl = "";
         try {
             finalUrl = TextUtils.isEmpty(url) ? adsBean.getAdLink() : url;
@@ -641,7 +648,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
 
 
     public void reportLoadError(AdsBean adsBean, String key, int errorType) {
-        AdViewUtils.logInfo("############## [HTML-load]reportLoadError: key = " + key + ", type=" + errorType + "##################");
+        AdViewUtils.logInfo("### [HTML-load]reportLoadError: key = " + key + ", type=" + errorType + "###");
         JSONObject jsonObject = new JSONObject();
         try {
             jsonObject.put("abd", adsBean.getXhtml());
@@ -678,8 +685,9 @@ public abstract class KyAdBaseView extends RelativeLayout {
         try {
             if (null == adsBean || null == retAdBean)
                 return false;
-            if (null == AdViewUtils.repScheduler || AdViewUtils.repScheduler.isTerminated())
+            if (null == AdViewUtils.repScheduler || AdViewUtils.repScheduler.isTerminated()) {
                 AdViewUtils.repScheduler = Executors.newScheduledThreadPool(ConstantValues.REPORT_THREADPOOL_NUM);
+            }
             if (retAdBean.getServerAgent() == ConstantValues.RESP_SDKAGENT && !TextUtils.isEmpty(adsBean.getAdLogLink())) {
                 AdViewUtils.repScheduler.execute(new ClientReportRunnable("", adsBean.getAdLogLink(), ConstantValues.GET));
             }
@@ -696,17 +704,22 @@ public abstract class KyAdBaseView extends RelativeLayout {
                     for (int j = 0; j < urls.length; j++) {
                         if (TextUtils.isEmpty(urls[j]))
                             continue;
+
+                        //对url中的特定字符进行替换
+                        String url = replaceKeys(urls[j], "0",
+                                getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
+                                        adsBean.getSpecialAdWidth(),adsBean.getSpecialAdHeight(),true).toString(),
+                                getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
+                                        adsBean.getSpecialAdWidth(),adsBean.getSpecialAdHeight(),false).toString(),
+                                applyAdBean.getLatitude(),
+                                applyAdBean.getLongitude(),
+                                applyAdBean.getUuid());
+
+                        //AdViewUtils.logInfo("### reportImpression(): " + url + "###");
                         AdViewUtils.repScheduler.schedule(
-                                new ClientReportRunnable("", replaceKeys(urls[j], "0",
-                                        getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
-                                                adsBean.getSpecialAdWidth(),adsBean.getSpecialAdHeight(),true).toString(),
-                                        getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
-                                                adsBean.getSpecialAdWidth(),adsBean.getSpecialAdHeight(),false).toString(),
-                                        applyAdBean.getLatitude(),
-                                        applyAdBean.getLongitude(),
-                                        applyAdBean.getUuid()),
-                                        ConstantValues.GET ),
-                                Integer.valueOf(ketsString[i]), TimeUnit.SECONDS);
+                                new ClientReportRunnable("", url,ConstantValues.GET ),
+                                Integer.valueOf(ketsString[i]),
+                                TimeUnit.SECONDS);
                     }
                 }
             }
@@ -757,23 +770,25 @@ public abstract class KyAdBaseView extends RelativeLayout {
                     for (int j = 0; j < urls.length; j++) {
                         if (TextUtils.isEmpty(urls[j]))
                             continue;
-                        AdViewUtils.repScheduler.schedule(new ClientReportRunnable("", replaceKeys(urls[j],
-                                isMissTouch + "", getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
-                                        adsBean.getSpecialAdWidth(), adsBean.getSpecialAdHeight(), true).toString(),
+                        String url = replaceKeys(urls[j],
+                                isMissTouch + "",
+                                        getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(),
+                                                    adsBean.getSpecialAdWidth(), adsBean.getSpecialAdHeight(), true).toString(),
                                         getClickArea(adsBean.getAction_down_x(), adsBean.getAction_down_y(), adsBean.getSpecialAdWidth(),
-                                                adsBean.getSpecialAdHeight(), false).toString(),
+                                                    adsBean.getSpecialAdHeight(), false).toString(),
                                         applyAdBean.getLatitude(),
                                         applyAdBean.getLongitude(),
-                                        applyAdBean.getUuid()),
-                                        ConstantValues.GET),
-                                Integer.valueOf(ketsString[i]), TimeUnit.SECONDS);
+                                        applyAdBean.getUuid());
+
+                        AdViewUtils.repScheduler.schedule(
+                                new ClientReportRunnable("", url, ConstantValues.GET),
+                                Integer.valueOf(ketsString[i]),
+                                TimeUnit.SECONDS);
                     }
                 }
             }
-            if (retAdBean.getAgt() == ConstantValues.RESP_SDKAGENT
-                    && !TextUtils.isEmpty(adsBean.getMon_c())) {
-                AdViewUtils.repScheduler.schedule(new ClientReportRunnable("", adsBean.getMon_c(),
-                        ConstantValues.GET), 0, TimeUnit.SECONDS);
+            if (retAdBean.getAgt() == ConstantValues.RESP_SDKAGENT && !TextUtils.isEmpty(adsBean.getMon_c())) {
+                AdViewUtils.repScheduler.schedule( new ClientReportRunnable("", adsBean.getMon_c(),ConstantValues.GET),0, TimeUnit.SECONDS);
             }
         } catch (Exception exec) {
             exec.printStackTrace();
@@ -1127,15 +1142,9 @@ public abstract class KyAdBaseView extends RelativeLayout {
 
         //wilder 2019
         if (adSize == ConstantValues.BANNER_REQ_SIZE_MREC) {
-            if (selfTestMode_mrecUpLinkInstPDU) {
-                //uplink apply bean with instl size
-                adWidth_applyBean = (int) (300 * density);
-                adHeight_applyBean = (int) (300 * density);
-            }else {
-                //use MREC size
-                adWidth_applyBean = (int) (300 * density);
-                adHeight_applyBean = (int) (250 * density);
-            }
+            //use MREC size
+            adWidth_applyBean = (int) (300 * density);
+            adHeight_applyBean = (int) (250 * density);
         }else {
             adWidth_applyBean = adShowWidth;
             adHeight_applyBean = adShowHeight;
@@ -1180,8 +1189,6 @@ public abstract class KyAdBaseView extends RelativeLayout {
         try {
             if (width == 0 || height == 0)
                 return jsonObject;
-//            int adWidth = width == -1 ? adsBean.getRealAdWidth() : width;
-//            int adHeight = height == -1 ? adsBean.getRealAdHeight() : height;
             jsonObject.put("down_x", "" + (x > width ? -999 : (isRelative ? (x * 1000 / width) : x)));
             jsonObject.put("down_y", "" + (y > height ? -999 : (isRelative ? (y * 1000 / height) : y)));
             jsonObject.put("up_x", "" + (x > width ? -999 : (isRelative ? (x * 1000 / width) : x)));
@@ -1234,7 +1241,10 @@ public abstract class KyAdBaseView extends RelativeLayout {
             String[] location = AdViewUtils.getLocation(context);
             boolean isLand = false;
             try {
-                isLand = ((Activity) context).getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE || ((Activity) context).getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+//                if (context instanceof Activity) { //wilder 2020 for non-context
+//                    isLand = ((Activity) context).getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE || ((Activity) context).getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+//                }
+                isLand = context.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE; //wilder 2020 for non-activity
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -1400,7 +1410,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
     }
 
     private void saveCache(int type, String key, Object value) {
-        // Log.i("adview", "saveCache " + type);
+        AdViewUtils.logInfo("### saveCache(): " + type + "###");
         SharedPreferences preferences = null;
         if (type == ConstantValues.SDK_REQ_TYPE_SPREAD) {
             preferences = getContext().getSharedPreferences(ConstantValues.SP_SPREADINFO_FILE, Context.MODE_PRIVATE);
@@ -1412,18 +1422,18 @@ public abstract class KyAdBaseView extends RelativeLayout {
             preferences = getContext().getSharedPreferences(ConstantValues.SP_BANNERINFO_FILE, Context.MODE_PRIVATE);
         }
         if (null != preferences) {
-            Editor editor = preferences.edit();
-            if (value instanceof String)
-                editor.putString(key, (String) value);
-            else if (value instanceof Long)
-                editor.putLong(key, (Long) value);
-            else if (value instanceof Boolean)
-                editor.putBoolean(key, (Boolean) value);
-            else if (value instanceof Integer)
-                editor.putInt(key, (Integer) value);
-            // editor.putLong("sp_cacheTime",
-            // System.currentTimeMillis()/1000);
-            editor.commit();
+                Editor editor = preferences.edit();
+                if (value instanceof String)
+                    editor.putString(key, (String) value);
+                else if (value instanceof Long)
+                    editor.putLong(key, (Long) value);
+                else if (value instanceof Boolean)
+                    editor.putBoolean(key, (Boolean) value);
+                else if (value instanceof Integer)
+                    editor.putInt(key, (Integer) value);
+                // editor.putLong("sp_cacheTime",
+                // System.currentTimeMillis()/1000);
+                editor.commit();
         }
     }
 
@@ -2061,18 +2071,24 @@ public abstract class KyAdBaseView extends RelativeLayout {
      *
      * @param adsBean
      */
-    public void createConfirmDialog(Context mContext, final AdsBean adsBean, final String url, final boolean isAddLimit, final DialogInterface.OnClickListener postitiveInterface, final DialogInterface.OnClickListener negativeInterface) {
+    public void createConfirmDialog(Context mContext, final AdsBean adsBean, final String url, final boolean isAddLimit,
+                                    final DialogInterface.OnClickListener postitiveInterface,
+                                    final DialogInterface.OnClickListener negativeInterface) {
         boolean isFinished = false;
         boolean isRoot = false;
         try {
-            isFinished = ((Activity) mContext).isFinishing();
-            isRoot = ((Activity) mContext).isTaskRoot();
+            if (mContext instanceof Activity) {
+                isFinished = ((Activity) mContext).isFinishing();
+                isRoot = ((Activity) mContext).isTaskRoot();
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        if (isFinished && isRoot) ;
-        else
-            mContext = AdViewUtils.getActivity();
+        if (isFinished && isRoot) {
+            //已经是activity
+        } else {
+            mContext = AdViewUtils.getActivity(); //仅在这里要取得最顶层activity
+        }
 
         if (null == mContext) {
             handleClick(null, -2, -2, url);
@@ -2089,8 +2105,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
                                                 int which) {
                                 if (isAddLimit)
                                     if (null != adsBean)
-                                        adsBean.setClickNumLimit(adsBean
-                                                .getClickNumLimit() + 1);
+                                        adsBean.setClickNumLimit(adsBean.getClickNumLimit() + 1);
                             }
                         })
                 .setPositiveButton(confirmDialog_PositiveButton, null != postitiveInterface ? postitiveInterface :
@@ -2106,8 +2121,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
         dialog.setCanceledOnTouchOutside(false);
         // system_alert窗口可以获得焦点，响应操作,system_overlay窗口显示的时候焦点在后面的Activity上，仍旧可以操作后面的Activity
         // 类似系统电量提示窗口或statusbar那样在service中启动窗口
-        // dialog.getWindow().setType(
-        // (WindowManager.LayoutParams.TYPE_SYSTEM_ALERT));
+        // dialog.getWindow().setType((WindowManager.LayoutParams.TYPE_SYSTEM_ALERT));
         dialog.show();
     }
 
@@ -2240,26 +2254,21 @@ public abstract class KyAdBaseView extends RelativeLayout {
         private String cacheData;
         private int sdkType;
 
-
         public InitAdRunable(String cacheData, int type) {
             this.cacheData = cacheData;
             this.sdkType = type;
         }
-
         public InitAdRunable(String content, String url) {
             this.content = content;
             this.url = url;
         }
-
         public InitAdRunable(String content, String url, int sdkType) {
             this.content = content;
             this.url = url;
             this.sdkType = sdkType;
         }
-
         @Override
         public void run() {
-
             if (!AdViewUtils.isConnectInternet(getContext())) {
                 notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR,"网络不可用");
                 return;
@@ -2267,14 +2276,19 @@ public abstract class KyAdBaseView extends RelativeLayout {
             if (TextUtils.isEmpty(cacheData) || cacheData.contains("no suitable ad")) {
                 ////////////////////// 向BID服务器发送请求并取得返回值///////////////////////////
                 result = AdViewUtils.getResponse(url, content, 8 * 1000);
-//                 Log.i(AdViewUtils.AdViewUtils.ADVIEW, "use network");
+                //AdViewUtils.logInfo("use network");
             } else {
                 result = cacheData;
-                // Log.i(AdViewUtils.AdViewUtils.ADVIEW, "use cache");
+                // AdViewUtils.logInfo("use cache");
             }
 
             if (null != result) {
                 // Log.i(AdViewUtils.ADVIEW, result + "");
+                //wilder 2000229 for unit test
+//                if (isVaildAd(result)) {
+//                    notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, "====[server] " + getAdMsg(result) + " [server]===");  ///here will cause DADI SDK trigger
+//                    return;
+//                }
                 if (isVaildAd(result)) {
                     /* wilder 2019 for test for PDU*/
                     if(selfTestMode_downlink_fake_local_PDU && sdkType == ConstantValues.SDK_REQ_TYPE_INSTL) { //Mrec must be INSTLTYPE, SPREADTYPE,VIDEOTYPE
@@ -2294,7 +2308,8 @@ public abstract class KyAdBaseView extends RelativeLayout {
                 else {
                     //出错逻辑和打底逻辑，这里直接返回了
                     adsBean = getAdData(result, adsBean);  //wilder 2019 fix for DADISDK
-                    notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, getAdMsg(result));  ///here will cause DADI SDK trigger
+                    //将server的信息返回
+                    notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, "====[server] " + getAdMsg(result) + " [server]===");  ///here will cause DADI SDK trigger
                     return;
                 }
                 ////////////////解析广告Ads数据/////////////////////////////////
@@ -2312,12 +2327,11 @@ public abstract class KyAdBaseView extends RelativeLayout {
                             notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_OK, "OK");
                             if (TextUtils.isEmpty(cacheData)) {
                                 saveCache(sdkType, "sp_cacheData", result);
-                                saveCache(sdkType, "sp_cacheTime",
-                                        System.currentTimeMillis() / 1000);
+                                saveCache(sdkType, "sp_cacheTime",System.currentTimeMillis() / 1000);
                                 saveCache(sdkType, adsBean.getIdAd(),System.currentTimeMillis());
                             }
                         } else {
-                            notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, "GET_AD_FAILED");
+                            notifyMsg(ConstantValues.NOTIFY_RESP_RECEIVEAD_ERROR, "GET_HTML_AD_FAILED");
                         }
                         return;
                     } else if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_VIDEO ||
@@ -2545,17 +2559,17 @@ public abstract class KyAdBaseView extends RelativeLayout {
 
     private String test_PDUResult() {
             //byte[] imgdata = null;
-            //get file
+            //get file from native source
             String abpath;
             String PDUData;
             //ByteArrayOutputStream bytestream;
             //int ch;
             //try {
                 if (selfTestMode_downlink_fake_adsMode) {
-                    abpath = AdViewUtils.getLineFromAssets(testPDUPath + "[testADSList].txt");
+                    abpath = AdViewUtils.getLineFromAssets(testPDUPath + "[testADSList].txt",getContext());
                     //abpath = getClass().getResourceAsStream(testPDUPath + "[testADSList].txt");
                 }else {
-                    abpath = AdViewUtils.getLineFromAssets(testPDUPath + "[testPDUList].txt");
+                    abpath = AdViewUtils.getLineFromAssets(testPDUPath + "[testPDUList].txt", getContext());
                 }
 //                bytestream = new ByteArrayOutputStream();
 //                while ((ch = abpath.read()) != -1) {
@@ -2576,7 +2590,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
                 }
                 //abpath = getClass().getResourceAsStream(fName);
                 //abpath = getClass().getResourceAsStream(testADSPath + "vast-hk01-at-7-00042.txt");
-                PDUData = AdViewUtils.loadAssetsFile(fName);
+                PDUData = AdViewUtils.loadAssetsFile(fName, getContext());
 
             return PDUData;
     }

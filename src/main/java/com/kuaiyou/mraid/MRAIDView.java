@@ -206,7 +206,12 @@ public class MRAIDView extends RelativeLayout {
         // this.nativeFeatureListener = nativeFeatureListener;
 
         displayMetrics = new DisplayMetrics();
-        ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        if (context instanceof Activity) { //wilder 2020 考虑到如果context可能是service，就是没有界面的情形
+            ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        }else {
+            //没有界面，采用屏幕尺寸计算
+            displayMetrics = context.getResources().getDisplayMetrics();
+        }
 
         currentPosition = new Rect();
         defaultPosition = new Rect();
@@ -220,11 +225,9 @@ public class MRAIDView extends RelativeLayout {
         // 屏幕尺寸
         screenSize = new Size();
 
-        if (context instanceof Activity) {
-            originalRequestedOrientation = ((Activity) context).getRequestedOrientation();
-        } else {
-            originalRequestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-        }
+        //wilder 2020 for non-activity
+        originalRequestedOrientation = getResources().getConfiguration().orientation;
+
         AdViewUtils.logInfo("originalRequestedOrientation " + getOrientationString(originalRequestedOrientation));
 
         // 在主线程中执行
@@ -363,7 +366,12 @@ public class MRAIDView extends RelativeLayout {
                                 + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "portrait"
                                 : "landscape"));
                 if (isInterstitial) {
-                    ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+                    if (context instanceof Activity) {
+                        ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+                    }else {
+                        //wilder 2020 没有界面，采用屏幕尺寸计算
+                        displayMetrics = context.getResources().getDisplayMetrics();
+                    }
                 }
             }
 
@@ -534,7 +542,7 @@ public class MRAIDView extends RelativeLayout {
     // These are methods in the MRAID API.
     // /////////////////////////////////////////////////////
     private void close() {
-        AdViewUtils.logInfo("############## (JS callback:) close ##############");
+        AdViewUtils.logInfo("### (JS callback:) close ###");
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -566,7 +574,7 @@ public class MRAIDView extends RelativeLayout {
 
     @SuppressWarnings("unused")
     private void createCalendarEvent(String eventJSON) {
-        AdViewUtils.logInfo("###########  (JS callback :)createCalendarEvent :" + eventJSON + "########");
+        AdViewUtils.logInfo("###  (JS callback :)createCalendarEvent :" + eventJSON + "###");
         if (nativeFeatureListener != null) {
             nativeFeatureListener.mraidNativeFeatureCreateCalendarEvent(eventJSON);
         }
@@ -575,7 +583,7 @@ public class MRAIDView extends RelativeLayout {
     // Note: This method is also used to present an interstitial ad.
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void expand(String url) {
-        AdViewUtils.logInfo("##########  (JS callback:) expand " + (url != null ? url : "(1-part)") + " ###########");
+        AdViewUtils.logInfo("###  (JS callback:) expand " + (url != null ? url : "(1-part)") + " ###");
         try {
             // The only time it is valid to call expand on a banner ad is
             // when the ad is currently in either default or resized state.
@@ -628,7 +636,8 @@ public class MRAIDView extends RelativeLayout {
                     if (!TextUtils.isEmpty(content)) {
                         // Get back onto the main thread to create and load a new
                         // WebView.
-                        ((Activity) context).runOnUiThread(new Runnable() {
+                       // ((Activity) context).runOnUiThread(new Runnable() {
+                        new Handler(Looper.getMainLooper()).post(new Runnable() { //wilder 2020 for non-activity
                             @Override
                             public void run() {
                                 if (state == STATE_RESIZED) {
@@ -662,7 +671,7 @@ public class MRAIDView extends RelativeLayout {
     private void open(String url) {
         try {
             url = URLDecoder.decode(url, "UTF-8");
-            AdViewUtils.logInfo("################ (JS callback:) open: " + url + "################");
+            AdViewUtils.logInfo("### (JS callback:) open: " + url + "###");
             if (nativeFeatureListener != null) {
                 if (url.startsWith("sms")) {
                     nativeFeatureListener.mraidNativeFeatureSendSms(url);
@@ -691,7 +700,7 @@ public class MRAIDView extends RelativeLayout {
 
     @SuppressWarnings("unused")
     private void resize() {
-        AdViewUtils.logInfo("################ (JS callback :) resize ################");
+        AdViewUtils.logInfo("### (JS callback :) resize ###");
         // We need the cooperation of the app in order to do a resize.
         if (listener == null) {
             return;
@@ -710,8 +719,7 @@ public class MRAIDView extends RelativeLayout {
             removeAllViews();
             resizedView.addView(webView);
 //            addCloseRegion(resizedView);
-            FrameLayout rootView = (FrameLayout) getRootView().findViewById(
-                    android.R.id.content);
+            FrameLayout rootView = (FrameLayout) getRootView().findViewById(android.R.id.content);
             rootView.addView(resizedView);
         }
         setCloseRegionPosition(resizedView);
@@ -731,8 +739,8 @@ public class MRAIDView extends RelativeLayout {
         boolean allowOrientationChange = Boolean.parseBoolean(properties
                 .get("allowOrientationChange"));
         String forceOrientation = properties.get("forceOrientation");
-        AdViewUtils.logInfo("########### (JS callback:) setOrientationProperties :" + allowOrientationChange + " "
-                + forceOrientation + "##########");
+        AdViewUtils.logInfo("### (JS callback:) setOrientationProperties :" + allowOrientationChange + " "
+                + forceOrientation + "###");
         if (orientationProperties.allowOrientationChange != allowOrientationChange
                 || orientationProperties.forceOrientation != MRAIDOrientationProperties
                 .forceOrientationFromString(forceOrientation)) {
@@ -754,9 +762,9 @@ public class MRAIDView extends RelativeLayout {
         String customClosePosition = properties.get("customClosePosition");
         boolean allowOffscreen = Boolean.parseBoolean(properties
                 .get("allowOffscreen"));
-        AdViewUtils.logInfo("############ (JS callback:) setResizeProperties "
+        AdViewUtils.logInfo("### (JS callback:) setResizeProperties "
                 + width + " " + height + " " + offsetX + " " + offsetY + " "
-                + customClosePosition + " " + allowOffscreen + "#########");
+                + customClosePosition + " " + allowOffscreen + "###");
         resizeProperties.width = width;
         resizeProperties.height = height;
         resizeProperties.offsetX = offsetX;
@@ -770,7 +778,7 @@ public class MRAIDView extends RelativeLayout {
     private void storePicture(String url) {
         try {
             url = URLDecoder.decode(url, "UTF-8");
-            AdViewUtils.logInfo("########### (JS callback :) storePicture " + url + "##########");
+            AdViewUtils.logInfo("### (JS callback :) storePicture " + url + "###");
             if (nativeFeatureListener != null) {
                 nativeFeatureListener.mraidNativeFeatureStorePicture(url);
             }
@@ -780,7 +788,7 @@ public class MRAIDView extends RelativeLayout {
     }
 
     private void useCustomClose(String useCustomCloseString) {
-        AdViewUtils.logInfo("########## (JS callback) useCustomClose:  " + useCustomCloseString + "###########");
+        AdViewUtils.logInfo("### (JS callback) useCustomClose:  " + useCustomCloseString + "###");
         try {
             boolean useCustomClose = Boolean.parseBoolean(useCustomCloseString);
             if (this.useCustomClose != useCustomClose) {
@@ -834,7 +842,7 @@ public class MRAIDView extends RelativeLayout {
             }
             conn.disconnect();
         } catch (IOException e) {
-            AdViewUtils.logInfo("########## (JS callback:) getStringFromUrl failed :" + e.getLocalizedMessage() + "######");
+            AdViewUtils.logInfo("### (JS callback:) getStringFromUrl failed :" + e.getLocalizedMessage() + "###");
         } finally {
             try {
                 if (is != null) {
@@ -895,9 +903,17 @@ public class MRAIDView extends RelativeLayout {
         expandedView.addView(webView);
 //        addCloseRegion(expandedView);
 //        setCloseRegionPosition(expandedView);
-        ((Activity) context).addContentView(expandedView,
-                new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT,
-                        LayoutParams.MATCH_PARENT));
+        if (context instanceof Activity) {
+            ((Activity) context).addContentView(expandedView, new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        }else {
+            AdViewUtils.logInfo("### context is not activity, expandHelper() use top activity ### ");
+            if (AdViewUtils.getActivity() == null) {
+                AdViewUtils.logInfo("### Error ##### expandHelper(): getActivity error ###");
+                return;
+            }
+            AdViewUtils.getActivity().addContentView(expandedView, new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        }
         isExpandingFromDefault = true;
         if (isInterstitial) {
             isLaidOut = true;
@@ -910,8 +926,7 @@ public class MRAIDView extends RelativeLayout {
         AdViewUtils.logInfo("setResizedViewSize");
         int widthInDip = resizeProperties.width;
         int heightInDip = resizeProperties.height;
-        Log.d(AdViewUtils.ADVIEW, "setResizedViewSize " + widthInDip + "x"
-                + heightInDip);
+        //AdViewUtils.logInfo("setResizedViewSize " + widthInDip + "x" + heightInDip);
         int width = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, widthInDip, displayMetrics);
         int height = (int) TypedValue.applyDimension(
@@ -957,6 +972,7 @@ public class MRAIDView extends RelativeLayout {
     }
 
     private void closeFromExpanded() {
+
         if (state == STATE_DEFAULT && isInterstitial) {
             state = STATE_HIDDEN;
             clearView();
@@ -973,11 +989,14 @@ public class MRAIDView extends RelativeLayout {
             state = STATE_DEFAULT;
         }
         isClosing = true;
-
+        FrameLayout rootView;
         expandedView.removeAllViews();
-
-        FrameLayout rootView = (FrameLayout) ((Activity) context)
-                .findViewById(android.R.id.content);
+        if(context instanceof Activity) {
+            rootView = (FrameLayout) ((Activity) context).findViewById(android.R.id.content);
+        }else {
+            //wilder 2020 for non-activity，取得根layout
+            rootView = (FrameLayout)getRootView().findViewById(android.R.id.content);
+        }
         rootView.removeView(expandedView);
         expandedView = null;
         closeRegion = null;
@@ -1031,9 +1050,13 @@ public class MRAIDView extends RelativeLayout {
     }
 
     private void removeResizeView() {
+        FrameLayout rootView;
         resizedView.removeAllViews();
-        FrameLayout rootView = (FrameLayout) ((Activity) context)
-                .findViewById(android.R.id.content);
+        if (context instanceof Activity) {
+            rootView = (FrameLayout) ((Activity) context).findViewById(android.R.id.content);
+        }else {
+            rootView = (FrameLayout) getRootView().findViewById(android.R.id.content);
+        }
         rootView.removeView(resizedView);
         resizedView = null;
         closeRegion = null;
@@ -1042,8 +1065,16 @@ public class MRAIDView extends RelativeLayout {
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void forceFullScreen() {
         AdViewUtils.logInfo("forceFullScreen");
-        Activity activity = (Activity) context;
-
+        Activity activity = null;
+        if (context instanceof Activity)
+            activity = (Activity) context;
+        else {
+            activity = AdViewUtils.getActivity();
+            if (null == activity) {
+                AdViewUtils.logInfo("#### Error #####forceFullScreen(): can not get top activity ########");
+                return;
+            }
+        }
         // store away the original state
         int flags = activity.getWindow().getAttributes().flags;
         isFullScreen = ((flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0);
@@ -1078,35 +1109,36 @@ public class MRAIDView extends RelativeLayout {
         }
 
         AdViewUtils.logInfo("isFullScreen " + isFullScreen);
-        AdViewUtils.logInfo("isForceNotFullScreen "
-                + isForceNotFullScreen);
-        AdViewUtils.logInfo("isActionBarShowing "
-                + isActionBarShowing);
-        AdViewUtils.logInfo("origTitleBarVisibility "
-                + getVisibilityString(origTitleBarVisibility));
+        AdViewUtils.logInfo("isForceNotFullScreen " + isForceNotFullScreen);
+        AdViewUtils.logInfo("isActionBarShowing "   + isActionBarShowing);
+        AdViewUtils.logInfo("origTitleBarVisibility " + getVisibilityString(origTitleBarVisibility));
 
         // force fullscreen mode
-        ((Activity) context).getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        ((Activity) context).getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+        ((Activity) context).getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        ((Activity) context).getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
 
         isForcingFullScreen = !isFullScreen;
     }
 
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void restoreOriginalScreenState() {
-        Activity activity = (Activity) context;
+        Activity activity = null;
+        if(context instanceof Activity)
+             activity  = (Activity) context;
+        else {
+            activity = AdViewUtils.getActivity();
+            if (null == activity) {
+                AdViewUtils.logInfo("#### error ### restoreOriginalScreenState(): get activity is null #### ");
+                return;
+            }
+        }
         if (!isFullScreen) {
-            activity.getWindow().clearFlags(
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         }
         if (isForceNotFullScreen) {
-            activity.getWindow().addFlags(
-                    WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                && isActionBarShowing) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && isActionBarShowing) {
             ActionBar actionBar = activity.getActionBar();
             actionBar.show();
         } else if (titleBar != null) {
@@ -1130,8 +1162,7 @@ public class MRAIDView extends RelativeLayout {
     private void setCloseRegionPosition(View view) {
         // The input parameter should be either expandedView or resizedView.
 
-        int size = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
-                CLOSE_REGION_SIZE, displayMetrics);
+        int size = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, CLOSE_REGION_SIZE, displayMetrics);
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
                 size, size);
 
@@ -1368,9 +1399,9 @@ public class MRAIDView extends RelativeLayout {
                 return false;
             }
             if (!cm.message().contains("Uncaught ReferenceError")) {
-                AdViewUtils.logInfo("########## (JS callback :) " + cm.message()
+                AdViewUtils.logInfo("### (JS callback :) " + cm.message()
                         + (cm.sourceId() == null ? "" : " at " + cm.sourceId())
-                        + ":" + cm.lineNumber() + "#######");
+                        + ":" + cm.lineNumber() + "###");
             }
             return true;
         }
@@ -1471,7 +1502,6 @@ public class MRAIDView extends RelativeLayout {
                 }
             }
         }
-
 
         private ArrayList getPixLocation(int w, int h) {
             ArrayList location = null;
@@ -1782,12 +1812,13 @@ public class MRAIDView extends RelativeLayout {
             }
         }
 
-        //wilder 2019
-        @Override
+        //wilder 2019，wilder 20200224 不能使用proceed()否则googleplay 不能上架
+      /*  @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error){
             //fix https can not access
             //super.onReceivedSslError(view, handler, error); wilder 2019 must remove this line.
             AdViewUtils.logInfo("------------ [MRAIDWebViewClient] onReceivedSslError : " + error.toString() + "------------");
+            handler.cancel();
             try {
                 if (error.getPrimaryError() == android.net.http.SslError.SSL_INVALID
                         || error.getPrimaryError() == android.net.http.SslError.SSL_UNTRUSTED) {
@@ -1796,7 +1827,6 @@ public class MRAIDView extends RelativeLayout {
                 } else {
                     handler.cancel();
                 }
-
 //            final AlertDialog.Builder builder = new AlertDialog.Builder(WechatLoginActivity.this);
 //            builder.setMessage(R.string.notification_error_ssl_cert_invalid);
 //            builder.setPositiveButton("continue", new DialogInterface.OnClickListener() {
@@ -1818,8 +1848,10 @@ public class MRAIDView extends RelativeLayout {
                 e.printStackTrace();
             }
 
-        }
+        }*/
+
     }
+
     // This is the entry point to all the "actual" MRAID methods below.
     protected void parseCommandUrl(String commandUrl, MRAIDNativeFeatureListener nativeFeatureListener) {
         AdViewUtils.logInfo("parseCommandUrl " + commandUrl);
@@ -1923,9 +1955,13 @@ public class MRAIDView extends RelativeLayout {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         AdViewUtils.logInfo("onConfigurationChanged "
-                + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ?
-                "portrait" : "landscape"));
-        ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+                + (newConfig.orientation == Configuration.ORIENTATION_PORTRAIT ? "portrait" : "landscape"));
+        if (context instanceof Activity) {
+            ((Activity) context).getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        }else {
+            //wilder 2020 没有界面，采用屏幕尺寸计算
+            displayMetrics = context.getResources().getDisplayMetrics();
+        }
     }
 
     @Override
@@ -1973,8 +2009,7 @@ public class MRAIDView extends RelativeLayout {
     protected void onLayout(boolean changed, int left, int top, int right,
                             int bottom) {
         super.onLayout(changed, left, top, right, bottom);
-        AdViewUtils.logInfo("onLayout (" + state + ") " + changed
-                + " " + left + " " + top + " " + right + " " + bottom);
+        //AdViewUtils.logInfo("onLayout (" + state + ") " + changed  + " " + left + " " + top + " " + right + " " + bottom);
         if (isForcingFullScreen) {
             AdViewUtils.logInfo("onLayout ignored");
             return;
@@ -2012,19 +2047,17 @@ public class MRAIDView extends RelativeLayout {
     private void onLayoutWebView(WebView wv, boolean changed, int left,
                                  int top, int right, int bottom) {
         boolean isCurrent = (wv == currentWebView);
-        AdViewUtils.logInfo("onLayoutWebView "
-                + (wv == webView ? "1 " : "2 ") + isCurrent + " (" + state
-                + ") " + changed + " " + left + " " + top + " " + right + " "
-                + bottom);
+//        AdViewUtils.logInfo("onLayoutWebView "
+//                + (wv == webView ? "1 " : "2 ") + isCurrent + " (" + state
+//                + ") " + changed + " " + left + " " + top + " " + right + " "
+//                + bottom);
         if (!isCurrent) {
-            AdViewUtils.logInfo(
-                    "onLayoutWebView ignored, not current");
+            AdViewUtils.logInfo("onLayoutWebView ignored, not current");
             return;
         }
 
         if (isForcingFullScreen) {
-            AdViewUtils.logInfo(
-                    "onLayoutWebView ignored, isForcingFullScreen");
+            AdViewUtils.logInfo("onLayoutWebView ignored, isForcingFullScreen");
             isForcingFullScreen = false;
             return;
         }
@@ -2073,13 +2106,11 @@ public class MRAIDView extends RelativeLayout {
         try {
             int orientation = getResources().getConfiguration().orientation;
             boolean isPortrait = (orientation == Configuration.ORIENTATION_PORTRAIT);
-            AdViewUtils.logInfo("calculateScreenSize orientation "
-                    + (isPortrait ? "portrait" : "landscape"));
+            //AdViewUtils.logInfo("calculateScreenSize orientation " + (isPortrait ? "portrait" : "landscape"));
             int width = displayMetrics.widthPixels;
             int height = displayMetrics.heightPixels;
             density = displayMetrics.density;
-            AdViewUtils.logInfo("calculateScreenSize screen size "
-                    + width + "x" + height);
+            //AdViewUtils.logInfo("calculateScreenSize screen size " + width + "x" + height);
             if (width != screenSize.width || height != screenSize.height) {
                 screenSize.width = width;
                 screenSize.height = height;
@@ -2095,26 +2126,43 @@ public class MRAIDView extends RelativeLayout {
     private void calculateMaxSize() {
         int width, height;
         Rect frame = new Rect();
-        Window window = ((Activity) context).getWindow();
-        window.getDecorView().getWindowVisibleDisplayFrame(frame);
-        AdViewUtils.logInfo("calculateMaxSize frame [" + frame.left
-                + "," + frame.top + "][" + frame.right + "," + frame.bottom
-                + "] (" + frame.width() + "x" + frame.height() + ")");
-        int statusHeight = frame.top;
-        contentViewTop = window.findViewById(Window.ID_ANDROID_CONTENT).getTop();
-        int titleHeight = contentViewTop - statusHeight;
-        AdViewUtils.logInfo("calculateMaxSize statusHeight " + statusHeight);
-        AdViewUtils.logInfo("calculateMaxSize titleHeight "  + titleHeight);
-        AdViewUtils.logInfo("calculateMaxSize contentViewTop " + contentViewTop);
-        width = frame.width();
-        height = screenSize.height - contentViewTop;
-        AdViewUtils.logInfo("calculateMaxSize max size " + width + "x" + height);
-        if (width != maxSize.width || height != maxSize.height) {
-            maxSize.width = width;
-            maxSize.height = height;
-            // if (isPageFinished) {
-            setMaxSize();
-            // }
+        try {
+            if (context instanceof Activity) { //wilder 2020 for no activity
+                Window window = ((Activity) context).getWindow();
+                window.getDecorView().getWindowVisibleDisplayFrame(frame);
+//                AdViewUtils.logInfo("calculateMaxSize frame [" + frame.left + "," + frame.top + "][" + frame.right + "," + frame.bottom
+//                        + "] (" + frame.width() + "x" + frame.height() + ")");
+
+                int statusHeight = frame.top;
+                contentViewTop = window.findViewById(Window.ID_ANDROID_CONTENT).getTop();
+                int titleHeight = contentViewTop - statusHeight;
+//                AdViewUtils.logInfo("calculateMaxSize statusHeight " + statusHeight);
+//                AdViewUtils.logInfo("calculateMaxSize titleHeight " + titleHeight);
+//                AdViewUtils.logInfo("calculateMaxSize contentViewTop " + contentViewTop);
+                width = frame.width();
+                height = screenSize.height - contentViewTop;
+                //AdViewUtils.logInfo("calculateMaxSize max size " + width + "x" + height);
+                if (width != maxSize.width || height != maxSize.height) {
+                    maxSize.width = width;
+                    maxSize.height = height;
+                    // if (isPageFinished) {
+                    setMaxSize();
+                    // }
+                }
+            }else {
+                //wilder 2020 考虑到不是activity的context的情况
+                //DisplayMetrics dm2 = context.getResources().getDisplayMetrics();
+                if (maxSize.width != screenSize.width && maxSize.height != screenSize.height) {
+                    maxSize.width = screenSize.width;
+                    maxSize.height = screenSize.height;
+                    setMaxSize();
+                }
+                AdViewUtils.logInfo("=== no activity context, use fullscreen ====");
+                //System.out.println("width-display :" + dm2.widthPixels);
+                //System.out.println("heigth-display :" + dm2.heightPixels);
+            }
+        }catch(Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -2125,22 +2173,16 @@ public class MRAIDView extends RelativeLayout {
         View view = isCurrentWebView ? currentWebView : this;
         String name = (isCurrentWebView ? "current" : "default");
 
-        // This is the default location regardless of the state of the
-        // MRAIDView.
+        // This is the default location regardless of the state of the MRAIDView.
         view.getLocationOnScreen(location);
         x = location[0];
         y = location[1];
-        AdViewUtils.logInfo("calculatePosition " + name
-                + " locationOnScreen [" + x + "," + y + "]");
-        AdViewUtils.logInfo("calculatePosition " + name
-                + " contentViewTop " + contentViewTop);
+//        AdViewUtils.logInfo("calculatePosition " + name + " locationOnScreen [" + x + "," + y + "]");
+//        AdViewUtils.logInfo("calculatePosition " + name+ " contentViewTop " + contentViewTop);
         y -= contentViewTop;
         width = view.getWidth();
         height = view.getHeight();
-
-        AdViewUtils.logInfo("calculatePosition " + name
-                + " position [" + x + "," + y + "] (" + width + "x" + height
-                + ")");
+//        AdViewUtils.logInfo("calculatePosition " + name + " position [" + x + "," + y + "] (" + width + "x" + height + ")");
 
         Rect position = isCurrentWebView ? currentPosition : defaultPosition;
 
@@ -2167,11 +2209,11 @@ public class MRAIDView extends RelativeLayout {
 
     private static String getOrientationString(int orientation) {
         switch (orientation) {
-            case ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
+            case Configuration.ORIENTATION_UNDEFINED:
                 return "UNSPECIFIED";
-            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE:
+            case Configuration.ORIENTATION_LANDSCAPE:
                 return "LANDSCAPE";
-            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT:
+            case Configuration.ORIENTATION_PORTRAIT:
                 return "PORTRAIT";
             default:
                 return "UNKNOWN";
@@ -2179,16 +2221,22 @@ public class MRAIDView extends RelativeLayout {
     }
 
     private void applyOrientationProperties() {
-        AdViewUtils.logInfo("applyOrientationProperties "
-                + orientationProperties.allowOrientationChange + " "
+        AdViewUtils.logInfo("applyOrientationProperties " + orientationProperties.allowOrientationChange + " "
                 + orientationProperties.forceOrientationString());
-
-        Activity activity = (Activity) context;
+        Activity activity = null;
+        if (context instanceof Activity)
+            activity = (Activity) context;
+        else {
+            activity = AdViewUtils.getActivity();
+            if (null == activity) {
+                AdViewUtils.logInfo("!!!! error : can not got activity !!!!");
+                return;
+            }
+        }
         try {
             int currentOrientation = getResources().getConfiguration().orientation;
-            boolean isCurrentPortrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT);
-            AdViewUtils.logInfo("currentOrientation "
-                    + (isCurrentPortrait ? "portrait" : "landscape"));
+            boolean isCurrentPortrait = (currentOrientation == Configuration.ORIENTATION_PORTRAIT );
+            AdViewUtils.logInfo("currentOrientation " + (isCurrentPortrait ? "portrait" : "landscape"));
 
             int orientation = originalRequestedOrientation;
             if (orientationProperties.forceOrientation == MRAIDOrientationProperties.FORCE_ORIENTATION_PORTRAIT) {
@@ -2196,30 +2244,40 @@ public class MRAIDView extends RelativeLayout {
             } else if (orientationProperties.forceOrientation == MRAIDOrientationProperties.FORCE_ORIENTATION_LANDSCAPE) {
                 orientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
             } else {
-                // orientationProperties.forceOrientation ==
-                // MRAIDOrientationProperties.FORCE_ORIENTATION_NONE
+                // orientationProperties.forceOrientation == MRAIDOrientationProperties.FORCE_ORIENTATION_NONE
                 if (orientationProperties.allowOrientationChange) {
                     // orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-                    // orientation = orientation;
                 } else {
-                    // orientationProperties.allowOrientationChange == false
                     // lock the current orientation
                     orientation = (isCurrentPortrait ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                             : ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
                 }
             }
-            activity.setRequestedOrientation(orientation);
+            activity.setRequestedOrientation(orientation); //强制屏幕旋转
         }catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private void restoreOriginalOrientation() {
-        AdViewUtils.logInfo("restoreOriginalOrientation");
-        Activity activity = (Activity) context;
-        int currentRequestedOrientation = activity.getRequestedOrientation();
+        AdViewUtils.logInfo("restoreOriginalOrientation()");
+        Activity activity = null;
+        if (context instanceof Activity)
+            activity = (Activity) context;
+        else {
+            activity = AdViewUtils.getActivity();
+            if (null == activity) {
+                AdViewUtils.logInfo("### restoreOriginalOrientation(): error -> getActivity is null !!!!! ###");
+                return;
+            }
+        }
+
+        int currentRequestedOrientation = getResources().getConfiguration().orientation;
         if (currentRequestedOrientation != originalRequestedOrientation) {
-            activity.setRequestedOrientation(originalRequestedOrientation);
+            if (originalRequestedOrientation == Configuration.ORIENTATION_LANDSCAPE)
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+            else if (originalRequestedOrientation == Configuration.ORIENTATION_PORTRAIT)
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
     }
 

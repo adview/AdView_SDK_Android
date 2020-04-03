@@ -1,5 +1,6 @@
 package com.kuaiyou.interfaces;
 
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Message;
@@ -38,8 +39,11 @@ public interface AdVGListener extends KyBaseListener {
     WebResourceResponse shouldInterceptRequest(String url);
 
     String getAdLogo();
-
     String getAdIcon();
+
+    //wilder 20200228
+    Bitmap getAdLogoBmp();
+    Bitmap getAdIconBmp();
 
     AdsBean getAdsBean();
 

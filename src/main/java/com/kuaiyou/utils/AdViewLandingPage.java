@@ -184,7 +184,8 @@ public class AdViewLandingPage extends Activity {
 
     private BitmapDrawable getBarBackground(int height) {
         try {
-            Bitmap bm = AdViewUtils.getImageFromAssetsFile("webview_bar_bg.png");
+            //Bitmap bm = AdViewUtils.getImageFromAssetsFile("webview_bar_bg.png"); wilder 2020 for non-context
+            Bitmap bm = AdViewUtils.getImageFromAssetsFile2("webview_bar_bg.png", this);
             BitmapDrawable barbgBitmapDrawable = new BitmapDrawable(getResources(), bm);
             Bitmap barBg = barbgBitmapDrawable.getBitmap();
             Matrix barBgMatrix = new Matrix();
@@ -209,25 +210,25 @@ public class AdViewLandingPage extends Activity {
     private void setImgBtn(LinearLayout linearLayout,LinearLayout.LayoutParams btnImgLayoutParams) {
 
         try {
-            BitmapDrawable btnToPrevImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back.png"));
-            BitmapDrawable btnToPrevHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back_hover.png"));
-            BitmapDrawable btnToPrevGreyImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back_grey.png"));
+            BitmapDrawable btnToPrevImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_back.png", this));
+            BitmapDrawable btnToPrevHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_back_hover.png", this));
+            BitmapDrawable btnToPrevGreyImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_back_grey.png", this));
 
-            BitmapDrawable btnToNextImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next.png"));
-            BitmapDrawable btnToNextHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next_hover.png"));
-            BitmapDrawable btnToNextGreyImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next_grey.png"));
+            BitmapDrawable btnToNextImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_next.png",this));
+            BitmapDrawable btnToNextHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_next_hover.png", this));
+            BitmapDrawable btnToNextGreyImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_next_grey.png", this));
 
-            BitmapDrawable btnDoRefreshImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_refresh.png"));
-            BitmapDrawable btnDoRefreshHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_refresh_hover.png"));
+            BitmapDrawable btnDoRefreshImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_refresh.png", this));
+            BitmapDrawable btnDoRefreshHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_refresh_hover.png", this));
 
-            BitmapDrawable btnDoStopImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png"));
-            BitmapDrawable btnDoStopHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_pause_hover.png"));
+            BitmapDrawable btnDoStopImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_pause.png", this));
+            BitmapDrawable btnDoStopHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_pause_hover.png", this));
 
-            BitmapDrawable btnDoShareImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_share.png"));
-            BitmapDrawable btnDoShareHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_share_hover.png"));
+            BitmapDrawable btnDoShareImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_share.png", this));
+            BitmapDrawable btnDoShareHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_share_hover.png", this));
 
-            BitmapDrawable btnDoCloseImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_close.png"));
-            BitmapDrawable btnDoCloseHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_close_hover.png"));
+            BitmapDrawable btnDoCloseImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_close.png",this));
+            BitmapDrawable btnDoCloseHoverImg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_close_hover.png", this));
       /*  BitmapDrawable btnToPrevImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
                                 + "webview_bar_back.png"));
         BitmapDrawable btnDoCloseHoverImg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
@@ -314,7 +315,7 @@ public class AdViewLandingPage extends Activity {
 
     private void onWebViewLoad() {
         isLoading = true;
-        btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_pause.png")));
+        btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_pause.png",this)));
         //不要使用getResourceAsStream()，会很影响效能
 //        btnDoRefresh.setImageDrawable(new BitmapDrawable(
 //        getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH + "webview_bar_pause.png")));
@@ -325,21 +326,21 @@ public class AdViewLandingPage extends Activity {
     private void loadComplete() {
         isLoading = false;
         if (adWebView.canGoBack()) {
-            btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back.png")));
+            btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_back.png", this)));
             btnToPrev.setOnTouchListener((View.OnTouchListener) this.btnToPrev.getTag());
         } else {
-            btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_back_grey.png")));
+            btnToPrev.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_back_grey.png", this)));
             btnToPrev.setOnTouchListener(null);
         }
         if (adWebView.canGoForward()) {
-            btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next.png")));
+            btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_next.png", this)));
             btnToNext.setOnTouchListener((View.OnTouchListener) this.btnToNext.getTag());
         } else {
-            btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_next_grey.png")));
+            btnToNext.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_next_grey.png", this)));
             btnToNext.setOnTouchListener(null);
         }
 
-        btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("webview_bar_refresh.png")));
+        btnDoRefresh.setImageDrawable(new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("webview_bar_refresh.png",this)));
         btnDoRefresh.setId(BTN_DO_REFRESH);
         btnDoRefresh.setOnTouchListener((View.OnTouchListener) ((ArrayList<?>) this.btnDoRefresh.getTag()).get(0));
     }
@@ -522,7 +523,7 @@ public class AdViewLandingPage extends Activity {
 
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             try {
-                Log.i("override", url + "");
+                AdViewUtils.logInfo(url + "");
                 return AdViewUtils.openDeepLink(AdViewLandingPage.this, url);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -566,7 +567,8 @@ public class AdViewLandingPage extends Activity {
                 this.width = getWidth();
                 this.height = getHeight();
 
-                this.sourBg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("progressbarbg.png")).getBitmap();
+                //this.sourBg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile("progressbarbg.png")).getBitmap(); wilder 2020 for non-context
+                this.sourBg = new BitmapDrawable(getResources(), AdViewUtils.getImageFromAssetsFile2("progressbarbg.png", getContext())).getBitmap();
 //                this.sourBg = new BitmapDrawable(getClass().getResourceAsStream(ConstantValues.WEBVIEW_IMAGE_BASE_PATH
 //                                + URLEncoder.encode("progressbar") + "bg.png")).getBitmap();
 

@@ -95,7 +95,6 @@ public class DownloadService extends Service {
 
     private Handler updateHandler = new Handler(Looper.getMainLooper()) {
 
-
         public void handleMessage(Message msg) {
             try {
                 LocalBroadcastManager lbm = null;
@@ -115,18 +114,18 @@ public class DownloadService extends Service {
                                 installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 installIntent.setAction("android.intent.action.VIEW");
                                 installIntent.setDataAndType(uri,"application/vnd.android.package-archive");
-                                DownloadService.this.updatePendingIntent = PendingIntent
-                                        .getActivity(DownloadService.this, 0,
+                                DownloadService.this.updatePendingIntent = PendingIntent.getActivity(DownloadService.this, 0,
                                                 installIntent, 0);
                                 DownloadService.this.startActivity(installIntent);
                             } else {
-                                Intent intent = new Intent(DownloadService.this, AdActivity.class);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                intent.putExtra("path", Uri.fromFile(temp));
-                                intent.putExtra("install_report", notifyPath.get(notifyId).getInstallUrls());
-                                intent.putExtra("gdt_conversion_link", notifyPath.get(notifyId).getGdtExtraUrls());
-                                intent.putExtra("click_id_gdt", notifyPath.get(notifyId).getClickid_gdt());
-                                DownloadService.this.startActivity(intent);
+                                //wilder 2020 downloadservice 暂时关闭
+//                                Intent intent = new Intent(DownloadService.this, AdActivity.class);
+//                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                                intent.putExtra("path", Uri.fromFile(temp));
+//                                intent.putExtra("install_report", notifyPath.get(notifyId).getInstallUrls());
+//                                intent.putExtra("gdt_conversion_link", notifyPath.get(notifyId).getGdtExtraUrls());
+//                                intent.putExtra("click_id_gdt", notifyPath.get(notifyId).getClickid_gdt());
+//                                DownloadService.this.startActivity(intent);
                             }
                             notificationBuilder.setTicker(FINISHINGDOWNLOAD);
                             updateNotificationManager.notify(
@@ -248,7 +247,6 @@ public class DownloadService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
             int notifyId = (int) System.currentTimeMillis();
-
             // if (isSecConfirm())
             // createConfirmDialog(this, intent, notifyId);
             // else {
@@ -261,7 +259,6 @@ public class DownloadService extends Service {
             message.setData(bundle);
             DownloadService.this.updateHandler.sendMessage(message);
 
-            //Toast.makeText(this, e.toString() + "\n请添加最新的support-v4，否则将影响收入",Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
             Message message = new Message();
@@ -308,8 +305,7 @@ public class DownloadService extends Service {
             // 设置他为一个正在进行的通知。他们通常是用来表示一个后台任务,用户积极参与(如播放音乐)或以某种方式正在等待,因此占用设备(如一个文件下载,同步操作,主动网络连接)
             updateIntent = new Intent(this, this.getClass());
             notificationBuilder.setOnlyAlertOnce(true);
-            updatePendingIntent = PendingIntent.getActivity(this, 0,
-                    updateIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            updatePendingIntent = PendingIntent.getActivity(this, 0, updateIntent, PendingIntent.FLAG_UPDATE_CURRENT);
             notificationBuilder.setOngoing(true);
             notificationBuilder
                     .setContentTitle(null == appName ? LOADING : appName)// 标题

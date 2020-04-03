@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
@@ -42,6 +43,7 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
     private AdsBean cacheAdsBean = null;
     private String adLogo;
     private String adIcon;
+
     private InstlView instlView = null;
     private int displayMode = AdInstlBIDView.DISPLAYMODE_DEFAULT;
 
@@ -52,17 +54,19 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
     private AdAdapterManager adAdapterManager;
     private boolean isLoaded = false;
     //private int defaultINSTL_SIZE = ConstantValues.INSTL_REQ_SIZE_320X480; //ConstantValues.INSTL_REQ_SIZE
-    private String ad_appID;
+    private String appID;
+    private String posID = ""; //wilder 2020 for posid
     private int ad_routeType;
     private int ad_sdkType;
 
-    private AdInstlBIDView(Context context, String appID, int routeType, int sdkType, int adSize,
+    private AdInstlBIDView(Context context, String appID, String posID, int routeType, int sdkType, int adSize,
                            boolean canClosed) {
         super(context);
 
         super.adSize = adSize; //ConstantValues.INSTL_REQ_SIZE;
         this.canClosed = canClosed;
-        this.ad_appID = appID;
+        this.appID = appID;
+        this.posID = posID; //wilder 2020 for posid
         this.ad_routeType = routeType;
         this.ad_sdkType = sdkType;
 
@@ -72,17 +76,19 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
         AdViewUtils.getDeviceIdFirstTime(context, this);
     }
 
-    public AdInstlBIDView(Context context, String key, int type, boolean canClosed) {
-        this(context, key, type, ConstantValues.SDK_REQ_TYPE_INSTL, ConstantValues.INSTL_REQ_SIZE_320X480, canClosed);
+    public AdInstlBIDView(Context context, String key, String posID, int type, boolean canClosed) {
+        this(context, key, posID, type, ConstantValues.SDK_REQ_TYPE_INSTL, ConstantValues.INSTL_REQ_SIZE_320X480, canClosed);
     }
 
-    public AdInstlBIDView(Context context, String key, boolean canClosed) {
-        this(context, key, ConstantValues.ROUTE_ADBID_TYPE, ConstantValues.SDK_REQ_TYPE_INSTL, ConstantValues.INSTL_REQ_SIZE_320X480, canClosed);
+    //通常使用的外置接口
+    public AdInstlBIDView(Context context, String key, String posID, boolean canClosed) {
+        this(context, key, posID, ConstantValues.ROUTE_ADBID_TYPE, ConstantValues.SDK_REQ_TYPE_INSTL, ConstantValues.INSTL_REQ_SIZE_320X480,
+                canClosed);
     }
 
     //new adsize passed
-    public AdInstlBIDView(Context context, String key, boolean canClosed, int adSize) {
-        this(context, key, ConstantValues.ROUTE_ADBID_TYPE, ConstantValues.SDK_REQ_TYPE_INSTL, adSize, canClosed);
+    public AdInstlBIDView(Context context, String key, String posID, boolean canClosed, int adSize) {
+        this(context, key, posID, ConstantValues.ROUTE_ADBID_TYPE, ConstantValues.SDK_REQ_TYPE_INSTL, adSize, canClosed);
     }
 
     /**
@@ -94,14 +100,13 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
         String cacheData = null;
         configUrl = getConfigUrl(ad_routeType);
         if (AdViewUtils.cacheMode) {
-            SharedPreferences preferences = SharedPreferencesUtils
-                    .getSharedPreferences(getContext(), ConstantValues.SP_INSTLINFO_FILE);
+            SharedPreferences preferences = SharedPreferencesUtils.getSharedPreferences(getContext(), ConstantValues.SP_INSTLINFO_FILE);
             cacheTime = preferences.getLong("sp_cacheTime", 0);
             if (System.currentTimeMillis() / 1000 - cacheTime < ConstantValues.DEFAULT_CACHE_PEROID) {
                 cacheData = preferences.getString("sp_cacheData", null);
             }
         }
-        applyAdBean = initRequestBean(ad_appID, null, ad_routeType, ad_sdkType, 1);
+        applyAdBean = initRequestBean(appID, posID, ad_routeType, ad_sdkType, 1);
 //        SharedPreferences sp = SharedPreferencesUtils.getSharedPreferences(getContext(), ConstantValues.SP_ADVINFO_FILE);
         // 插屏缓存模式开关
 //        if (AdViewUtils.cacheMode) {
@@ -131,8 +136,8 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
         this.displayMode = displayMode;
     }
     /**
-     * 自定义插屏调用方法
-     * 手动汇报展示
+     * app自定义插屏调用方法
+     * 手动汇报展示,默认是sdk触发，也提供了展示的接口供app使用
      */
     public void reportImpression() {
         if (System.currentTimeMillis() - adsBean.getDataTime() <= ConstantValues.AD_EXPIRE_TIME) {
@@ -143,7 +148,7 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
         }
     }
     /**
-     * 自定义插屏调用方法
+     * app自定义插屏调用方法
      * 手动点击汇报
      */
     public void reportClick() {
@@ -208,17 +213,17 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
     /**
      * 展示插屏广告
      *
-     * @param activity
+     * @param ctx
      * @return 展示成功返回true 否则false
      */
-    public boolean showInstl(final Activity activity) {
+    public boolean showInstl(final Context ctx) {
         try {
             if (null != adAdapterManager) {
-                return adAdapterManager.showInstl(activity);
+                return adAdapterManager.showInstl(ctx);
             }
             if (adsBean.getAit() == 2) {
                 //(wilder 2019) here maybe change in embed-vastview
-                AdVideoBIDView.getInstance(activity == null ? getContext() : activity).playVideo(activity == null ? getContext() : activity);
+                AdVideoBIDView.getInstance(ctx == null ? getContext() : ctx).playVideo(ctx == null ? getContext() : ctx);
                 return true;
             }
 
@@ -276,34 +281,39 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
             }
         }
     }
-//    @Override
-//    public boolean onKeyDown(int keyCode, KeyEvent event) {
-//        return keyCode != KeyEvent.KEYCODE_BACK && super.onKeyDown(keyCode, event);
-//    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////    KyAdBaseView   //////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
     @Override
     protected boolean initAdLogo(Object object) {
+        //切记，该函数不能在主线程做，因为需要http取得网络资源
         AdsBean adsBean = (AdsBean) object;
         if (null == adsBean)
             return false;
-        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl()))
-            adLogo = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdLogoUrl(), 1);
+        if (!TextUtils.isEmpty(adsBean.getAdLogoUrl())) {
+            adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
+            if (AdViewUtils.adLogoOnLine)
+                adLogoBmp = AdViewUtils.getHttpBitmap(adsBean.getAdLogoUrl());//wilder 20200228 for test
+            else
+                adLogo = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdLogoUrl(), 1);
 //        else
 //            adLogo = "/assets/logo_instl.png";
-        if (!TextUtils.isEmpty(adsBean.getAdIconUrl()))
-            adIcon = (String) AdViewUtils.getInputStreamOrPath(
-                    getContext(), adsBean.getAdIconUrl(), 1);
+        }
+        if (!TextUtils.isEmpty(adsBean.getAdIconUrl())) {
+
+            if (AdViewUtils.adLogoOnLine)
+                adIconBmp = AdViewUtils.getHttpBitmap(adsBean.getAdIconUrl());//wilder 20200228
+            else
+                adIcon = (String) AdViewUtils.getInputStreamOrPath(getContext(), adsBean.getAdIconUrl(), 1);
 //        else
 //            adIcon = "/assets/icon_ad.png";
+        }
         return true;
     }
 
     /**
-     * 联网生成图片
+     * 联网生成图片,默认采用在线图片的模式
      *
      * @param object adsBean
      */
@@ -313,21 +323,19 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
             AdsBean currentAdsBean = (AdsBean) object;
             switch (currentAdsBean.getAdType()) {
                 case ConstantValues.RESP_ADTYPE_MIXED:
-                    if (null != currentAdsBean.getAdIcon()
-                            && !currentAdsBean.getAdIcon().trim().equals("")) {
+                    if (null != currentAdsBean.getAdIcon() && !currentAdsBean.getAdIcon().trim().equals("")) {
                         String[] pics = currentAdsBean.getAdIcon().split(",");
-                        SharedPreferences preferences = getContext()
-                                .getSharedPreferences(
-                                        ConstantValues.INSTL_SP_BITMAPMAPPING_FILE,
-                                        Context.MODE_PRIVATE);
+                        SharedPreferences preferences =
+                                getContext().getSharedPreferences(ConstantValues.INSTL_SP_BITMAPMAPPING_FILE, Context.MODE_PRIVATE);
                         bitmapPath = preferences.getString(pics[0], null);
-                        if (null != bitmapPath && bitmapPath.length() > 0
-                                && new File(bitmapPath).exists())
+
+                        if (null != bitmapPath && bitmapPath.length() > 0 && new File(bitmapPath).exists()) {
                             return true;
-                        else {
+                        } else {
                             bitmapPath = (String) AdViewUtils.getInputStreamOrPath(
-                                    getContext(), currentAdsBean.getGetImageUrl()
-                                            + pics[0], 1);
+                                            getContext(),
+                                        currentAdsBean.getGetImageUrl() + pics[0],
+                                        1);
                             if (null != bitmapPath) {
                                 Editor editor = preferences.edit();
                                 editor.putString(pics[0], bitmapPath);
@@ -341,26 +349,26 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
                     if (adsBean.getAit() == 2) {
                         return true;
                     }
-                    if (null != currentAdsBean.getAdPic()
-                            && !currentAdsBean.getAdPic().trim().equals("")) {
-                        SharedPreferences preferences = getContext().getSharedPreferences(
-                                        ConstantValues.INSTL_SP_BITMAPMAPPING_FILE,
-                                        Context.MODE_PRIVATE);
+                    if (null != currentAdsBean.getAdPic() && !currentAdsBean.getAdPic().trim().equals("")) {
                         String pic = currentAdsBean.getAdPic();
-                        bitmapPath = preferences.getString(currentAdsBean.getAdPic(), null);
                         //(wilder 2019) for online show bitmap
                         if ( AdViewUtils.bitmapOnLine) {
+                            //默认都是在线图片
                             bitmapPath = pic;
                         }else {
                             //download pic
+                            SharedPreferences preferences = getContext().getSharedPreferences(
+                                    ConstantValues.INSTL_SP_BITMAPMAPPING_FILE,
+                                    Context.MODE_PRIVATE);
+                            bitmapPath = preferences.getString(currentAdsBean.getAdPic(), null);
                             if (null != bitmapPath && bitmapPath.length() > 0
                                     && new File(bitmapPath).exists()) {
                                 return true;
                             }
                             else {
-                                bitmapPath = (String) AdViewUtils.getInputStreamOrPath(
-                                        getContext(), currentAdsBean.getGetImageUrl()
-                                                + currentAdsBean.getAdPic(), 1);
+                                bitmapPath = (String) AdViewUtils.getInputStreamOrPath(getContext(),
+                                                currentAdsBean.getGetImageUrl() + currentAdsBean.getAdPic(),
+                                            1);
                                 if (null != bitmapPath) {
                                     Editor editor = preferences.edit();
                                     editor.putString(currentAdsBean.getAdPic(), bitmapPath);
@@ -658,6 +666,16 @@ public class AdInstlBIDView extends KyAdBaseView implements KyInstalListener {
             }
         }
     }
+    //wilder 20200228
+    @Override
+    public Bitmap getAdLogoBmp() {
+        return adLogoBmp;
+    }
+    @Override
+    public Bitmap getAdIconBmp() {
+        return adIconBmp;
+    }
+    //end wilder 20200228
 
     @Override
     public String getAdLogo() {
