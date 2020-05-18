@@ -312,7 +312,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
     public boolean getVideoMode() { return mrecVideoMode; }
 
 //    for GDPR 2019
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents){
+/*    public void setGDPR(boolean cmpPresent, String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents){
         if (null == reqGDPRBean) {
             reqGDPRBean = new GDPRBean();
         }
@@ -321,9 +321,31 @@ public abstract class KyAdBaseView extends RelativeLayout {
         reqGDPRBean.setIabConsentString(consentString);
         reqGDPRBean.setIabParsedPurposeConsents(parsedPurposeConsents);
         reqGDPRBean.setIabParsedVendorConsents(parsedVendorConsents);
+    }*/
+
+    //for GDPR 1.0
+    public void setGDPR(boolean cmpPresent, String consentString ){
+        if (null == reqGDPRBean) {
+            reqGDPRBean = new GDPRBean();
+        }
+
+        reqGDPRBean.setIabCMPPresent(cmpPresent ? 1 : 0);
+        reqGDPRBean.setIabConsentString(consentString);
     }
 
-    //在applyAdsBean上传之前要get一下最终确认下值
+    //for GDPR TCF 2.0
+    public void setGDPR2(int cmpPresent, String consentString ){
+        if (null == reqGDPRBean) {
+            reqGDPRBean = new GDPRBean();
+        }
+        //if has already got , just skip
+//        if (!reqGDPRBean.getIabConsentString().isEmpty())
+//            return;
+        reqGDPRBean.setIabCMPPresent(cmpPresent);
+        reqGDPRBean.setIabConsentString(consentString);
+    }
+
+    //在applyAdsBean上传之前要get一下最终确认下值, wilder 20200420 changed for TCF2.0 spec
     protected void getGDPR() {
         //先已系统设置的gdpr为主，如果没有，则用app传入的值
         if (null == reqGDPRBean) {
@@ -333,30 +355,26 @@ public abstract class KyAdBaseView extends RelativeLayout {
         if ( null != gdpr ) {
             //更新内容
             String value;
-            boolean con = ((Boolean)gdpr.get("IABConsent_CMPPresent")).booleanValue();
-            if (con) {
-                reqGDPRBean.setIabCMPPresent(con);
-            }
+            //boolean con = ((Boolean)gdpr.get("IABConsent_CMPPresent")).booleanValue();
+            int con = (Integer) gdpr.get("IABConsent_CMPPresent"); //可能是0,1,-1
+            reqGDPRBean.setIabCMPPresent(con);
+
             value = (String)gdpr.get("IABConsent_ConsentString");
-            if (value.length() > 0)
+            //if (value.length() > 0) //wilder 20200506 不做合法性判断，直接上传
                 reqGDPRBean.setIabConsentString(value);
-            value = (String)gdpr.get("IABConsent_SubjectToGDPR");
-            if (value.length() > 0)
-                reqGDPRBean.setIabSubjectToGDPR(value);
-            value = (String)gdpr.get("IABConsent_ParsedPurposeConsents");
-            if (value.length() > 0)
-                reqGDPRBean.setIabParsedPurposeConsents(value);
-            value = (String)gdpr.get("IABConsent_ParsedVendorConsents");
-            if (value.length() > 0)
-                reqGDPRBean.setIabParsedVendorConsents(value);
+
+//            value = (String)gdpr.get("IABConsent_SubjectToGDPR");
+//            if (value.length() > 0)
+//                reqGDPRBean.setIabSubjectToGDPR(value);
+//            value = (String)gdpr.get("IABConsent_ParsedPurposeConsents");
+//            if (value.length() > 0)
+//                reqGDPRBean.setIabParsedPurposeConsents(value);
+//            value = (String)gdpr.get("IABConsent_ParsedVendorConsents");
+//            if (value.length() > 0)
+//                reqGDPRBean.setIabParsedVendorConsents(value);
 
         }
     }
-//    public void setGDPRConstent(String consent){
-//        if(consent != null) {
-//            gdpr_consent = consent;
-//        }
-//    }
 
     //end gdpr 2019
     public static void setIsH5Changed(int isH5Changed) {
@@ -889,6 +907,8 @@ public abstract class KyAdBaseView extends RelativeLayout {
         }
         // APP 版本
         reqAdBean.setAppVer(AdViewUtils.getAppVersionName(getContext())); //ok
+        // APP Name 名称
+        reqAdBean.setAppName(AdViewUtils.getAppName(getContext())); //wilder 20200421 for app name
         // OS 版本
         reqAdBean.setOsVer(AdViewUtils.getDevOsVer()); //ok
         // SDK 版本
@@ -994,11 +1014,11 @@ public abstract class KyAdBaseView extends RelativeLayout {
                 + "&agadn=" + getAgadn(reqAdBean.getSdkType())
                 + "&apt=" + isSupportWXAPI()
                 + "&hv=" + reqAdBean.getOrientation()
-                + "&gdpr=" + (reqGDPRBean.getIabCMPPresent() ? 1 : 0)//reqAdBean.getGdpr()              //GDPR - 0或者1
+                + "&gdpr=" + reqGDPRBean.getIabCMPPresent()     //reqAdBean.getGdpr()              //GDPR - 0或者1
                 + "&consent=" + reqGDPRBean.getIabConsentString()       //gdpr - consent string
-                + "&subject=" + reqGDPRBean.getIabSubjectToGDPR()       //gdpr - subject
-                + "&purpose=" + reqGDPRBean.getIabParsedPurposeConsents()  //gdpr - purpose consent
-                + "&vendor=" + reqGDPRBean.getIabParsedVendorConsents()    //gdpr - vendor consent
+//                + "&subject=" + reqGDPRBean.getIabSubjectToGDPR()       //gdpr - subject (TCF 2.0 ignored)
+//                + "&purpose=" + reqGDPRBean.getIabParsedPurposeConsents()  //gdpr - purpose consent (TCF 2.0 ignored)
+//                + "&vendor=" + reqGDPRBean.getIabParsedVendorConsents()    //gdpr - vendor consent (TCF 2.0 ignored)
                 + "&omid=" + (AdViewUtils.canUseOMSDK() ? 1 : 0)  //omsdk v1.2 support
                 + "&omidpn=" + AdViewUtils.getOMPartnerName()  //omidpn , parnter名称
                 + "&omidpv=" + AdViewUtils.getOMPartnerVer()  //omidpv, parnter版本
@@ -1410,7 +1430,7 @@ public abstract class KyAdBaseView extends RelativeLayout {
     }
 
     private void saveCache(int type, String key, Object value) {
-        AdViewUtils.logInfo("### saveCache(): " + type + "###");
+        AdViewUtils.logInfo("### saveCache(" + key + "): " + type + "###");
         SharedPreferences preferences = null;
         if (type == ConstantValues.SDK_REQ_TYPE_SPREAD) {
             preferences = getContext().getSharedPreferences(ConstantValues.SP_SPREADINFO_FILE, Context.MODE_PRIVATE);

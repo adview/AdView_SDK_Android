@@ -310,34 +310,6 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
         return bitmapPath;
     }
 
-    private void sendImpression(AgDataBean agDataBean, boolean force) {
-        try {
-            if (!isImpressioned) {
-                if (null != onAdViewListener) {
-                    onAdViewListener.onAdDisplayed(this);
-                }
-            }
-            if (force || !isImpressioned) {
-                // onAdDisplayAd
-                if (null != agDataBean && null != agDataBean.getImpUrls()) {
-                    reportOtherUrls(agDataBean.getImpUrls() + (adAdapterManager.getSufId() == 0 ? "" : "&sufid=" + adAdapterManager.getSufId()));
-                    isImpressioned = true;
-                }
-                if (reportImpression(adsBean, respAdBean, applyAdBean, true)) {
-                    isImpressioned = true;
-                }
-
-                //OMSDK v1.2, this must be last called, cause muti-called will cause error
-                MRAIDView v = ((BannerView)adAdapterManager.getAdView()).getMraidView();
-                if (null != v) {
-                    v.sendOMImpression();
-                }
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
     // 请求广告，考虑是否正在显示、有网络连接、是否锁屏
     private void requestAd(int sec) {
@@ -351,15 +323,15 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
             reFreshTime = -1;
         }
 
-        if (!isFirst) {
+        if (!isFirst) {  //是自动refresh的动作
             if (-1 == sec)
                 return;
             if (isEnded)
                 return;
-            if (!isShown()) {
-                bannerReqScheduler.schedule(new RequestRunable(sec), sec, TimeUnit.SECONDS);
-                return;
-            }
+//            if (!isShown()) { //(wilder 2020), 此处的逻辑是如果view不可见则不在刷新时间请求广告，暂时去掉，在展示汇报处进行修改
+//                bannerReqScheduler.schedule(new RequestRunable(sec), sec, TimeUnit.SECONDS);
+//                return;
+//            }
         }
 
 
@@ -594,7 +566,29 @@ public class AdBannerBIDView extends KyAdBaseView implements AdVGListener {
     @Override
     public void onDisplay(AgDataBean agDataBean, boolean force) {
         try {
-            sendImpression(agDataBean, force);
+            if (!isImpressioned) {
+                if (null != onAdViewListener) {
+                    onAdViewListener.onAdDisplayed(this);
+                }
+            }
+            if (force || !isImpressioned) {
+                // onAdDisplayAd
+
+                if (null != agDataBean && null != agDataBean.getImpUrls()) {
+                    reportOtherUrls(agDataBean.getImpUrls() + (adAdapterManager.getSufId() == 0 ? "" : "&sufid=" + adAdapterManager.getSufId()));
+                    isImpressioned = true;
+                }
+
+                if (reportImpression(adsBean, respAdBean, applyAdBean, true)) {
+                    isImpressioned = true;
+                }
+
+                //OMSDK v1.2, this must be last called, cause muti-called will cause error
+                MRAIDView v = ((BannerView)adAdapterManager.getAdView()).getMraidView();
+                if (null != v) { //仅对html格式才启用omsdk
+                    v.sendOMImpression();
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -14,7 +14,7 @@ import java.lang.reflect.Proxy;
  * Created by Administrator on 2017/3/13.
  */
 public class AdViewInstlManager extends InitSDKManager {
-    private Object object;
+    //private Object object;
 
     public final static int DISPLAYMODE_DEFAULT = 0;
     public final static int DISPLAYMODE_POPUPWINDOWS = 1;
@@ -50,11 +50,6 @@ public class AdViewInstlManager extends InitSDKManager {
         object = requestAd(INSTL_CLASS_NAME, params, objects);
     }
 
-    //widler 2019 for IAB's GDPR
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
-        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
-                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
-    }
 
     public void setHtmlSupport(int htmlSupport) {
         invoke(object, SETHTMLSUPPORT_METHOD_NAME, new Class[]{int.class}, new Object[]{htmlSupport});

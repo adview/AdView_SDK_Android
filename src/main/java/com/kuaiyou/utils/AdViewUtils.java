@@ -20,6 +20,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Criteria;
@@ -62,6 +63,10 @@ import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
+//@@{{not-for-release
+import com.google.android.gms.ads.identifier.AdvertisingIdClient;
+//import com.huawei.hms.ads.identifier.AdvertisingIdClient;
+//@@}}
 
 import com.iab.omid.library.adview.Omid;
 import com.iab.omid.library.adview.adsession.AdEvents;
@@ -132,11 +137,11 @@ public class AdViewUtils {
     ////////////////改动版本号需要同时注意以下文件  ////////////////////////////
     /////////////// vast_video_js.html ， vast_vpaid_js.html在 resources中 ////
 
-    public static int       VERSION = 420;
-    public static String    ADVIEW = "[AdView-SDK v4.2.0.rev.001]";
+    public static int       VERSION = 421;
+    public static String    ADVIEW = "[AdView-SDK v4.2.1.rev.002]";
 
     private static String   OMSDK_PARTNER_NAME = "Adview";
-    private static String   OMSDK_PARTNER_SDK_APP_VER = "4.2.0"; //最好是x.y
+    private static String   OMSDK_PARTNER_SDK_APP_VER = "4.2.1"; //最好是x.y
 
     /* -------------------------  正式线 ----------------------------------------*/
     public static String adbidAddr = "https://bid.adview.com/agent/getAd";  //正式线 server
@@ -155,6 +160,7 @@ public class AdViewUtils {
     //78629a4e-38b9-44c4-8df2-452242e3c14c , 这个gpid号是10002
     //3015ae49-a6f0-4f46-a193-cf310c3d50bc   这个gpid号是535
     //e46487ae-5536-49fb-aa9c-bba9419f213e; //tester number -> 535 chanel
+    //49822266-2488-4748-8959-921dcbbf0488  //604 channel
     public static String test_UserGPID = "";
 
     //wilder 2019 , play all video online
@@ -1416,24 +1422,6 @@ public class AdViewUtils {
         return devid;
     }
 
-    /**
-     * Manifest中的app_name：application标签下的lable名
-     */
-    public static String getAppName(Context context) {
-        String appName = null;
-        PackageInfo packInfo = null;
-        try {
-            packInfo = context.getPackageManager().getPackageInfo(
-                    context.getPackageName(), 0);
-            appName = packInfo.applicationInfo.loadLabel(
-                    context.getPackageManager()).toString();
-            appName = URLEncoder.encode(appName, "utf-8");
-        } catch (Exception e) {
-            // TODO: handle exception
-            return "";
-        }
-        return appName;
-    }
 
     /**
      * 手机SIM卡的国家代号、网络代号，对应上传字段 se ( wilder 2019 海外版无需提供）
@@ -2452,29 +2440,52 @@ public class AdViewUtils {
         HashMap<String, Object> gdprList = new HashMap<String, Object>();
         try {
             SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-            //String consentString = mPreferences.getString("IABConsent_ConsentString", "");
-            gdprList.put("IABConsent_CMPPresent", mPreferences.getBoolean("IABConsent_CMPPresent", false));
-            gdprList.put("IABConsent_ConsentString", mPreferences.getString("IABConsent_ConsentString", ""));
-            gdprList.put("IABConsent_SubjectToGDPR", mPreferences.getString("IABConsent_SubjectToGDPR", ""));
-            gdprList.put("IABConsent_ParsedPurposeConsents", mPreferences.getString("IABConsent_ParsedPurposeConsents", ""));
-            gdprList.put("IABConsent_ParsedVendorConsents", mPreferences.getString("IABConsent_ParsedVendorConsents", ""));
+            if (!mPreferences.contains("IABConsent_SubjectToGDPR")
+                    && !mPreferences.contains("IABConsent_ConsentString")
+                    && !mPreferences.contains("IABTCF_gdprApplies")
+                    && !mPreferences.contains("IABTCF_TCString"))   {
+                //没有任何配置，返回空，使用api的内容
+                return null;
+            }
+            //GDPR 1.0 选项，202006月之前仍可支持
+            int CMPPresent1 = -1;
+            String ConsentString1 = "";
+            String SubectGDPR = mPreferences.getString("IABConsent_SubjectToGDPR", "-1");
+            try {
+                CMPPresent1 = Integer.valueOf(SubectGDPR);
+            }catch (Exception e) {
+                //如果subject值非法，则忽略CMPPresent,使用content string
+                e.printStackTrace();
+            }
+            ConsentString1 = mPreferences.getString("IABConsent_ConsentString", "");
+
+            //TCF2.0, 如果有2.0参数就优先
+            int CMPPresent2 = -1;
+            String ConsentString2 = "";
+            if (!mPreferences.contains("IABTCF_gdprApplies") && !mPreferences.contains("IABTCF_TCString")) {
+                //2.0参数都不存在， 使用1.0的参数
+                CMPPresent2 = CMPPresent1;
+                ConsentString2 = ConsentString1;
+            }else {
+                //2.0有一个设置存在，就覆盖1.0的值
+                CMPPresent2 = mPreferences.getInt("IABTCF_gdprApplies", -1);
+                ConsentString2 = mPreferences.getString("IABTCF_TCString", "");
+            }
+
+            //最终赋值, -1为不定值
+            gdprList.put("IABConsent_CMPPresent", CMPPresent2);
+            gdprList.put("IABConsent_ConsentString", ConsentString2);
+
+            //以下为1.0原参数
+//            gdprList.put("IABConsent_CMPPresent", mPreferences.getBoolean("IABConsent_CMPPresent", false));
+//            gdprList.put("IABConsent_SubjectToGDPR", mPreferences.getString("IABConsent_SubjectToGDPR", ""));
+//            gdprList.put("IABConsent_ParsedPurposeConsents", mPreferences.getString("IABConsent_ParsedPurposeConsents", "")); TCF 2.0 已废弃该项
+//            gdprList.put("IABConsent_ParsedVendorConsents", mPreferences.getString("IABConsent_ParsedVendorConsents", "")); TCF 2.0 已废弃该项
         }catch(Exception e) {
             e.printStackTrace();
         }
         return gdprList;
     }
-
-//    public static String getGDPR_ConsentString(final Context context) {
-//        //Context mContext = getApplicationContext();
-//        SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-//        String consentString = mPreferences.getString("IABConsent_ConsentString", "");
-//        return consentString;
-//    }
-//    public static boolean getGDPR_CMPPresent(final Context context) {
-//        SharedPreferences mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-//        Boolean cmpPresent = mPreferences.getBoolean("IABConsent_CMPPresent", false);
-//        return cmpPresent;
-//    }
 
     //取得US-Pirvacy-User-Signal : CCPA 的值从系统设置
     public static String getCCPA_String(final Context context) {
@@ -3232,7 +3243,7 @@ public class AdViewUtils {
             return ;
         try {
             if (null != adSession /*&& !isImpressionTrigged*/) {
-                AdViewUtils.logInfo("++++++++++++++[SDK]  signalImpressionEvent ()  ++++++++++++++");
+                AdViewUtils.logInfo("++++++++++++++[SDK]  signalOMImpressionEvent ()  ++++++++++++++");
                 AdEvents adEvents = AdEvents.createAdEvents(adSession);
                 adEvents.impressionOccurred();
                 //isImpressionTrigged = true;
@@ -3381,4 +3392,115 @@ public class AdViewUtils {
         editor.apply();
         return result;
     }
+
+    //wilder 20200421 取应用程序的一些动作
+
+    /**
+     * Manifest中的app_name：application标签下的lable名
+     */
+    public static String getAppName(Context context) {
+        String appName = null;
+        PackageInfo packInfo = null;
+        try {
+            packInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            appName = packInfo.applicationInfo.loadLabel(context.getPackageManager()).toString();
+            appName = URLEncoder.encode(appName, "utf-8");
+        } catch (Exception e) {
+            // TODO: handle exception
+            e.printStackTrace();
+            return "";
+        }
+        return appName;
+    }
+
+    /**
+     * 获取应用程序名称
+     */
+//    public static synchronized String getAppName(Context context) {
+//        try {
+//            PackageManager packageManager = context.getPackageManager();
+//            PackageInfo packageInfo = packageManager.getPackageInfo(context.getPackageName(), 0);
+//            int labelRes = packageInfo.applicationInfo.labelRes;
+//            return context.getResources().getString(labelRes);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//        return null;
+//    }
+
+    /**
+     * [获取应用程序版本名称信息]
+     * @param context
+     * @return 当前应用的版本名称
+     */
+    public static synchronized String getVersionName(Context context) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packageInfo = packageManager.getPackageInfo(
+                    context.getPackageName(), 0);
+            return packageInfo.versionName;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    /**
+     * [获取应用程序版本名称信息]
+     * @param context
+     * @return 当前应用的版本名称
+     */
+    public static synchronized int getVersionCode(Context context) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packageInfo = packageManager.getPackageInfo(
+                    context.getPackageName(), 0);
+            return packageInfo.versionCode;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+
+    /**
+     * [获取应用程序版本名称信息]
+     * @param context
+     * @return 当前应用的版本名称
+     */
+    public static synchronized String getPackageName(Context context) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packageInfo = packageManager.getPackageInfo(
+                    context.getPackageName(), 0);
+            return packageInfo.packageName;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    /**
+     * 获取图标 bitmap
+     * @param context
+     */
+    public static synchronized Bitmap getBitmap(Context context) {
+        PackageManager packageManager = null;
+        ApplicationInfo applicationInfo = null;
+        try {
+            packageManager = context.getApplicationContext()
+                    .getPackageManager();
+            applicationInfo = packageManager.getApplicationInfo(
+                    context.getPackageName(), 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            applicationInfo = null;
+        }
+        Drawable d = packageManager.getApplicationIcon(applicationInfo); //xxx根据自己的情况获取drawable
+        BitmapDrawable bd = (BitmapDrawable) d;
+        Bitmap bm = bd.getBitmap();
+        return bm;
+    }
+
 }

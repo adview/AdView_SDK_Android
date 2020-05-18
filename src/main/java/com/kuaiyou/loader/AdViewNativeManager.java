@@ -16,7 +16,7 @@ import java.util.List;
  * Created by Administrator on 2017/3/13.
  */
 public class AdViewNativeManager extends InitSDKManager {
-    private Object object;
+    //private Object object;
 
     private final static String SETHTMLSUPPORT_METHOD_NAME = "setHtmlSupport";
     private final static String SETBROWSERTYPE_METHOD_NAME = "setBrowserType";
@@ -73,12 +73,6 @@ public class AdViewNativeManager extends InitSDKManager {
         }
     }
 
-
-    //widler 2019 for IAB's GDPR
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
-        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
-                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
-    }
 
     public void setAdSize(int w, int h) {
         invoke(object, SETNATIVESIZE_METHOD_NAME, new Class[]{int.class, int.class}, new Object[]{w, h});

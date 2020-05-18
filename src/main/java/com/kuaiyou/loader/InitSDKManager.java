@@ -40,6 +40,7 @@ public class InitSDKManager {
     protected final static String NATIVE_INTERFACE_NAME = "com.kuaiyou.interfaces.NativeAdCallBack";
 
     protected final static String SETGDPR_METHOD_NAME = "setGDPR"; //wilder 2019 for new IAB's GDPR
+    protected final static String SETGDPR2_METHOD_NAME = "setGDPR2"; //wilder 2019 for new IAB's GDPR
     //private static ScheduledExecutorService threadPool;
     //private MessageHandler messageHandler = null;
     private static InitSDKManager instance;
@@ -49,6 +50,7 @@ public class InitSDKManager {
     //public final static int RELEASE_VERSION = 410; //oversea version
     public final static String TAG = "SDK_LOADER";
 
+    protected Object object;
 
     private boolean isSending = false;
     private Context context;
@@ -231,6 +233,27 @@ public class InitSDKManager {
         return null;
     }
 
+    //wilder 2020 for IAB's GDPR TCF2.0
+    public void setGDPR2(int gdprApplies, String consentString) {
+        invoke(this.object, SETGDPR2_METHOD_NAME, new Class[]{int.class,String.class},
+                new Object[]{gdprApplies,consentString});
+    }
+
+    //wilder 2020 for IAB's GDPR 1.0
+    public void setGDPR(boolean cmpPresent, String subject, String consentString, String Purpose, String vendor) {
+        int gdpr = -1; //-1 means undefined
+        String constent = consentString;
+        try {
+            gdpr = Integer.valueOf(subject);
+            constent = consentString;
+
+        }catch (Exception e) {
+            //constent = "";
+            e.printStackTrace();
+        }
+        invoke(this.object, SETGDPR2_METHOD_NAME, new Class[]{int.class, String.class},
+                new Object[]{gdpr, constent});
+    }
 
     /** =======================================================================================**/
     /**

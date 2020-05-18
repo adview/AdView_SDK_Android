@@ -16,6 +16,8 @@ public interface MRAIDViewListener {
 
 	void mraidViewClose(MRAIDView mraidView);
 
+	void mraidVisibleChanged(MRAIDView mraidView, int mode); //wilder 20200508
+
 	boolean mraidViewResize(MRAIDView mraidView, int width, int height,
 								   int offsetX, int offsetY);
 

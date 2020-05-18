@@ -1,5 +1,6 @@
 package com.kuaiyou.adbid.video.adapter;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -36,9 +37,17 @@ public class AdBIDVideoAdapter extends AdAdapterManager {
 //        bdle.putBoolean("trafficWarnEnable", trafficWarnEnable);
 //        bdle.putString("bgColor", bgColor.equals("#undefine") ? "#000000" : bgColor);
 
+        if (context instanceof Activity) {
+            //wilder 20200422 for non-activity
+        } else {
+            //如果不是activity，没有这个开关将无法弹出
+            vastPlayerIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+
         vastPlayerIntent.putExtras(bundle);
         context.startActivity(vastPlayerIntent);
-        return ;
+
+        return;
     }
 
     @Override

@@ -18,7 +18,7 @@ import java.lang.reflect.Proxy;
  * Created by Administrator on 2017/3/13.
  */
 public class  AdViewSpreadManager extends InitSDKManager {
-    private Object object;
+    //private Object object;
 
     private final static String SETSPREADNOTIFYTYPE_METHOD_NAME = "setSpreadNotifyType";
 
@@ -57,11 +57,6 @@ public class  AdViewSpreadManager extends InitSDKManager {
         object = requestAd(SPREAD_CLASS_NAME, params, objects);
     }
 
-    //widler 2019 for IAB's GDPR
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
-        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
-                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
-    }
 
     public void setHtmlSupport(int htmlSupport) {
         invoke(object, SETHTMLSUPPORT_METHOD_NAME, new Class[]{int.class}, new Object[]{htmlSupport});

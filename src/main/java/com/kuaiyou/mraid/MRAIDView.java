@@ -134,7 +134,7 @@ public class MRAIDView extends RelativeLayout {
     public MRAIDNativeFeatureManager nativeFeatureManager;
 
     // listeners
-    private MRAIDViewListener listener;
+    private MRAIDViewListener viewListener;
     private MRAIDNativeFeatureListener nativeFeatureListener;
 
     // used for setting positions and sizes (all in pixels, not dpi)
@@ -202,7 +202,7 @@ public class MRAIDView extends RelativeLayout {
         //
         nativeFeatureManager = new MRAIDNativeFeatureManager(context);
 
-        this.listener = listener;
+        this.viewListener = listener;
         // this.nativeFeatureListener = nativeFeatureListener;
 
         displayMetrics = new DisplayMetrics();
@@ -377,21 +377,34 @@ public class MRAIDView extends RelativeLayout {
 
             @Override
             protected void onVisibilityChanged(View changedView, int visibility) {
+                //webview的可视状态发生了变化
                 super.onVisibilityChanged(changedView, visibility);
-                AdViewUtils.logInfo("onVisibilityChanged "
-                        + getVisibilityString(visibility));
+                AdViewUtils.logInfo("<<< onVisibilityChanged " + getVisibilityString(visibility) + " >>>");
                 if (isInterstitial) {
                     setViewable(visibility);
                 }
+                //wilder 20200508
+                int actualVisibility = getVisibility();
+                viewListener.mraidVisibleChanged(MRAIDView.this, visibility);
+//                if (viewListener != null) {
+//                    handler.post(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            viewListener.mraidVisibleChanged(MRAIDView.this, View.VISIBLE);
+//                        }
+//                    });
+//                }
             }
 
             @Override
             protected void onWindowVisibilityChanged(int visibility) {
                 super.onWindowVisibilityChanged(visibility);
                 int actualVisibility = getVisibility();
-                AdViewUtils.logInfo("onWindowVisibilityChanged "
-                        + getVisibilityString(visibility) + " (actual "
-                        + getVisibilityString(actualVisibility) + ")");
+                AdViewUtils.logInfo("<<< onWindowVisibilityChanged "
+                        + getVisibilityString(visibility)
+                        + " (actual " + getVisibilityString(actualVisibility) + ")"
+                        + " >>>");
+
                 if (isInterstitial && visibility != View.GONE) {  //wilder 2019
                     setViewable(actualVisibility);
                 }
@@ -550,8 +563,8 @@ public class MRAIDView extends RelativeLayout {
                         || (state == STATE_DEFAULT && !isInterstitial)
                         || state == STATE_HIDDEN) {
                     // do nothing
-                    if (listener != null)
-                        listener.mraidViewClose(MRAIDView.this);
+                    if (viewListener != null)
+                        viewListener.mraidViewClose(MRAIDView.this);
                     try {
                         webView.stopLoading();
                         webView.removeAllViews();
@@ -702,10 +715,10 @@ public class MRAIDView extends RelativeLayout {
     private void resize() {
         AdViewUtils.logInfo("### (JS callback :) resize ###");
         // We need the cooperation of the app in order to do a resize.
-        if (listener == null) {
+        if (viewListener == null) {
             return;
         }
-        boolean isResizeOK = listener.mraidViewResize(this,
+        boolean isResizeOK = viewListener.mraidViewResize(this,
                 resizeProperties.width, resizeProperties.height,
                 resizeProperties.offsetX, resizeProperties.offsetY);
         if (!isResizeOK) {
@@ -980,8 +993,8 @@ public class MRAIDView extends RelativeLayout {
                 @Override
                 public void run() {
                     fireStateChangeEvent();
-                    if (listener != null) {
-                        listener.mraidViewClose(MRAIDView.this);
+                    if (viewListener != null) {
+                        viewListener.mraidViewClose(MRAIDView.this);
                     }
                 }
             });
@@ -1026,8 +1039,8 @@ public class MRAIDView extends RelativeLayout {
             @Override
             public void run() {
                 fireStateChangeEvent();
-                if (listener != null) {
-                    listener.mraidViewClose(MRAIDView.this);
+                if (viewListener != null) {
+                    viewListener.mraidViewClose(MRAIDView.this);
                 }
             }
         });
@@ -1042,8 +1055,8 @@ public class MRAIDView extends RelativeLayout {
             @Override
             public void run() {
                 fireStateChangeEvent();
-                if (listener != null) {
-                    listener.mraidViewClose(MRAIDView.this);
+                if (viewListener != null) {
+                    viewListener.mraidViewClose(MRAIDView.this);
                 }
             }
         });
@@ -1457,11 +1470,11 @@ public class MRAIDView extends RelativeLayout {
                                             if (null != bitmap && !bitmap.isRecycled()) {
                                                 valid = isVaildView(getColorList(bitmap, getPixLocation(bitmap.getWidth(), bitmap.getHeight())));
                                             }
-                                            if (!valid && null != listener) {
+                                            if (!valid && null != viewListener) {
                                                 //omsdk v1.2 error
                                                 sendOMSDKErr("++ webview load error: blank page or redirect error ++");
 
-                                                listener.loadDataError(ConstantValues.MRAID_LOADERROR_BLANK);//1==自动跳转,2==白条
+                                                viewListener.loadDataError(ConstantValues.MRAID_LOADERROR_BLANK);//1==自动跳转,2==白条
                                             }
                                             if (!valid && AdViewUtils.htmlUseBlankErrorPage) {
                                                 //view.destroyDrawingCache();
@@ -1650,32 +1663,36 @@ public class MRAIDView extends RelativeLayout {
                 if (isOMJsInjected && !isImpressionTrigged) {
                     //only can be triggered once, and omsdk must be called in same thread, now is main thread
                     omsdkTimerCounts = 0;
+                    isImpressionTrigged = true;
+                    if (null != mOMSDKTimer) {
+                        mOMSDKTimer.cancel();
+                    }
+                    mOMSDKTimer = null;
+
                     new Handler(Looper.getMainLooper()).post(new Runnable() {
                         @Override
                         public void run() {
                             AdViewUtils.signalImpressionEvent(adSession);
-                            isImpressionTrigged = true;
-                            if (null != mOMSDKTimer) {
-                                mOMSDKTimer.cancel();
-                            }
-                            mOMSDKTimer = null;
                         }
                     });
                 }else {
-                    if (omsdkTimerCounts > 30) {
+                    if (omsdkTimerCounts > 10) {
                         //some time page finished not come back
                         omsdkTimerCounts = 0;
+                        isImpressionTrigged = true;
+                        if(null != mOMSDKTimer) {
+                            mOMSDKTimer.cancel();
+                        }
+                        mOMSDKTimer = null;
+
                         new Handler(Looper.getMainLooper()).post(new Runnable() {
                             @Override
                             public void run() {
                                 AdViewUtils.signalImpressionEvent(adSession);
-                                isImpressionTrigged = true;
-                                if(null != mOMSDKTimer) {
-                                    mOMSDKTimer.cancel();
-                                }
-                                mOMSDKTimer = null;
                             }
                         });
+
+
                     }else {
                         omsdkTimerCounts++;
                         AdViewUtils.logInfo("************  MRAIDView::OMImpression(): timer up    **************");
@@ -1715,9 +1732,12 @@ public class MRAIDView extends RelativeLayout {
     private void onOMSDKInjected(WebView v) {
 
         isOMJsInjected = true;
-        adSession = AdViewUtils.createOMAdSessionHTML(v);
-        if (listener != null) {
-            listener.mraidViewOMJSInjected(MRAIDView.this);
+        //if (adSession == null) {
+            //每一次加载页面都要重新生成新的adsession
+            adSession = AdViewUtils.createOMAdSessionHTML(v);
+        //}
+        if (viewListener != null) {
+            viewListener.mraidViewOMJSInjected(MRAIDView.this);
         }
     }
 
@@ -1758,8 +1778,8 @@ public class MRAIDView extends RelativeLayout {
                         }
                     }
                 }
-                if (listener != null) {
-                    listener.mraidViewLoaded(MRAIDView.this);
+                if (viewListener != null) {
+                    viewListener.mraidViewLoaded(MRAIDView.this);
                 }
             }
             if (isExpandingPart2) {
@@ -1793,8 +1813,8 @@ public class MRAIDView extends RelativeLayout {
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
             //AdViewUtils.logInfo("==== shouldInterceptRequest: " + url + "=====");
             if (url.startsWith("https://") || url.startsWith("http://")) {
-                if (null != listener)
-                    return listener.onShouldIntercept(url);
+                if (null != viewListener)
+                    return viewListener.onShouldIntercept(url);
             }
             return super.shouldInterceptRequest(view, url);
         }
@@ -1806,8 +1826,8 @@ public class MRAIDView extends RelativeLayout {
                 parseCommandUrl(url, nativeFeatureListener);
                 return true;
             } else {
-                if (null != listener)
-                    listener.onShouldOverride(url);
+                if (null != viewListener)
+                    viewListener.onShouldOverride(url);
                 return true;
             }
         }
@@ -1978,8 +1998,9 @@ public class MRAIDView extends RelativeLayout {
 
     @Override
     protected void onVisibilityChanged(View changedView, int visibility) {
+        //webview client的view可视状态发生变化
         super.onVisibilityChanged(changedView, visibility);
-        AdViewUtils.logInfo("onVisibilityChanged " + getVisibilityString(visibility));
+        AdViewUtils.logInfo("MRAIDWebViewClient() : onVisibilityChanged " + getVisibilityString(visibility));
         setViewable(visibility);
     }
 
@@ -2096,8 +2117,8 @@ public class MRAIDView extends RelativeLayout {
                     fireViewableChangeEvent();
                 }
             }
-            if (listener != null) {
-                listener.mraidViewExpand(this);
+            if (viewListener != null) {
+                viewListener.mraidViewExpand(this);
             }
         }
     }

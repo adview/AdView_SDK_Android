@@ -8,18 +8,21 @@ public class GDPRBean implements Serializable {
     * SubjectToGDPR,ConsentString,ParsedPurposeConsents,ParsedVendorConsents
     * */
     //初始默认值
-    private boolean iabCMPPresent = false;
+    private String iabCMPPresent = ""; //means uncertain
     private String iabSubjectToGDPR = "";
     private String iabConsentString = "";
     private String iabParsedPurposeConsents = "";
     private String iabParsedVendorConsents = "";
 
-    public boolean getIabCMPPresent() {
+    public String getIabCMPPresent() {
         return iabCMPPresent;
     }
-    public void setIabCMPPresent(boolean iabCMPPresent) {
-
-        this.iabCMPPresent = iabCMPPresent;
+    public void setIabCMPPresent(int iabCMPPresent) {
+        if (iabCMPPresent == 0 || iabCMPPresent == 1) {
+            this.iabCMPPresent = String.valueOf(iabCMPPresent);
+        }else {
+            this.iabCMPPresent = ""; //不合法的参数都设成未定义
+        }
     }
     public String getIabSubjectToGDPR() {
         return iabSubjectToGDPR;

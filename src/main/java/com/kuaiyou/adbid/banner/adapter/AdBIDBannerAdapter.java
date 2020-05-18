@@ -5,19 +5,26 @@ import android.os.Bundle;
 import android.view.View;
 
 import com.kuaiyou.adbid.AdAdapterManager;
+import com.kuaiyou.obj.AdsBean;
 import com.kuaiyou.utils.AdViewUtils;
 import com.kuaiyou.utils.BannerView;
 import com.kuaiyou.interfaces.AdVGListener;
 
 public class AdBIDBannerAdapter extends AdAdapterManager {
-    BannerView adBidView;
+    private BannerView adBidView;
+    private AdsBean adsBean;
+    private AdVGListener mAdVGListener = null;
+
     public AdBIDBannerAdapter() {
 
     }
 
     @Override
     public void handleAd(Context context, Bundle bundle) {
-        adBidView = new BannerView(context, bundle, (AdVGListener) bundle.getSerializable("interface"), this);
+
+        mAdVGListener = (AdVGListener)bundle.getSerializable("interface");
+        //adsBean = mAdVGListener.getAdsBean();
+        adBidView = new BannerView(context, bundle, mAdVGListener, this);
         //adBidView.setAdapterManager(this);
     }
 

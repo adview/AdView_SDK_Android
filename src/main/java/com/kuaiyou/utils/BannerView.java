@@ -61,20 +61,32 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
     //private AdVASTView2 mvastView; //wilder 2020 for surface ,from AdVASTView -> AdVASTView2
     private AdVASTView mvastView;
     private AdAdapterManager adAdapterManager;
+    private AdsBean adsBean = null;
+
+    private boolean isEmbedVideo = false; //wilder 2019
+
     public BannerView(Context context, Bundle bundle, AdVGListener adVGListener, AdAdapterManager adm) {
         super(context);
         this.adVGListener = adVGListener;
+
         int[] adSize = bundle.getIntArray("adSize");
         double density = bundle.getDouble("density");
         adAct = bundle.getInt("adAct");
         bitmapPath = bundle.getString("bitmapPath");
-        this.adWidth = adSize[0];
-        this.adHeight = adSize[1];
+
+        this.adWidth = adSize[0]; //直接取得返回的宽和高
+        this.adHeight = adSize[1];//直接取得返回的宽和高
+
+
+        adsBean = adVGListener.getAdsBean();
+        //wilder 20200422 使用返回的adsbean中的宽和高测试
+//        this.adWidth = (int)(adsBean.getAdWidth() * density);
+//        this.adHeight = (int)(adsBean.getAdHeight() * density);
+
         this.padding = (int) (this.padding * density);
         this.hasWindow = true;
         setAdapterManager(adm);
 
-//        this.isFirst=true;
         new Handler().post(new Runnable() {
             @Override
             public void run() {
@@ -153,7 +165,7 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
 
     @Override
     public boolean onTouch(View v, final MotionEvent e) {
-        final AdsBean adsBean = adVGListener.getAdsBean();
+        //final AdsBean adsBean = adVGListener.getAdsBean();
         switch (e.getAction()) {
 
             case MotionEvent.ACTION_DOWN:
@@ -196,16 +208,16 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
         private WebView webView = null;
         private ImageView imageView = null;
         private TextView title = null;
-        private AdsBean adsBean;
+        //private AdsBean adsBean;
 
-        private boolean isEmbedVideo = false; //wilder 2019
+
 
         public HandlerRunable() {
         }
 
         public void load() {
             try {
-                adsBean = adVGListener.getAdsBean();
+                //adsBean = adVGListener.getAdsBean();
                 int rand = (int) ((Math.random() * 10) % 6);
                 HashMap<String, String> colorMap = KyAdBaseView.getColorSet(rand);
 
@@ -318,8 +330,16 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
 
                 if ( null != adVGListener && !isEmbedVideo ) {
                     //if embed video, should be trigged in play finished
-                    adVGListener.onDisplay(null, true);
-
+                    //wilder 2020,此时的逻辑是只要load内容，就认为已经展示，
+                    //wilder 20200508 在此时不进行展示汇报，放到Mraidvisiblechanged()事件里面，见下
+                    if (isShown()) //wilder 20200508 如果没有显示则不发展示汇报
+                    {
+                        //对于非html格式的暂时采用老逻辑，html格式都是mraidview，见放到Mraidvisiblechanged（）
+                        if (adsBean.getAdType() == ConstantValues.RESP_ADTYPE_MIXED
+                            ||adsBean.getAdType() == ConstantValues.RESP_ADTYPE_INTERLINK) {
+                            adVGListener.onDisplay(null, true);
+                        }
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -619,6 +639,7 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
                 }
                 @Override
                 public void onVideoFinished() {
+                    //跟随产品的建议，横幅视频只在video播放结束的时候发送展示汇报
                     AdViewUtils.logInfo("====== BannerView(): onVideoFinished() ======");
                     if (null != adVGListener) {
                         adVGListener.onDisplay(null, true);
@@ -804,6 +825,17 @@ public class BannerView extends RelativeLayout implements View.OnTouchListener,
     @Override
     public boolean mraidViewResize(MRAIDView mraidView, int width, int height, int offsetX, int offsetY) {
         return false;
+    }
+
+    //wilder 20200508 for visibility changed
+    @Override
+    public void mraidVisibleChanged(MRAIDView mraidView, int mode) {
+        //webview的可视状态发生改变时发送展示汇报，在AdviewBannerView的ondisplay()中有去重处理
+        AdViewUtils.logInfo("====== BannerView(): mraidVisibleChanged( "+ mode + " ) ======");
+        if (mode == View.VISIBLE && null != adVGListener && !isEmbedVideo) {
+            //wilder 20200508 更改为仅在view状态可视的时候才发送展示汇报，ondisplay里面会去重
+            adVGListener.onDisplay(null, false);
+        }
     }
 
 }

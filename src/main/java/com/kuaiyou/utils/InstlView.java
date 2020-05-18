@@ -701,6 +701,13 @@ public class InstlView extends RelativeLayout implements View.OnTouchListener,MR
         return false;
     }
 
+    //wilder 20200508 for visibility changed
+    @Override
+    public void mraidVisibleChanged(MRAIDView mraidView, int mode) {
+        //插屏可视状态改变会到这，是否应处理隐藏的而逻辑？
+        AdViewUtils.logInfo("====== InstlView(): mraidVisibleChanged( "+ mode + " ) ======");
+    }
+
     @Override
     public void onShouldOverride(String url) {
         // 至少触摸过才可以点击跳转

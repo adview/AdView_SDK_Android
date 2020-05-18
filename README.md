@@ -9,7 +9,7 @@ Sign up for an account at [https://www.adview.com/](https://www.adview.com/).
 You can find [integration documentation](https://github.com/adview/AdView_SDK_Android/blob/master/AdView%20Android%20SDK%20Integration%20Guide-rev%204.2.0.pdf) or email [partner@adview.com](mailto:partner@adview.com) to file an issue with our team.
 
 ## New features in this Version
-  - Supports uploading ad placement id for all ad formats.
-  - Compatibility optimization for context.
+  - GDPR TCF 2.0 support.
+  - Other minor fixes.
 
 Please view the [changelog](https://github.com/adview/AdView_SDK_Android/blob/master/CHANGELOG.md) for details.

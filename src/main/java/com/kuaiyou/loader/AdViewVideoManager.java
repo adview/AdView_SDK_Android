@@ -15,7 +15,7 @@ import java.lang.reflect.Proxy;
  */
 
 public class AdViewVideoManager extends InitSDKManager {
-    private Object object;
+    //private Object object;
 
     private final static String SET_TRAFFIC_WARN_ENABLE_METHOD_NAME = "setTrafficWarnEnable";
     private final static String SET_AUTOCLOSE_METHOD_NAME = "autoCloseEnable";
@@ -84,11 +84,6 @@ public class AdViewVideoManager extends InitSDKManager {
         }
     }
 
-    //widler 2019 for IAB's GDPR
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
-        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
-                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
-    }
 
     public void setVideoBackgroundColor(String color) {
         invoke(object, SET_VIDEOBACKGROUNDCOLOR_METHOD_NAME, new Class[]{String.class}, new Object[]{color});

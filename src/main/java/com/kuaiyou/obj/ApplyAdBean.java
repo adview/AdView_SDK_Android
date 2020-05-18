@@ -259,7 +259,7 @@ public class ApplyAdBean implements Serializable {
         if (adPosId != null) {
             return adPosId;
         }else {
-            return "0";
+            return "";
         }
     }
 

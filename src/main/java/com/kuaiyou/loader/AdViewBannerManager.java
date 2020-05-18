@@ -22,7 +22,7 @@ public class AdViewBannerManager extends InitSDKManager {
     public static int BANNER_728X90 = 3;
     public static int BANNER_SMART = 5;
 
-    private Object object;
+    //private Object object;
 
     private final static String SET_HTMLSUPPORT_METHOD_NAME = "setHtmlSupport";
     private final static String SET_REFRESHTIME_METHOD_NAME = "setReFreshTime";
@@ -67,11 +67,12 @@ public class AdViewBannerManager extends InitSDKManager {
         invoke(object, SET_VIDEOMODE_METHOD_NAME, new Class[]{boolean.class}, new Object[]{enable});
 
     }
-    //wilder 2019 for IAB's GDPR
-    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
-        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
-                        new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
-    }
+
+//    //wilder 2019 for IAB's GDPR
+//    public void setGDPR(boolean cmpPresent,String subjectToGDPR, String consentString,String parsedPurposeConsents, String parsedVendorConsents) {
+//        invoke(object, SETGDPR_METHOD_NAME, new Class[]{boolean.class,String.class,String.class,String.class,String.class},
+//                new Object[]{cmpPresent,subjectToGDPR,consentString,parsedPurposeConsents,parsedVendorConsents});
+//    }
 
     //wilder 2019 for MRec
     public void playVideo(Context context) {
